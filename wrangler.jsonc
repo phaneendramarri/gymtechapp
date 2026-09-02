@@ -1,0 +1,59 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gymtech",
+  "main": "apps/api/src/worker.ts",
+  "compatibility_date": "2025-02-14",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Single Worker serves both the Hono API (/api/*) and the React SPA (/*).
+  // The Worker source (apps/api/src/app.ts) hands non-API requests off to
+  // env.ASSETS, which is bound to the Vite build output below.
+  "assets": {
+    "directory": "apps/web/dist",
+    "binding": "ASSETS"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gym-d1-prod",
+      "database_id": "46bf7b9d-0284-4f4d-b91e-2caafe5289cf",
+      "migrations_dir": "apps/api/migrations"
+    }
+  ],
+
+  // R2 binding is intentionally NOT used. Member photos, plan artwork,
+  // and other media are stored in Filebase (S3-compatible). See
+  // apps/api/src/lib/filebase.ts and media.routes.ts.
+  //
+  // To configure Filebase:
+  //   1. Create a bucket at https://filebase.com
+  //   2. Set non-secret vars below (or use `wrangler secret put` for the
+  //      access keys):
+  //        FILEBASE_ENDPOINT         — e.g. "https://s3.filebase.com"
+  //        FILEBASE_REGION           — Filebase region, e.g. "us-east-1"
+  //        FILEBASE_BUCKET           — bucket name
+  //   3. Add secrets:
+  //        wrangler secret put FILEBASE_ACCESS_KEY_ID
+  //        wrangler secret put FILEBASE_SECRET_ACCESS_KEY
+  //
+  // All object keys are tenant-namespaced as `${gymId}/${objectKey}` to
+  // guarantee per-tenant isolation.
+
+  // Non-secret vars. Secrets go to `wrangler secret put`:
+  //   JWT_SECRET, RESEND_API_KEY, TURNSTILE_SECRET_KEY,
+  //   FILEBASE_ACCESS_KEY_ID, FILEBASE_SECRET_ACCESS_KEY
+  "vars": {
+    "APP_ENV": "production",
+    "CORS_ORIGINS": "*",
+    "EMAIL_FROM": "GymTech <notifications@gymtech.app>",
+    "APP_URL": "https://gymtech.app",
+    "FILEBASE_ENDPOINT": "https://s3.filebase.com",
+    "FILEBASE_REGION": "us-east-1",
+    "FILEBASE_BUCKET": "gymtech-media"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}

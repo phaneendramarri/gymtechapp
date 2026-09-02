@@ -1,0 +1,751 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Fraunces:opsz,wght@9..144,300..800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+/* =========================================================================
+   GymTech OS — design system.
+
+   One accent (iron) used like punctuation. Monochrome ink scale. Hairline
+   borders. Generous whitespace. Typography does the work.
+
+   Type scale: a single Inter family. Tabular numerals for all stats.
+   Density: a 4px grid, but the design uses multiples of 8 for spacing.
+   ========================================================================= */
+
+@theme inline {
+  /* Surfaces & ink */
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-ink-inverse: var(--ink-inverse);
+
+  /* Accent — Iron. One color, used sparingly. */
+  --color-iron: var(--iron);
+  --color-iron-hover: var(--iron-hover);
+  --color-iron-soft: var(--iron-soft);
+  --color-iron-ink: var(--iron-ink);
+  /* Warm secondary — Clay. For warmth moments (member wins, birthdays). */
+  --color-clay: var(--clay);
+  --color-clay-soft: var(--clay-soft);
+  --color-clay-ink: var(--clay-ink);
+  /* Status — muted, never bright. */
+  --color-positive: var(--positive);
+  --color-positive-soft: var(--positive-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  /* Hairlines */
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+
+  /* shadcn / tailwind compat aliases so existing components keep working */
+  --color-background: var(--bg);
+  --color-foreground: var(--ink);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--ink);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--ink);
+  --color-primary: var(--iron);
+  --color-primary-foreground: var(--ink-inverse);
+  --color-secondary: var(--surface-2);
+  --color-secondary-foreground: var(--ink);
+  --color-muted: var(--surface-2);
+  --color-muted-foreground: var(--ink-3);
+  --color-accent: var(--surface-2);
+  --color-accent-foreground: var(--ink);
+  --color-destructive: var(--danger);
+  --color-destructive-foreground: var(--ink-inverse);
+  --color-border: var(--line);
+  --color-input: var(--line);
+  --color-ring: var(--iron);
+
+  --color-ok: var(--positive);
+  --color-ok-soft: var(--positive-soft);
+  --color-err: var(--danger);
+  --color-warn: var(--warning);
+  --color-whatsapp: var(--positive);
+  --color-risk-low: var(--positive);
+  --color-risk-med: var(--warning);
+  --color-risk-high: var(--danger);
+
+  /* Typography */
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;
+  --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-serif: "Fraunces", "Iowan Old Style", "Apple Garamond", Georgia, serif;
+
+  /* Radii — restrained, two sizes only. */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius: 8px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 20px;
+
+  /* Shadow — almost none. Hairlines do the work. */
+  --shadow-2xs: 0 1px 0 0 var(--line);
+  --shadow-xs: 0 1px 1px 0 rgba(0,0,0,0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
+  --shadow-md: 0 4px 12px -4px rgba(0,0,0,0.08);
+  --shadow-lg: 0 12px 32px -8px rgba(0,0,0,0.12);
+  --shadow-xl: 0 24px 56px -12px rgba(0,0,0,0.16);
+  --shadow-2xl: 0 32px 80px -16px rgba(0,0,0,0.24);
+  --shadow-focus: 0 0 0 3px var(--iron-soft);
+
+  /* Motion */
+  --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+}
+
+/* =========================================================================
+   Light theme — paper-white canvas, soft graphite ink, single accent.
+   ========================================================================= */
+
+:root,
+.light {
+  --bg: #FAFAF9;
+  --surface: #FFFFFF;
+  --surface-2: #F4F4F2;
+  --ink: #0A0A0A;
+  --ink-2: #3F3F46;
+  --ink-3: #71717A;
+  --ink-inverse: #FAFAFA;
+
+  --iron: #C2410C;          /* deep iron orange — single accent, calmer */
+  --iron-hover: #9A330A;
+  --iron-soft: rgba(194, 65, 12, 0.10);
+  --iron-ink: #FFFFFF;
+
+  --clay: #B45309;          /* warm clay — for "good news" moments */
+  --clay-soft: rgba(180, 83, 9, 0.10);
+  --clay-ink: #FFFFFF;
+
+  --positive: #15803D;
+  --positive-soft: rgba(21, 128, 61, 0.10);
+  --warning: #B45309;
+  --warning-soft: rgba(180, 83, 9, 0.10);
+  --danger: #B91C1C;
+  --danger-soft: rgba(185, 28, 28, 0.10);
+  --info: #1D4ED8;
+  --info-soft: rgba(29, 78, 216, 0.10);
+
+  --line: #E7E5E0;
+  --line-2: #EEECE6;
+}
+
+.dark {
+  --bg: #0B0B0A;
+  --surface: #131312;
+  --surface-2: #1B1B19;
+  --ink: #FAFAF9;
+  --ink-2: #D4D4D8;
+  --ink-3: #8A8A8E;
+  --ink-inverse: #0A0A0A;
+
+  --iron: #FB7C3F;
+  --iron-hover: #FF9163;
+  --iron-soft: rgba(251, 124, 63, 0.16);
+  --iron-ink: #0B0B0A;
+
+  --clay: #F5A85A;
+  --clay-soft: rgba(245, 168, 90, 0.16);
+  --clay-ink: #0B0B0A;
+
+  --positive: #4ADE80;
+  --positive-soft: rgba(74, 222, 128, 0.12);
+  --warning: #FBBF24;
+  --warning-soft: rgba(251, 191, 36, 0.12);
+  --danger: #F87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
+  --info: #60A5FA;
+  --info-soft: rgba(96, 165, 250, 0.12);
+
+  --line: #262624;
+  --line-2: #1F1F1D;
+}
+
+/* =========================================================================
+   Base layer — body, scrollbar, focus ring, selection.
+   ========================================================================= */
+
+@layer base {
+  * {
+    border-color: var(--line);
+  }
+
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss01", "ss03", "tnum" 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  /* Numeric stat displays are always tabular. */
+  .num, .num-tabular, table, [data-num] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  ::selection {
+    background-color: var(--iron-soft);
+    color: var(--ink);
+  }
+
+  /* Hairline scrollbar. */
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: var(--line);
+    border-radius: 999px;
+    border: 2px solid var(--bg);
+  }
+  ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+
+  /* Universal focus ring. */
+  :focus { outline: none; }
+  :focus-visible {
+    outline: 2px solid var(--iron);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+
+  /* Default input resets */
+  input, textarea, select, button { font: inherit; color: inherit; }
+  input::placeholder, textarea::placeholder { color: var(--ink-3); }
+}
+
+/* =========================================================================
+   Typography scale — used as utilities throughout the app.
+   These are the only typographic recipes the design system supports.
+   ========================================================================= */
+
+@layer components {
+  .text-display {
+    font-size: clamp(2.25rem, 4vw, 3.25rem);
+    line-height: 1.05;
+    letter-spacing: -0.025em;
+    font-weight: 600;
+  }
+  .text-h1 {
+    font-size: 1.75rem;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+    font-weight: 600;
+  }
+  .text-h2 {
+    font-size: 1.375rem;
+    line-height: 1.2;
+    letter-spacing: -0.015em;
+    font-weight: 600;
+  }
+  .text-h3 {
+    font-size: 1.0625rem;
+    line-height: 1.3;
+    letter-spacing: -0.01em;
+    font-weight: 600;
+  }
+  .text-body { font-size: 0.9375rem; line-height: 1.55; }
+  .text-meta { font-size: 0.8125rem; line-height: 1.45; color: var(--ink-3); }
+  .text-micro { font-size: 0.6875rem; line-height: 1.35; letter-spacing: 0.04em; }
+  .text-eyebrow {
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+
+  .text-stat {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1;
+  }
+  .text-stat-xl { font-size: 2.5rem; }
+  .text-stat-lg { font-size: 1.875rem; }
+  .text-stat-md { font-size: 1.375rem; }
+  .text-stat-sm { font-size: 1rem; }
+
+  /* Hairline section divider. */
+  .hairline { border-top: 1px solid var(--line); }
+  .hairline-b { border-bottom: 1px solid var(--line); }
+
+  /* Subtle row hover. */
+  .row-hover { transition: background-color 120ms var(--ease-out-soft); }
+  .row-hover:hover { background-color: var(--surface-2); }
+
+  /* "Press" button micro-interaction. */
+  .press {
+    transition: transform 80ms var(--ease-out-soft), background-color 120ms var(--ease-out-soft);
+  }
+  .press:active { transform: translateY(0.5px); }
+}
+
+/* =========================================================================
+   shadcn-style primitives the new pages use.
+   Light, hairline-bordered, no decorative shadows.
+   ========================================================================= */
+
+@layer components {
+  .gt-input {
+    width: 100%;
+    height: 36px;
+    padding: 0 10px;
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--ink);
+    font-size: 0.875rem;
+    transition: border-color 120ms var(--ease-out-soft), box-shadow 120ms var(--ease-out-soft);
+  }
+  .gt-input::placeholder { color: var(--ink-3); }
+  .gt-input:hover { border-color: var(--ink-3); }
+  .gt-input:focus,
+  .gt-input:focus-visible {
+    border-color: var(--iron);
+    box-shadow: 0 0 0 3px var(--iron-soft);
+    outline: none;
+  }
+  .gt-input:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .gt-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 12px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background-color: transparent;
+    color: var(--ink);
+    transition: background-color 120ms var(--ease-out-soft), border-color 120ms var(--ease-out-soft), color 120ms var(--ease-out-soft), transform 80ms var(--ease-out-soft);
+    white-space: nowrap;
+    user-select: none;
+  }
+  .gt-btn:active { transform: translateY(0.5px); }
+  .gt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+  .gt-btn-primary {
+    background-color: var(--iron);
+    color: var(--iron-ink);
+    border-color: var(--iron);
+  }
+  .gt-btn-primary:hover:not(:disabled) { background-color: var(--iron-hover); border-color: var(--iron-hover); }
+
+  .gt-btn-secondary {
+    background-color: var(--surface);
+    color: var(--ink);
+    border-color: var(--line);
+  }
+  .gt-btn-secondary:hover:not(:disabled) { background-color: var(--surface-2); }
+
+  .gt-btn-ghost {
+    background-color: transparent;
+    color: var(--ink-2);
+  }
+  .gt-btn-ghost:hover:not(:disabled) { background-color: var(--surface-2); color: var(--ink); }
+
+  .gt-btn-danger {
+    background-color: var(--surface);
+    color: var(--danger);
+    border-color: var(--line);
+  }
+  .gt-btn-danger:hover:not(:disabled) { background-color: var(--danger-soft); border-color: var(--danger); }
+
+  .gt-btn-icon { width: 36px; padding: 0; }
+  .gt-btn-sm { height: 28px; padding: 0 8px; font-size: 0.8125rem; border-radius: 6px; }
+  .gt-btn-icon.gt-btn-sm { width: 28px; }
+
+  .gt-card {
+    background-color: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+  }
+
+  .gt-section-label {
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+
+  .gt-divider-x { height: 1px; background-color: var(--line); width: 100%; }
+  .gt-divider-y { width: 1px; background-color: var(--line); align-self: stretch; }
+
+  /* Status dot — single, low-saturation, used like a traffic light. */
+  .gt-dot { width: 6px; height: 6px; border-radius: 999px; display: inline-block; }
+  .gt-dot-positive { background: var(--positive); box-shadow: 0 0 0 3px var(--positive-soft); }
+  .gt-dot-warning  { background: var(--warning);  box-shadow: 0 0 0 3px var(--warning-soft); }
+  .gt-dot-danger   { background: var(--danger);   box-shadow: 0 0 0 3px var(--danger-soft); }
+  .gt-dot-info     { background: var(--info);     box-shadow: 0 0 0 3px var(--info-soft); }
+  .gt-dot-muted    { background: var(--ink-3);    box-shadow: 0 0 0 3px var(--surface-2); }
+
+  /* Live "pulse" used for active check-ins etc. */
+  @keyframes gt-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+  }
+  .gt-live { animation: gt-pulse 1.8s ease-in-out infinite; }
+
+  /* Numeric value "lives" inside a box, like a fuel gauge. */
+  .gt-kpi {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .gt-kpi-label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .gt-kpi-value {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.875rem;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .gt-kpi-delta {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--ink-3);
+  }
+  .gt-kpi-delta-up { color: var(--positive); }
+  .gt-kpi-delta-down { color: var(--danger); }
+
+  /* Hairline-bordered table. */
+  .gt-table { width: 100%; border-collapse: separate; border-spacing: 0; }
+  .gt-table th {
+    text-align: left;
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-3);
+    padding: 10px 12px;
+    background-color: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    border-top: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  .gt-table td {
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--line-2);
+    font-size: 0.875rem;
+    color: var(--ink);
+    vertical-align: middle;
+  }
+  .gt-table tr:hover td { background-color: var(--surface-2); }
+  .gt-table tr:last-child td { border-bottom: none; }
+
+  /* Subtle "chip" — used like Linear's tags. */
+  .gt-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 7px;
+    font-size: 0.6875rem;
+    line-height: 1;
+    font-weight: 500;
+    letter-spacing: 0.01em;
+    border-radius: 4px;
+    background-color: var(--surface-2);
+    color: var(--ink-2);
+    border: 1px solid var(--line);
+  }
+  .gt-chip-iron  { background: var(--iron-soft);   color: var(--iron);     border-color: transparent; }
+  .gt-chip-ok    { background: var(--positive-soft); color: var(--positive); border-color: transparent; }
+  .gt-chip-warn  { background: var(--warning-soft);  color: var(--warning);  border-color: transparent; }
+  .gt-chip-danger{ background: var(--danger-soft);   color: var(--danger);   border-color: transparent; }
+  .gt-chip-info  { background: var(--info-soft);     color: var(--info);     border-color: transparent; }
+  .gt-chip-muted { background: var(--surface-2);     color: var(--ink-3);    border-color: var(--line); }
+
+  /* Sidebar */
+  .gt-nav-link {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 30px;
+    padding: 0 8px;
+    border-radius: 6px;
+    color: var(--ink-2);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    transition: background-color 120ms var(--ease-out-soft), color 120ms var(--ease-out-soft);
+    position: relative;
+  }
+  .gt-nav-link:hover { background-color: var(--surface-2); color: var(--ink); }
+  .gt-nav-link[data-active="true"] {
+    color: var(--ink);
+    background-color: var(--surface-2);
+  }
+  .gt-nav-link[data-active="true"]::before {
+    content: '';
+    position: absolute;
+    left: -1px;
+    top: 6px;
+    bottom: 6px;
+    width: 2px;
+    background-color: var(--iron);
+    border-radius: 2px;
+  }
+  .gt-nav-section { font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); font-weight: 600; padding: 16px 8px 4px; }
+
+  /* Empty state */
+  .gt-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    padding: 32px 0;
+  }
+
+  /* Skeleton block. */
+  .gt-skel {
+    background: linear-gradient(90deg, var(--surface-2) 0%, var(--line-2) 50%, var(--surface-2) 100%);
+    background-size: 200% 100%;
+    animation: gt-skel 1.4s ease-in-out infinite;
+    border-radius: 4px;
+  }
+  @keyframes gt-skel {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}
+
+/* Reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+  .gt-live { animation: none; }
+}
+/* =========================================================================
+   Marketing display recipes — used in the landing page, the dashboard hero,
+   and the login welcome. Fraunces (serif) gives a warm, premium voice that
+   Inter alone cannot reach. Used sparingly — one serif moment per screen.
+   ========================================================================= */
+
+@layer components {
+  .text-display-serif {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.025em;
+    line-height: 1.02;
+    font-size: clamp(2.5rem, 5vw, 3.75rem);
+    font-variation-settings: "opsz" 120, "SOFT" 50;
+  }
+  .text-display-serif-sm {
+    font-family: var(--font-serif);
+    font-weight: 400;
+    letter-spacing: -0.02em;
+    line-height: 1.05;
+    font-size: clamp(1.75rem, 3.5vw, 2.5rem);
+    font-variation-settings: "opsz" 60, "SOFT" 50;
+  }
+  .text-italic-accent {
+    font-family: var(--font-serif);
+    font-style: italic;
+    font-weight: 400;
+    font-variation-settings: "opsz" 144, "SOFT" 100;
+  }
+
+  /* -------------------------------------------------------------------------
+     Dashboard primitives. Light, hairline-bordered, no card-stack noise.
+     ------------------------------------------------------------------------- */
+
+  /* A "command strip" — a single dense KPI band that lives across the top of
+     the dashboard. Hairlines only, no card backgrounds. */
+  .gt-strip {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+  }
+  @media (max-width: 768px) { .gt-strip { grid-template-columns: repeat(2, 1fr); } }
+  .gt-strip-cell {
+    padding: 18px 22px;
+    border-right: 1px solid var(--line-2);
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+  .gt-strip-cell:last-child { border-right: none; }
+  @media (max-width: 768px) {
+    .gt-strip-cell:nth-child(2) { border-right: none; }
+    .gt-strip-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line-2); }
+  }
+
+  /* A focused action card — used in the "Do these 3 things today" panel on
+     the dashboard. Quiet by default, surfaces a single arrow on hover. */
+  .gt-action {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background-color: var(--surface);
+    transition: border-color 120ms var(--ease-out-soft), background-color 120ms var(--ease-out-soft);
+    text-align: left;
+    width: 100%;
+  }
+  .gt-action:hover { border-color: var(--ink-3); background-color: var(--surface); }
+  .gt-action[data-tone="primary"] { border-color: var(--iron); background-color: var(--iron-soft); }
+  .gt-action[data-tone="primary"]:hover { background-color: var(--iron-soft); border-color: var(--iron-hover); }
+  .gt-action[data-tone="warn"] { border-color: var(--warning); background-color: var(--warning-soft); }
+  .gt-action-icon {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    background-color: var(--surface-2);
+    color: var(--ink-2);
+    flex-shrink: 0;
+  }
+  .gt-action[data-tone="primary"] .gt-action-icon { background-color: var(--iron); color: var(--iron-ink); }
+  .gt-action[data-tone="warn"] .gt-action-icon { background-color: var(--warning); color: var(--ink-inverse); }
+
+  /* Live "now" badge — a small pill with a soft pulse, used in the dashboard
+     hero and the attendance page. */
+  .gt-live-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 8px 0 6px;
+    background-color: var(--positive-soft);
+    color: var(--positive);
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+  .gt-live-pill::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background-color: var(--positive);
+    border-radius: 999px;
+    animation: gt-pulse 1.8s ease-in-out infinite;
+  }
+
+  /* Member avatar — used everywhere. Soft tinted background using a hash of
+     the name so each member gets a stable, distinct color. */
+  .gt-avatar {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 999px;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    color: var(--ink);
+    background-color: var(--surface-2);
+    flex-shrink: 0;
+    user-select: none;
+  }
+  .gt-avatar[data-size="sm"] { width: 24px; height: 24px; font-size: 0.625rem; }
+  .gt-avatar[data-size="lg"] { width: 40px; height: 40px; font-size: 0.8125rem; }
+  .gt-avatar[data-size="xl"] { width: 56px; height: 56px; font-size: 1rem; }
+
+  /* "Metric tile" — for the focused right-rail metrics. */
+  .gt-metric {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .gt-metric-label {
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .gt-metric-value {
+    font-variant-numeric: tabular-nums;
+    font-size: 1.5rem;
+    line-height: 1;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    color: var(--ink);
+  }
+  .gt-metric-foot {
+    font-size: 0.75rem;
+    color: var(--ink-3);
+  }
+
+  /* Quiet section block used for the right rail. */
+  .gt-rail-block { padding: 18px 0; border-bottom: 1px solid var(--line-2); }
+  .gt-rail-block:last-child { border-bottom: none; padding-bottom: 0; }
+  .gt-rail-block:first-child { padding-top: 0; }
+
+  /* Hero "kicker" — a small uppercase tag above a page header. */
+  .gt-kicker {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.6875rem;
+    line-height: 1;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    font-weight: 600;
+    color: var(--ink-3);
+  }
+  .gt-kicker-iron { color: var(--iron); }
+
+  /* Tag list used on member/payment rows. */
+  .gt-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 22px;
+    padding: 0 8px;
+    font-size: 0.6875rem;
+    line-height: 1;
+    font-weight: 500;
+    border-radius: 4px;
+    background-color: var(--surface-2);
+    color: var(--ink-2);
+  }
+  .gt-tag[data-tone="ok"]     { background-color: var(--positive-soft); color: var(--positive); }
+  .gt-tag[data-tone="warn"]   { background-color: var(--warning-soft);  color: var(--warning); }
+  .gt-tag[data-tone="danger"] { background-color: var(--danger-soft);   color: var(--danger); }
+  .gt-tag[data-tone="info"]   { background-color: var(--info-soft);     color: var(--info); }
+  .gt-tag[data-tone="iron"]   { background-color: var(--iron-soft);     color: var(--iron); }
+}

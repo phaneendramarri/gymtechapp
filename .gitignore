@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Production & Build outputs
+dist/
+build/
+.wrangler/
+*.tsbuildinfo
+
+# Stray transpiled emits — there is no emit step in this repo
+# (tsc --noEmit everywhere; Wrangler handles bundling). Any *.js next to
+# a *.ts/*.tsx is a leftover from a previous build setup and must be deleted.
+apps/**/src/**/*.js
+apps/**/src/**/*.js.map
+apps/**/src/**/*.d.ts
+apps/**/src/**/*.d.ts.map
+packages/**/src/**/*.js
+packages/**/src/**/*.js.map
+packages/**/src/**/*.d.ts
+packages/**/src/**/*.d.ts.map
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing & Coverage
+test-results/
+playwright-report/
+blob-report/
+coverage/
+
+# Environment files
+.env
+.env.*
+!.env.example
+
+# IDE & System
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db

@@ -1,0 +1,35 @@
+{
+  "name": "@gymtech/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "main": "src/worker.ts",
+  "exports": {
+    ".": "./src/app.ts"
+  },
+  "scripts": {
+    "dev": "wrangler dev -c ../../wrangler.jsonc",
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "db:migrate:local": "wrangler d1 migrations apply gym-d1-prod --local -c ../../wrangler.jsonc",
+    "db:migrate:remote": "wrangler d1 migrations apply gym-d1-prod --remote -c ../../wrangler.jsonc",
+    "db:seed:local": "wrangler d1 execute gym-d1-prod --local --file=./seed/seed_dev.sql -c ../../wrangler.jsonc",
+    "db:schema:pull:local": "drizzle-kit pull --local",
+    "db:generate": "drizzle-kit generate"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.654.0",
+    "@aws-sdk/s3-request-presigner": "^3.654.0",
+    "@gymtech/shared": "workspace:*",
+    "drizzle-orm": "^0.45.2",
+    "hash-wasm": "^4.12.0",
+    "hono": "^4.13.5",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260902.1",
+    "drizzle-kit": "^0.31.10",
+    "typescript": "^5.7.3",
+    "wrangler": "^4.128.0"
+  }
+}
