@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { GYM_FEATURES, GYM_FEATURE_LABELS, type GymFeatureKey } from '../../packages/shared/src/constants';
-import { requireRole } from '../../apps/api/src/lib/tenant';
+import { checkRole } from '../../apps/api/src/lib/roles';
 import { extractClientInfo } from '../../apps/api/src/services/audit.service';
 import { LicenseService } from '../../apps/api/src/services/license.service';
 
@@ -39,21 +39,21 @@ describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
       const noUserCtx: any = { user: null };
 
       // Owner allowed
-      expect(requireRole(ownerCtx, ['OWNER'])).toBeNull();
-      expect(requireRole(ownerCtx, ['OWNER', 'MANAGER'])).toBeNull();
+      expect(checkRole(ownerCtx, ['OWNER'])).toBeNull();
+      expect(checkRole(ownerCtx, ['OWNER', 'MANAGER'])).toBeNull();
 
       // Manager blocked from owner-only actions (reports, staff management)
-      const managerErr = requireRole(managerCtx, ['OWNER']);
+      const managerErr = checkRole(managerCtx, ['OWNER']);
       expect(managerErr).not.toBeNull();
       expect(managerErr?.status).toBe(403);
 
       // Staff blocked from managerial actions
-      const staffErr = requireRole(staffCtx, ['OWNER', 'MANAGER']);
+      const staffErr = checkRole(staffCtx, ['OWNER', 'MANAGER']);
       expect(staffErr).not.toBeNull();
       expect(staffErr?.status).toBe(403);
 
       // Unauthenticated context blocked
-      const authErr = requireRole(noUserCtx, ['OWNER']);
+      const authErr = checkRole(noUserCtx, ['OWNER']);
       expect(authErr).not.toBeNull();
       expect(authErr?.status).toBe(401);
     });

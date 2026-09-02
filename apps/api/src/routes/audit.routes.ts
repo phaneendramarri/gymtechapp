@@ -1,24 +1,19 @@
-import type { NativeRouter } from '../router/router';
-import { json } from '../lib/response';
-import { requireGym, requireRole } from '../lib/tenant';
+// filepath: apps/api/src/routes/audit.routes.ts
+import { Hono } from 'hono';
+import { requireGym, requireRole } from '../middleware/auth';
+import { getCtx } from '../middleware/context';
+import { safeHandler } from '../middleware/params';
 import { AuditService } from '../services/audit.service';
+import { jsonOk } from './helpers';
 
-export function registerAuditRoutes(router: NativeRouter): void {
-  // Gym Owner audit log trail
-  router.get('/api/audit-logs', async (req, ctx) => {
-    const tenant = await requireGym(req, ctx);
-    if (tenant instanceof Response) return tenant;
+export const auditRoutes = new Hono();
 
-    const roleErr = requireRole(ctx, ['OWNER']);
-    if (roleErr) return roleErr;
-
-    const limit = parseInt(ctx.query.get('limit') || '50', 10);
-    const offset = parseInt(ctx.query.get('offset') || '0', 10);
-    const action = ctx.query.get('action') || undefined;
-    const entityType = ctx.query.get('entityType') || undefined;
-
-    const auditService = new AuditService(ctx.env.DB);
-    const res = await auditService.listGymEvents(ctx.gymId!, { limit, offset, action, entityType });
-    return json(res);
-  });
-}
+auditRoutes.get('/', requireGym, requireRole('OWNER'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const limit = parseInt(c.req.query('limit') || '50', 10);
+  const offset = parseInt(c.req.query('offset') || '0', 10);
+  const action = c.req.query('action') || undefined;
+  const entityType = c.req.query('entityType') || undefined;
+  const auditService = new AuditService(ctx.env.DB);
+  return jsonOk(await auditService.listGymEvents(ctx.gymId!, { limit, offset, action, entityType }));
+}));

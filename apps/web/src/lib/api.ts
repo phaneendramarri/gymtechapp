@@ -40,8 +40,11 @@ import {
   SendNotificationRequest,
 } from '@gymtech/shared';
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL || 'https://gymtech-api.ap-fitapp.workers.dev';
+// The Hono API is served from the same origin as the SPA (single Cloudflare
+// Worker). Leave the base empty so all `/api/*` calls go to the same host.
+// In dev, Vite's proxy or `wrangler dev` handles the routing. Override via
+// `VITE_API_BASE_URL` only when explicitly needed.
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
 
 class ApiClient {
   private getToken(): string | null {
@@ -74,7 +77,7 @@ class ApiClient {
       }
     }
 
-    const data = await res.json().catch(() => ({}));
+    const data: any = await res.json().catch(() => ({}));
 
     if (!res.ok) {
       throw new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
@@ -286,7 +289,7 @@ class ApiClient {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
     });
     if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
+      const data: any = await res.json().catch(() => ({}));
       throw new Error(data.error || `Export failed (HTTP ${res.status})`);
     }
     const blob = await res.blob();

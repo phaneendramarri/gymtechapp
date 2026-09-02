@@ -10,6 +10,17 @@ import {
   DashboardMetrics,
 } from './types';
 
+/**
+ * Typed RPC client type is now derived in the web app directly:
+ *
+ *   import { hc } from 'hono/client';
+ *   import type { AppType } from '@gymtech/api/app';
+ *   const client = hc<AppType>(baseUrl);
+ *
+ * Keeping `@gymtech/shared` free of API imports avoids a cyclic workspace
+ * dependency (shared → api → shared).
+ */
+
 // ==========================================
 // 1. AUTH CONTRACTS
 // ==========================================

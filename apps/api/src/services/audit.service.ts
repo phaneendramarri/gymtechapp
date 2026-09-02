@@ -6,7 +6,9 @@
  */
 
 import type { AuditEvent, SaasAuditEvent } from '@gymtech/shared';
-import type { RequestContext } from '../router/router';
+import type { RequestContext } from '../middleware/context';
+export type { RequestContext } from '../middleware/context';
+export type AuditEventInput = GymAuditInput;
 
 export interface GymAuditInput {
   gymId: number;
@@ -44,6 +46,70 @@ export function extractClientInfo(req: Request): { ip: string; userAgent: string
     '127.0.0.1';
   const userAgent = req.headers.get('user-agent') || 'Unknown Client';
   return { ip, userAgent };
+}
+
+/**
+ * Record a gym-scoped audit event from inside a Hono route handler.
+ * Reads actor + gymId off the Hono context and never throws.
+ */
+export async function auditGymFromCtx(
+  c: any,
+  action: string,
+  entityType: string,
+  entityId: number | null,
+  details: { before?: unknown; after?: unknown; metadata?: unknown } = {}
+): Promise<void> {
+  const ctx = c.get ? c.get('ctx' as never) as { gymId?: number; user?: { id: number; role: string } | null } : null;
+  if (!ctx?.gymId) return;
+  const client = extractClientInfo(c.req.raw);
+  try {
+    await new AuditService(c.env.DB).recordGymEvent({
+      gymId: ctx.gymId,
+      actorUserId: ctx.user?.id ?? null,
+      actorRole: ctx.user?.role ?? null,
+      action,
+      entityType,
+      entityId,
+      beforeState: details.before,
+      afterState: details.after,
+      metadata: details.metadata,
+      ip: client.ip,
+      userAgent: client.userAgent,
+    });
+  } catch (e) {
+    console.warn('auditGym failed:', (e as Error).message);
+  }
+}
+
+/**
+ * Record a platform-scoped (SaaS) audit event from inside an admin route.
+ */
+export async function auditSaasFromCtx(
+  c: any,
+  action: string,
+  affectedGymId: number | null,
+  entityType?: string,
+  entityId?: number | null,
+  details: { before?: unknown; after?: unknown } = {}
+): Promise<void> {
+  const ctx = c.get ? c.get('ctx' as never) as { user?: { id: number } | null } : null;
+  if (!ctx?.user) return;
+  const client = extractClientInfo(c.req.raw);
+  try {
+    await new AuditService(c.env.DB).recordSaasEvent({
+      actorAdminId: ctx.user.id,
+      affectedGymId,
+      action,
+      entityType,
+      entityId,
+      beforeState: details.before,
+      afterState: details.after,
+      ip: client.ip,
+      userAgent: client.userAgent,
+    });
+  } catch (e) {
+    console.warn('auditSaas failed:', (e as Error).message);
+  }
 }
 
 export class AuditService {

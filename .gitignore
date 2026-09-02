@@ -7,10 +7,18 @@ dist/
 build/
 .wrangler/
 *.tsbuildinfo
-packages/shared/src/**/*.js
-packages/shared/src/**/*.js.map
-packages/shared/src/**/*.d.ts
-packages/shared/src/**/*.d.ts.map
+
+# Stray transpiled emits — there is no emit step in this repo
+# (tsc --noEmit everywhere; Wrangler handles bundling). Any *.js next to
+# a *.ts/*.tsx is a leftover from a previous build setup and must be deleted.
+apps/**/src/**/*.js
+apps/**/src/**/*.js.map
+apps/**/src/**/*.d.ts
+apps/**/src/**/*.d.ts.map
+packages/**/src/**/*.js
+packages/**/src/**/*.js.map
+packages/**/src/**/*.d.ts
+packages/**/src/**/*.d.ts.map
 
 # Logs
 logs/

@@ -4,22 +4,34 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "pnpm --parallel --filter \"@gymtech/*\" dev",
+    "dev": "pnpm --filter @gymtech/shared build && concurrently -k -n web,api -c blue,magenta \"pnpm --filter @gymtech/web dev\" \"pnpm --filter @gymtech/api dev\"",
     "dev:web": "pnpm --filter @gymtech/web dev",
     "dev:api": "pnpm --filter @gymtech/api dev",
-    "build": "pnpm --filter @gymtech/shared build && pnpm --filter @gymtech/api build && pnpm --filter @gymtech/web build",
+    "build": "pnpm --filter @gymtech/shared build && pnpm --filter @gymtech/web build && pnpm --filter @gymtech/api build",
     "build:web": "pnpm --filter @gymtech/shared build && pnpm --filter @gymtech/web build",
     "build:api": "pnpm --filter @gymtech/shared build && pnpm --filter @gymtech/api build",
     "typecheck": "pnpm --recursive run typecheck",
+    "lint": "pnpm -r --if-present run lint",
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:migrate:local": "pnpm --filter @gymtech/api db:migrate:local",
-    "db:seed:local": "pnpm --filter @gymtech/api db:seed:local"
+    "db:seed:local": "pnpm --filter @gymtech/api db:seed:local",
+    "db:schema:pull:local": "pnpm --filter @gymtech/api db:schema:pull:local",
+    "deploy": "pnpm build && wrangler deploy",
+    "preview": "pnpm build && wrangler dev"
   },
   "devDependencies": {
+    "@playwright/test": "^1.62.1",
     "@types/node": "^22.13.1",
+    "concurrently": "^9.2.4",
     "typescript": "^5.7.3",
-    "vitest": "^3.0.7",
-    "@playwright/test": "^1.50.1"
+    "vitest": "^4.1.11"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "workerd",
+      "better-sqlite3"
+    ]
   }
 }

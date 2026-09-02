@@ -1,0 +1,47 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "gymtech",
+  "main": "apps/api/src/worker.ts",
+  "compatibility_date": "2025-02-14",
+  "compatibility_flags": ["nodejs_compat"],
+
+  // Single Worker serves both the Hono API (/api/*) and the React SPA (/*).
+  // The Worker source (apps/api/src/app.ts) hands non-API requests off to
+  // env.ASSETS, which is bound to the Vite build output below.
+  "assets": {
+    "directory": "apps/web/dist",
+    "binding": "ASSETS"
+  },
+
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gym-d1-prod",
+      "database_id": "46bf7b9d-0284-4f4d-b91e-2caafe5289cf",
+      "migrations_dir": "apps/api/migrations"
+    }
+  ],
+
+  // R2 binding for member photos / media uploads. Optional in dev — the API
+  // gracefully degrades when MEDIA_BUCKET is absent (see media.routes.ts).
+  // To enable: create the bucket and add the binding below.
+  // "r2_buckets": [
+  //   {
+  //     "binding": "MEDIA_BUCKET",
+  //     "bucket_name": "gymtech-media"
+  //   }
+  // ],
+
+  // Non-secret vars. Move secrets to `wrangler secret put <NAME>`:
+  //   JWT_SECRET, RESEND_API_KEY, TURNSTILE_SECRET_KEY
+  "vars": {
+    "APP_ENV": "production",
+    "CORS_ORIGINS": "*",
+    "EMAIL_FROM": "GymTech <notifications@gymtech.app>",
+    "APP_URL": "https://gymtech.app"
+  },
+
+  "observability": {
+    "enabled": true
+  }
+}
