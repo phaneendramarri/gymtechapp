@@ -46,7 +46,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       className={
         'flex flex-col items-center justify-center text-center ' +
         (bordered
-          ? 'rounded-lg border border-dashed border-[var(--line)] px-6 py-10 sm:py-12 bg-[var(--surface)] '
+          ? 'rounded-lg border border-dashed border-(--line) px-6 py-10 sm:py-12 bg-surface '
           : 'px-2 py-10 ') +
         className
       }
@@ -54,7 +54,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
       {illustration ? (
         <div className="mb-4 w-40 sm:w-48">{illustration}</div>
       ) : (
-        <div className="size-12 rounded-full bg-[var(--surface-2)] text-ink-3 flex items-center justify-center mb-4">
+        <div className="size-12 rounded-full bg-surface-2 text-ink-3 flex items-center justify-center mb-4">
           <Icon className="size-5" strokeWidth={1.5} />
         </div>
       )}

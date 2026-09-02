@@ -43,7 +43,7 @@ export const UserMenu: React.FC = () => {
         <DropdownMenuSeparator />
         {user?.role === 'PLATFORM_ADMIN' && (
           <DropdownMenuItem asChild className="rounded-xs cursor-pointer">
-            <a href="#/admin" className="flex items-center gap-2">
+            <a href="/admin" className="flex items-center gap-2">
               <Shield className="size-4 text-muted-foreground" />
               <span>Platform Admin</span>
             </a>

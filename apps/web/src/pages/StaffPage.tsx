@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, AlertCircle } from 'lucide-react';
+import { Plus, AlertCircle, Users } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
@@ -76,7 +77,7 @@ export const StaffPage: React.FC = () => {
       description="Owners, managers, front-desk, trainers. One console, four roles."
       actions={
         canManage && (
-          <Button size="sm" className="gt-btn-primary" onClick={() => setDialogOpen(true)}>
+          <Button variant="default" size="sm" onClick={() => setDialogOpen(true)}>
             <Plus className="h-3.5 w-3.5" /> Add member
           </Button>
         )
@@ -89,17 +90,18 @@ export const StaffPage: React.FC = () => {
           ))}
         </div>
       ) : staff.length === 0 ? (
-        <div className="gt-empty py-16">
-          <p className="text-h2 text-ink">No teammates yet.</p>
-          <p className="text-meta max-w-md">
-            Invite your front desk, managers, and trainers — each gets a role and a sign-in.
-          </p>
-          {canManage && (
-            <Button className="gt-btn-primary mt-3" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Add first teammate
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          icon={Users}
+          title="No teammates yet."
+          description="Invite your front desk, managers, and trainers — each gets a role and a sign-in."
+          action={
+            canManage ? (
+              <Button variant="default" onClick={() => setDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5" /> Add first teammate
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-8">
           {(['OWNER', 'MANAGER', 'TRAINER', 'STAFF'] as const).map((group) =>
@@ -113,9 +115,9 @@ export const StaffPage: React.FC = () => {
                   {groups[group].map((s: any) => (
                     <li
                       key={s.id}
-                      className="flex items-center gap-3 p-3 rounded-md border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--ink-3)] transition-colors"
+                      className="flex items-center gap-3 p-3 rounded-md border border-(--line) bg-(--surface) hover:border-(--ink-3) transition-colors"
                     >
-                      <div className="h-9 w-9 rounded-full bg-[var(--surface-2)] text-ink-2 flex items-center justify-center text-sm font-semibold shrink-0">
+                      <div className="h-9 w-9 rounded-full bg-(--surface-2) text-ink-2 flex items-center justify-center text-sm font-semibold shrink-0">
                         {(s.name?.[0] || '·').toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -215,7 +217,7 @@ export const StaffPage: React.FC = () => {
               <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="gt-btn-primary" disabled={isSubmitting}>
+              <Button type="submit" variant="default" size="sm" disabled={isSubmitting}>
                 {isSubmitting ? 'Adding…' : 'Add teammate'}
               </Button>
             </DialogFooter>

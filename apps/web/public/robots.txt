@@ -1,0 +1,17 @@
+User-agent: *
+Allow: /
+
+# Auth-gated app routes should not be indexed
+Disallow: /dashboard
+Disallow: /members
+Disallow: /attendance
+Disallow: /payments
+Disallow: /plans
+Disallow: /staff
+Disallow: /reports
+Disallow: /admin
+Disallow: /settings
+Disallow: /pt-collections
+Disallow: /audit-logs
+
+Sitemap: https://gymtech.in/sitemap.xml

@@ -65,7 +65,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     queryClient.clear();
     setUser(null);
     setGym(null);
-    window.location.hash = '#/login';
+    window.location.hash = '/login';
   };
 
   return (

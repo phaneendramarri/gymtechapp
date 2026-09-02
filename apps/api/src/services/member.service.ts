@@ -1,3 +1,4 @@
+// filepath: apps/api/src/services/member.service.ts
 import { MemberRepository } from '../repositories/member.repository';
 import { MembershipRepository } from '../repositories/membership.repository';
 import { PlanRepository } from '../repositories/plan.repository';
@@ -10,6 +11,7 @@ import {
   calculateMembershipEndDate,
   isWithinLicenseLimit,
 } from '../lib/calculations';
+import { encryptFaceEmbedding, decryptFaceEmbedding } from '../lib/crypto';
 import type {
   Member,
   Membership,
@@ -26,12 +28,14 @@ export class MemberService {
   private paymentRepo: PaymentRepository;
   private attendanceRepo: AttendanceRepository;
   private audit: AuditService;
+  private env: Record<string, string | undefined>;
 
   constructor(
     private db: D1Database,
     private gymId: number,
     private userId: number,
-    private gymName: string = 'Our Gym'
+    private gymName: string = 'Our Gym',
+    env?: Record<string, string | undefined>
   ) {
     this.memberRepo = new MemberRepository(db, gymId);
     this.membershipRepo = new MembershipRepository(db, gymId);
@@ -39,6 +43,7 @@ export class MemberService {
     this.paymentRepo = new PaymentRepository(db, gymId);
     this.attendanceRepo = new AttendanceRepository(db, gymId);
     this.audit = new AuditService(db);
+    this.env = env ?? {};
   }
 
   async createMemberWithPlan(data: {
@@ -268,12 +273,28 @@ export class MemberService {
     const member = await this.memberRepo.findById(memberId);
     if (!member) throw new Error('Member not found');
 
+    // Phase 4.2: decrypt face embedding before returning to client
+    let decryptedFaceEmbedding: string | null = null;
+    if (member.face_embedding && this.env.FACE_EMBEDDING_KEY) {
+      try {
+        decryptedFaceEmbedding = await decryptFaceEmbedding(member.face_embedding, this.env);
+      } catch {
+        // If decryption fails (e.g. legacy unencrypted data), return as-is
+        decryptedFaceEmbedding = member.face_embedding;
+      }
+    }
+
     const [memberships, payments, attendance] = await Promise.all([
       this.membershipRepo.findByMemberId(memberId),
       this.paymentRepo.list({ memberId, limit: 20 }),
       this.attendanceRepo.listByMember(memberId, 30),
     ]);
     const activeMembership = memberships.find((m) => m.status === 'ACTIVE') || null;
-    return { member, activeMembership, memberships, payments, attendance };
+    // Return member with decrypted face embedding, but only include if gym has biometric feature
+    const { face_embedding: _ignored, ...memberWithoutFace } = member;
+    return {
+      member: { ...memberWithoutFace, faceEmbedding: decryptedFaceEmbedding },
+      activeMembership, memberships, payments, attendance,
+    };
   }
 }

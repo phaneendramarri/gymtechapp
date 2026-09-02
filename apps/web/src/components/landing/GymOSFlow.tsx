@@ -28,7 +28,7 @@ const NODES: NodeDef[] = [
 
 export const GymOSFlow: React.FC = () => {
   return (
-    <section id="product" className="py-24 sm:py-32 border-t border-[var(--line)] bg-[var(--surface)]">
+    <section id="product" className="py-24 sm:py-32 border-t border-(--line) bg-(--surface)">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div {...fadeUp(0)} className="max-w-2xl mx-auto text-center mb-14">
           <p className="gt-kicker">One software, end to end</p>
@@ -48,14 +48,16 @@ export const GymOSFlow: React.FC = () => {
               <motion.div
                 key={node.id}
                 {...fadeUp(idx * 0.05)}
-                className="relative bg-[var(--bg)] border border-[var(--line)] rounded-xl p-5 hover:border-[var(--ink-3)] transition-colors"
+                className="group relative bg-(--surface) border border-(--line) rounded-xl p-5 hover:border-(--iron)/30 hover:shadow-sm transition-all duration-200"
               >
+                {/* Step badge — top right corner */}
+                <span className="absolute top-3 right-3 text-[10px] font-mono text-ink-3/50">
+                  {String(idx + 1).padStart(2, '0')}
+                </span>
+
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="size-9 rounded-lg bg-[var(--iron-soft)] text-[var(--iron)] flex items-center justify-center shrink-0">
+                  <span className="size-9 rounded-lg bg-(--iron-soft) text-(--iron) flex items-center justify-center shrink-0">
                     <Icon className="size-4" strokeWidth={1.5} />
-                  </span>
-                  <span className="text-[10px] font-mono uppercase tracking-wider text-ink-3">
-                    Step {String(idx + 1).padStart(2, '0')}
                   </span>
                 </div>
                 <h3 className="text-sm font-semibold text-ink">{node.label}</h3>
@@ -65,7 +67,7 @@ export const GymOSFlow: React.FC = () => {
                 </div>
                 <p className="text-[12px] text-ink-3 mt-3 leading-relaxed">{node.description}</p>
                 {idx < NODES.length - 1 && (
-                  <ArrowRight className="hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 size-4 text-ink-3 z-10" />
+                  <ArrowRight className="hidden lg:block absolute -right-2 top-1/2 -translate-y-1/2 size-4 text-ink-3/40 group-hover:text-(--iron)/60 transition-colors z-10" />
                 )}
               </motion.div>
             );

@@ -73,7 +73,7 @@ export const MemberDetailPage: React.FC = () => {
   if (error || !data) {
     return (
       <AppShell title="Member not found" breadcrumb="Members">
-        <div className="p-6 rounded-md border border-[var(--danger)]/30 bg-[var(--danger-soft)] text-[var(--danger)] text-sm">
+        <div className="p-6 rounded-md border border-(--danger)/30 bg-danger-soft text-(--danger) text-sm">
           We couldn't find this member. They may have been deleted.
         </div>
       </AppShell>
@@ -140,7 +140,7 @@ export const MemberDetailPage: React.FC = () => {
   return (
     <AppShell
       breadcrumb={[
-        { label: 'Members', href: '#/members' },
+        { label: 'Members', href: '/members' },
         { label: fullName },
       ]}
       title={fullName}
@@ -183,7 +183,7 @@ export const MemberDetailPage: React.FC = () => {
           {/* Identity card */}
           <section>
             <div className="flex items-start gap-4">
-              <div className="h-16 w-16 rounded-md bg-[var(--surface-2)] text-ink flex items-center justify-center text-lg font-semibold shrink-0 overflow-hidden">
+              <div className="h-16 w-16 rounded-md bg-surface-2 text-ink flex items-center justify-center text-lg font-semibold shrink-0 overflow-hidden">
                 {member.photo_url ? (
                   <img src={member.photo_url} alt={fullName} className="h-full w-full object-cover" />
                 ) : (
@@ -310,7 +310,7 @@ export const MemberDetailPage: React.FC = () => {
             {memberships.length === 0 ? (
               <p className="text-meta">No memberships yet.</p>
             ) : (
-              <ul className="divide-y divide-[var(--line-2)]">
+              <ul className="divide-y divide-line-2">
                 {memberships.map((m: any) => (
                   <li key={m.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-4 py-3">
                     <div className="min-w-0">
@@ -342,7 +342,7 @@ export const MemberDetailPage: React.FC = () => {
         {/* RIGHT — payments + attendance */}
         <aside className="flex flex-col gap-10 min-w-0">
           <section>
-            <SectionHeader eyebrow="Ledger" title="Payments" count={payments.length} link={{ label: 'All', href: '#/payments' }} />
+            <SectionHeader eyebrow="Ledger" title="Payments" count={payments.length} link={{ label: 'All', href: '/payments' }} />
             {payments.length === 0 ? (
               <p className="text-meta">No payments yet.</p>
             ) : (
@@ -350,7 +350,7 @@ export const MemberDetailPage: React.FC = () => {
                 {payments.slice(0, 8).map((p: any) => (
                   <li
                     key={p.id}
-                    className="grid grid-cols-[1fr_auto] items-center gap-3 py-3 border-t border-[var(--line-2)] first:border-t-0"
+                    className="grid grid-cols-[1fr_auto] items-center gap-3 py-3 border-t border-(--line-2) first:border-t-0"
                   >
                     <div className="min-w-0">
                       <p className="text-sm num text-ink">{formatCurrency(p.amount_paise)}</p>
@@ -367,7 +367,7 @@ export const MemberDetailPage: React.FC = () => {
           </section>
 
           <section>
-            <SectionHeader eyebrow="Activity" title="Recent check-ins" count={attendance.length} link={{ label: 'Floor', href: '#/attendance' }} />
+            <SectionHeader eyebrow="Activity" title="Recent check-ins" count={attendance.length} link={{ label: 'Floor', href: '/attendance' }} />
             {attendance.length === 0 ? (
               <p className="text-meta">No check-ins recorded.</p>
             ) : (
@@ -375,7 +375,7 @@ export const MemberDetailPage: React.FC = () => {
                 {attendance.slice(0, 8).map((a: any) => (
                   <li
                     key={a.id}
-                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-3 border-t border-[var(--line-2)] first:border-t-0"
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-3 border-t border-(--line-2) first:border-t-0"
                   >
                     <span className="gt-dot gt-dot-positive h-1.5 w-1.5" />
                     <div className="min-w-0">
@@ -455,8 +455,8 @@ const StatCell: React.FC<{
     <p
       className={cn(
         'text-stat-md mt-1.5 num',
-        tone === 'ok' && 'text-[var(--positive)]',
-        tone === 'warn' && 'text-[var(--warning)]'
+        tone === 'ok' && 'text-(--positive)',
+        tone === 'warn' && 'text-(--warning)'
       )}
     >
       {value}
@@ -474,7 +474,7 @@ const DetailRow: React.FC<{
     {icon && <span className="mt-0.5 text-ink-3">{icon}</span>}
     <div className="min-w-0 flex-1">
       <p className="text-eyebrow">{label}</p>
-      <p className="text-sm text-ink mt-1 break-words">{value}</p>
+      <p className="text-sm text-ink mt-1 wrap-break-word">{value}</p>
     </div>
   </div>
 );

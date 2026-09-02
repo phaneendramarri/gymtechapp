@@ -36,7 +36,7 @@ export const Logo: React.FC<LogoProps> = ({
   return (
     <div className={`inline-flex items-center gap-2.5 select-none ${className}`}>
       <span
-        className={`${iconSizes[size]} relative inline-flex items-center justify-center rounded-[10px] bg-[var(--iron)] text-[var(--iron-ink)] overflow-hidden shrink-0`}
+        className={`${iconSizes[size]} relative inline-flex items-center justify-center rounded-lg bg-iron text-iron-ink overflow-hidden shrink-0`}
         aria-hidden="true"
       >
         <svg
@@ -54,7 +54,7 @@ export const Logo: React.FC<LogoProps> = ({
 
       {showText && (
         <span
-          className={`font-display font-semibold tracking-tight text-[var(--ink)] ${textSizes[size]} leading-none`}
+          className={`font-display font-semibold tracking-tight text-(--ink) ${textSizes[size]} leading-none`}
         >
           GymTech
         </span>

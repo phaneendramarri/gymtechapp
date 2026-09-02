@@ -68,13 +68,13 @@ export const MembersPage: React.FC = () => {
               variant="outline"
               size="sm"
               onClick={() => setIsMigrationOpen(true)}
-              className="border-[var(--line)]"
+              className="border-(--line)"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" /> Import from Excel
             </Button>
           )}
           {canAddMember && (
-            <Button asChild size="sm" className="bg-[var(--ink)] text-[var(--ink-inverse)] hover:bg-[var(--ink-2)] border-[var(--ink)]">
+            <Button asChild size="sm" className="bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink)">
               <Link to="/members/new">
                 <Plus className="h-3.5 w-3.5" /> Add member
               </Link>
@@ -86,7 +86,7 @@ export const MembersPage: React.FC = () => {
       <ExcelMigrationDialog open={isMigrationOpen} onOpenChange={setIsMigrationOpen} />
 
       {/* STATUS SUMMARY — five small tiles, hairline-bordered, no card stack */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-0 border-t border-b border-[var(--line)] mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-0 border-t border-b border-(--line) mb-8">
         <SummaryCell label="Total" value={summary.total} active={statusFilter === 'ALL'} onClick={() => setStatusFilter('ALL')} />
         <SummaryCell label="Active" value={summary.active} active={statusFilter === 'ACTIVE'} onClick={() => setStatusFilter('ACTIVE')} tone="ok" />
         <SummaryCell label="Ending soon" value={summary.expiring} active={statusFilter === 'EXPIRING'} onClick={() => setStatusFilter('EXPIRING')} tone="warn" hint="in 7 days" />
@@ -103,10 +103,10 @@ export const MembersPage: React.FC = () => {
               key={t.key}
               onClick={() => setStatusFilter(t.key)}
               className={cn(
-                'h-8 px-3 rounded-md text-xs font-medium transition-colors',
+                'h-9 px-3 rounded-md text-xs font-medium transition-colors',
                 statusFilter === t.key
-                  ? 'bg-[var(--ink)] text-[var(--ink-inverse)]'
-                  : 'text-ink-2 hover:text-ink hover:bg-[var(--surface-2)]'
+                  ? 'bg-(--ink) text-(--ink-inverse)'
+                  : 'text-ink-2 hover:text-ink hover:bg-(--surface-2)'
               )}
             >
               {t.label}
@@ -125,7 +125,7 @@ export const MembersPage: React.FC = () => {
           {search && (
             <button
               onClick={() => setSearch('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded text-ink-3 hover:text-ink hover:bg-[var(--surface-2)] flex items-center justify-center"
+              className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 rounded text-ink-3 hover:text-ink hover:bg-(--surface-2) flex items-center justify-center"
               aria-label="Clear search"
             >
               <X className="h-3 w-3" />
@@ -143,7 +143,7 @@ export const MembersPage: React.FC = () => {
           {members.length === 1 ? 'member' : 'members'}
           {isFetching && !isLoading && <span className="text-ink-3 ml-2">· syncing</span>}
         </p>
-        <p className="text-[11px] text-ink-3">Sorted by most recent</p>
+        <p className="text-meta">Sorted by most recent</p>
       </div>
 
       {/* Table */}
@@ -163,20 +163,20 @@ const SummaryCell: React.FC<{
   <button
     onClick={onClick}
     className={cn(
-      'text-left py-4 px-5 border-r border-[var(--line-2)] last:border-r-0 transition-colors',
-      active ? 'bg-[var(--surface-2)]' : 'hover:bg-[var(--surface-2)]/50'
+      'text-left py-4 px-5 border-r border-line-2 last:border-r-0 transition-colors',
+      active ? 'bg-(--surface-2)' : 'hover:bg-(--surface-2)/50'
     )}
   >
     <p className="text-eyebrow flex items-center gap-1.5">
-      {tone === 'ok' && <span className="size-1.5 rounded-full bg-[var(--positive)]" />}
-      {tone === 'warn' && <span className="size-1.5 rounded-full bg-[var(--warning)]" />}
-      {tone === 'danger' && <span className="size-1.5 rounded-full bg-[var(--danger)]" />}
+      {tone === 'ok' && <span className="size-1.5 rounded-full bg-(--positive)" />}
+      {tone === 'warn' && <span className="size-1.5 rounded-full bg-(--warning)" />}
+      {tone === 'danger' && <span className="size-1.5 rounded-full bg-(--danger)" />}
       {label}
     </p>
     <p className={cn(
       'text-stat-md text-ink num mt-1.5',
-      tone === 'warn' && value > 0 && 'text-[var(--warning)]',
-      tone === 'danger' && value > 0 && 'text-[var(--danger)]',
+      tone === 'warn' && value > 0 && 'text-(--warning)',
+      tone === 'danger' && value > 0 && 'text-(--danger)',
     )}>
       {value}
     </p>

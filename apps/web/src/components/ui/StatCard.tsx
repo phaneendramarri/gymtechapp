@@ -17,11 +17,12 @@ interface StatCardProps {
   delta?: number
 }
 
-const variantStyles: Record<NonNullable<StatCardProps['variant']>, { chip: string; ring: string }> = {
-  default: { chip: 'bg-secondary text-foreground', ring: '' },
-  accent: { chip: 'bg-primary/10 text-primary', ring: 'ring-1 ring-primary/20' },
-  ok: { chip: 'bg-ok/10 text-ok', ring: 'ring-1 ring-ok/20' },
-  err: { chip: 'bg-destructive/10 text-destructive', ring: 'ring-1 ring-destructive/20' },
+/** Colored left-border accent per variant, plus icon chip + ring. */
+const variantStyles: Record<NonNullable<StatCardProps['variant']>, { border: string; chip: string; ring: string }> = {
+  default: { border: 'border-l-2 border-l-(--ink-3)', chip: 'bg-(--surface-2) text-(--ink-2)', ring: '' },
+  accent:  { border: 'border-l-2 border-l-(--iron)',    chip: 'bg-(--iron-soft) text-(--iron)',       ring: 'ring-1 ring-(--iron)/10' },
+  ok:       { border: 'border-l-2 border-l-(--positive)', chip: 'bg-(--positive-soft) text-(--positive)', ring: 'ring-1 ring-(--positive)/10' },
+  err:      { border: 'border-l-2 border-l-(--danger)',   chip: 'bg-(--danger-soft) text-(--danger)',   ring: 'ring-1 ring-(--danger)/10' },
 };
 
 export const StatCard: React.FC<StatCardProps> = ({
@@ -34,22 +35,22 @@ export const StatCard: React.FC<StatCardProps> = ({
   sparkline,
   delta,
 }) => {
-  const styles = variantStyles[variant];
+  const { border, chip, ring } = variantStyles[variant];
 
   return (
-    <Card className={cn('card-hover-lift p-4 sm:p-5 border-border bg-card shadow-xs transition-all', styles.ring)}>
+    <Card className={cn('card-hover-lift p-4 sm:p-5 border-border bg-card shadow-xs transition-all pl-4', border, ring)}>
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground font-mono">
+        <p className="text-meta font-semibold uppercase tracking-wider text-(--ink-3) font-mono">
           {title}
         </p>
         {icon && (
-          <div className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg shadow-2xs', styles.chip)}>
+          <div className={cn('flex size-8 shrink-0 items-center justify-center rounded-lg shadow-2xs', chip)}>
             {icon}
           </div>
         )}
       </div>
       <div className="mt-2 flex items-end justify-between gap-3">
-        <div className="font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl num-tabular">
+        <div className="font-display text-2xl font-bold tracking-tight text-(--ink) sm:text-3xl num-tabular">
           {typeof value === 'number' ? (
             <AnimatedCounter value={value} prefix={prefix} />
           ) : (
@@ -61,7 +62,7 @@ export const StatCard: React.FC<StatCardProps> = ({
       {(subtitle || sparkline) && (
         <div className="mt-2 flex items-end justify-between gap-2">
           {subtitle ? (
-            <p className="text-xs text-muted-foreground truncate flex-1">{subtitle}</p>
+            <p className="text-xs text-(--ink-3) truncate flex-1">{subtitle}</p>
           ) : <span />}
           {sparkline && sparkline.length > 1 && (
             <Sparkline

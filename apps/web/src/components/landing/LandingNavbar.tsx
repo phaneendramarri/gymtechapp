@@ -18,13 +18,13 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled }) => {
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-200 ${
         isScrolled
-          ? 'bg-[var(--bg)] py-3 border-b border-[var(--line)]'
-          : 'bg-[var(--bg)] py-4'
+          ? 'bg-(--bg) py-3 border-b border-(--line)'
+          : 'bg-(--bg) py-4'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         {/* Brand Logo */}
-        <a href="#/" className="flex items-center">
+        <a href="/" className="flex items-center">
           <Logo />
         </a>
 
@@ -41,19 +41,19 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled }) => {
           <ThemeToggle />
 
           {user ? (
-            <Button asChild size="sm" className="bg-[var(--ink)] text-[var(--ink-inverse)] hover:bg-[var(--ink-2)] border-[var(--ink)] h-9 px-4 gap-1.5">
-              <a href={user.role === 'PLATFORM_ADMIN' ? '#/admin' : '#/dashboard'}>
+            <Button asChild size="sm" className="bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) h-9 px-4 gap-1.5">
+              <a href={user.role === 'PLATFORM_ADMIN' ? '/admin' : '/dashboard'}>
                 <span>Open workspace</span>
                 <ArrowRight className="size-3.5" />
               </a>
             </Button>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm" className="text-[13px] h-9 px-3 text-ink-2 hover:text-ink hover:bg-[var(--surface-2)]">
-                <a href="#/login">Sign in</a>
+              <Button asChild variant="ghost" size="sm" className="text-[13px] h-9 px-3 text-ink-2 hover:text-ink hover:bg-(--surface-2)">
+                <a href="/login">Sign in</a>
               </Button>
-              <Button asChild size="sm" className="bg-[var(--ink)] text-[var(--ink-inverse)] hover:bg-[var(--ink-2)] border-[var(--ink)] h-9 px-4">
-                <a href="#/login">Start free trial</a>
+              <Button asChild size="sm" className="bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) h-9 px-4">
+                <a href="/login">Start free trial</a>
               </Button>
             </>
           )}
@@ -81,19 +81,19 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled }) => {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-b border-[var(--line)] bg-[var(--bg)] px-5 py-4 flex flex-col gap-3 overflow-hidden"
+            className="md:hidden border-b border-(--line) bg-(--bg) px-5 py-4 flex flex-col gap-3 overflow-hidden"
           >
             <a href="#product" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-ink-2 hover:text-ink">Product</a>
             <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-ink-2 hover:text-ink">How it works</a>
             <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-ink-2 hover:text-ink">Pricing</a>
             <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-ink-2 hover:text-ink">FAQ</a>
-            <div className="h-px bg-[var(--line)] my-1" />
+            <div className="h-px bg-(--line) my-1" />
             <div className="flex flex-col gap-2 pt-1">
-              <Button asChild variant="outline" size="sm" className="w-full justify-center border-[var(--line)] h-9">
-                <a href="#/login">Sign in</a>
+              <Button asChild variant="outline" size="sm" className="w-full justify-center border-(--line) h-9">
+                <a href="/login">Sign in</a>
               </Button>
-              <Button asChild size="sm" className="w-full justify-center bg-[var(--ink)] text-[var(--ink-inverse)] hover:bg-[var(--ink-2)] border-[var(--ink)] h-9">
-                <a href="#/login">Start free trial</a>
+              <Button asChild size="sm" className="w-full justify-center bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) h-9">
+                <a href="/login">Start free trial</a>
               </Button>
             </div>
           </motion.div>

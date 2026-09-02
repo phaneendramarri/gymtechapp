@@ -1,11 +1,17 @@
+import type { D1Database } from '@cloudflare/workers-types';
 import { UserRepository } from '../repositories/user.repository';
+import { SessionRepository } from '../repositories/session.repository';
 import {
   hashPassword,
   verifyPassword,
   isLegacyHash,
   createSessionToken,
   verifySessionToken,
+  createRefreshToken,
+  ACCESS_TOKEN_EXPIRY_SECONDS,
+  REFRESH_TOKEN_EXPIRY_SECONDS,
 } from '../lib/session';
+import { hashOpaqueToken, verifyOpaqueToken } from '../lib/password';
 import {
   GENERIC_INVALID_CREDENTIALS,
   isAccountLocked,
@@ -15,31 +21,32 @@ import type { SessionUser, Gym, UserRole } from '@gymtech/shared';
 
 export class AuthService {
   private userRepo: UserRepository;
+  private sessionRepo: SessionRepository;
+  private readonly ISS: string;
+  private readonly AUD = 'gymtech-api';
 
-  constructor(private db: D1Database, private jwtSecret: string) {
+  constructor(private db: D1Database, private jwtSecret: string, appUrl?: string) {
     this.userRepo = new UserRepository(db);
+    this.sessionRepo = new SessionRepository(db);
+    this.ISS = appUrl ?? 'gymtech';
   }
 
-  async login(email: string, passwordPlain: string): Promise<{ token: string; user: SessionUser; gym?: Gym | null }> {
+  private async _createAccessToken(sessionUser: SessionUser): Promise<{ token: string; jti: string }> {
+    return createSessionToken(sessionUser, this.jwtSecret, {
+      iss: this.ISS,
+      aud: this.AUD,
+      expiresInSeconds: ACCESS_TOKEN_EXPIRY_SECONDS,
+    });
+  }
+
+  async login(email: string, passwordPlain: string): Promise<{ token: string; refreshToken: string; user: SessionUser; gym?: Gym | null }> {
     const user = await this.userRepo.findByEmail(email);
-    if (!user) {
-      // Don't leak whether the account exists.
-      throw new Error(GENERIC_INVALID_CREDENTIALS);
-    }
-
-    if (user.status !== 'ACTIVE') {
-      throw new Error('This account has been deactivated or suspended');
-    }
-
-    // Lockout gate — runs BEFORE password verification to prevent
-    // password-guessing against a known-locked account.
-    if (isAccountLocked(user.failed_login_count, user.locked_until)) {
-      throw new Error(GENERIC_INVALID_CREDENTIALS);
-    }
+    if (!user) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
+    if (user.status !== 'ACTIVE') { throw new Error('This account has been deactivated or suspended'); }
+    if (isAccountLocked(user.failed_login_count, user.locked_until)) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
 
     const ok = await verifyPassword(passwordPlain, user.password_hash);
     if (!ok) {
-      // Increment the failure counter and apply progressive lockout.
       const newCount = await this.userRepo.incrementFailedLogin(user.id, user.gym_id);
       const lockSeconds = nextLockoutSeconds(newCount);
       if (lockSeconds !== null) {
@@ -48,65 +55,43 @@ export class AuthService {
       }
       throw new Error(GENERIC_INVALID_CREDENTIALS);
     }
+    if (user.failed_login_count > 0 || user.locked_until !== null) { await this.userRepo.resetFailedLogin(user.id, user.gym_id); }
 
-    // Successful login — reset the failure counter and clear any prior lock.
-    if (user.failed_login_count > 0 || user.locked_until !== null) {
-      await this.userRepo.resetFailedLogin(user.id, user.gym_id);
-    }
-
-    // Lazy rehash: if the stored hash is in the legacy SHA-256 format,
-    // upgrade it to Argon2id in the background (after we've returned).
     if (isLegacyHash(user.password_hash)) {
       try {
         const newHash = await hashPassword(passwordPlain);
         await this.userRepo.upgradePasswordHash(user.id, user.gym_id, newHash, 'argon2id');
-      } catch (err) {
-        // Non-fatal — login still succeeds. Surface to logs for ops.
-        console.error('Lazy rehash failed for user', user.id, err);
-      }
+      } catch (err) { console.error('Lazy rehash failed for user', user.id, err); }
     }
 
     let gym: Gym | null = null;
     if (user.gym_id) {
-      gym = await this.db
-        .prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`)
-        .bind(user.gym_id)
-        .first<Gym>();
-      if (gym && gym.status === 'SUSPENDED') {
-        throw new Error('This gym account has been suspended by the platform administrator');
-      }
+      gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`).bind(user.gym_id).first<Gym>();
+      if (gym && gym.status === 'SUSPENDED') { throw new Error('This gym account has been suspended by the platform administrator'); }
     }
 
     await this.userRepo.updateLastLogin(user.id);
 
-    const sessionUser: SessionUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      gymId: user.gym_id,
-    };
+    const sessionUser: SessionUser = { id: user.id, email: user.email, name: user.name, role: user.role, gymId: user.gym_id };
+    const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
+    const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
+    const now = Math.floor(Date.now() / 1000);
 
-    const token = await createSessionToken(sessionUser, this.jwtSecret);
+    await this.sessionRepo.create({
+      gymId: user.gym_id, userId: user.id, tokenHash: accessJti, refreshTokenHash: refreshJti,
+      refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
+      issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
+    });
 
-    return { token, user: sessionUser, gym };
+    return { token, refreshToken, user: sessionUser, gym };
   }
 
-  /**
-   * Platform admin login. The session is bound to a `gymId === null` so the
-   * `requireGym` middleware will refuse tenant-scoped access.
-   */
-  async loginPlatformAdmin(email: string, passwordPlain: string): Promise<{ token: string; user: SessionUser }> {
+  async loginPlatformAdmin(email: string, passwordPlain: string): Promise<{ token: string; refreshToken: string; user: SessionUser }> {
     const admin = await this.userRepo.findPlatformAdminByEmail(email);
-    if (!admin) {
-      throw new Error(GENERIC_INVALID_CREDENTIALS);
-    }
-    if (admin.status !== 'ACTIVE') {
-      throw new Error('This admin account is disabled');
-    }
-    if (isAccountLocked(admin.failed_login_count, admin.locked_until)) {
-      throw new Error(GENERIC_INVALID_CREDENTIALS);
-    }
+    if (!admin) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
+    if (admin.status !== 'ACTIVE') { throw new Error('This admin account has been deactivated or suspended'); }
+    if (isAccountLocked(admin.failed_login_count, admin.locked_until)) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
+
     const ok = await verifyPassword(passwordPlain, admin.password_hash);
     if (!ok) {
       const newCount = await this.userRepo.incrementPlatformAdminFailedLogin(admin.id);
@@ -117,43 +102,62 @@ export class AuthService {
       }
       throw new Error(GENERIC_INVALID_CREDENTIALS);
     }
-    if (admin.failed_login_count > 0 || admin.locked_until !== null) {
-      await this.userRepo.resetPlatformAdminFailedLogin(admin.id);
-    }
+    if (admin.failed_login_count > 0 || admin.locked_until !== null) { await this.userRepo.resetPlatformAdminFailedLogin(admin.id); }
 
-    // Lazy rehash for legacy platform admin hashes.
     if (isLegacyHash(admin.password_hash)) {
       try {
         const newHash = await hashPassword(passwordPlain);
         await this.userRepo.upgradePlatformAdminPasswordHash(admin.id, newHash, 'argon2id');
-      } catch (err) {
-        console.error('Lazy rehash failed for platform admin', admin.id, err);
-      }
+      } catch (err) { console.error('Lazy rehash failed for platform admin', admin.id, err); }
     }
 
-    await this.db
-      .prepare(`UPDATE platform_admins SET last_login_at = unixepoch() WHERE id = ?`)
-      .bind(admin.id)
-      .run();
+    await this.db.prepare(`UPDATE platform_admins SET last_login_at = unixepoch() WHERE id = ?`).bind(admin.id).run();
 
-    const sessionUser: SessionUser = {
-      id: admin.id,
-      email: admin.email,
-      name: admin.name,
-      role: 'PLATFORM_ADMIN' as UserRole,
-      gymId: null,
-    };
-    const token = await createSessionToken(sessionUser, this.jwtSecret);
-    return { token, user: sessionUser };
+    const sessionUser: SessionUser = { id: admin.id, email: admin.email, name: admin.name, role: 'PLATFORM_ADMIN' as UserRole, gymId: null };
+    const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
+    const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
+    const now = Math.floor(Date.now() / 1000);
+
+    await this.sessionRepo.create({
+      gymId: 0, userId: admin.id, tokenHash: accessJti, refreshTokenHash: refreshJti,
+      refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
+      issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
+    });
+
+    return { token, refreshToken, user: sessionUser };
+  }
+
+  async refreshToken(refreshToken: string): Promise<{ token: string; refreshToken: string; user: SessionUser } | null> {
+    const refreshJti = await hashOpaqueToken(refreshToken, this.jwtSecret);
+    const session = await this.sessionRepo.findActiveByRefreshTokenHash(refreshJti);
+    if (!session) return null;
+
+    const userRow = await this.userRepo.findById(session.userId as number);
+    if (!userRow) return null;
+
+    const sessionUser: SessionUser = { id: userRow.id, email: userRow.email, name: userRow.name, role: userRow.role, gymId: userRow.gym_id };
+
+    const { token, jti: newAccessJti } = await this._createAccessToken(sessionUser);
+    const { token: newRefreshToken, jti: newRefreshJti } = await createRefreshToken(this.jwtSecret);
+    const now = Math.floor(Date.now() / 1000);
+
+    await this.sessionRepo.create({
+      gymId: userRow.gym_id ?? 0, userId: userRow.id, tokenHash: newAccessJti, refreshTokenHash: newRefreshJti,
+      refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
+      issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
+    });
+
+    return { token, refreshToken: newRefreshToken, user: sessionUser };
+  }
+
+  async logout(jti: string): Promise<void> {
+    await this.sessionRepo.revokeByTokenHash(jti);
   }
 
   async getCurrentUser(user: SessionUser): Promise<{ user: SessionUser; gym?: Gym | null }> {
     let gym: Gym | null = null;
     if (user.gymId) {
-      gym = await this.db
-        .prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`)
-        .bind(user.gymId)
-        .first<Gym>();
+      gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`).bind(user.gymId).first<Gym>();
     }
     return { user, gym };
   }
@@ -166,17 +170,13 @@ export class AuthService {
       role: 'MEMBER',
       gymId: member.gymId,
     };
-    return await createSessionToken(sessionUser, this.jwtSecret);
+    const { token } = await this._createAccessToken(sessionUser);
+    return token;
   }
 
   async verifyToken(token: string) {
-    const payload = await verifySessionToken(token, this.jwtSecret);
+    const payload = await verifySessionToken(token, this.jwtSecret, { iss: this.ISS, aud: this.AUD });
     if (!payload) return null;
-    return {
-      userId: payload.id,
-      email: payload.email,
-      role: payload.role,
-      gymId: payload.gymId,
-    };
+    return { userId: payload.id, email: payload.email, role: payload.role, gymId: payload.gymId, jti: payload.jti };
   }
 }

@@ -101,10 +101,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
 
   return (
     <>
-      <header className="h-14 border-b border-[var(--line)] bg-[var(--surface)] flex items-center px-4 md:px-6 gap-2 shrink-0">
+      <header className="h-14 border-b border-(--line) bg-(--surface) flex items-center px-4 md:px-6 gap-2 shrink-0">
         <button
           onClick={onOpenMobileMenu}
-          className="md:hidden h-8 w-8 rounded-md text-ink-2 hover:bg-[var(--surface-2)] flex items-center justify-center"
+          className="md:hidden h-8 w-8 rounded-md text-ink-2 hover:bg-(--surface-2) flex items-center justify-center"
           aria-label="Open menu"
         >
           <Menu className="h-4 w-4" />
@@ -112,21 +112,21 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
 
         {/* Gym badge (mobile only — desktop shows it in the rail) */}
         <div className="md:hidden flex items-center gap-2 ml-1">
-          <div className="h-6 w-6 rounded bg-[var(--iron)] text-[var(--iron-ink)] flex items-center justify-center text-[10px] font-semibold">
+          <div className="h-6 w-6 rounded bg-iron text-iron-ink flex items-center justify-center text-[10px] font-semibold">
             {gymName?.[0] || 'G'}
           </div>
-          <span className="text-xs font-semibold text-ink truncate max-w-[160px]">{gymName}</span>
+          <span className="text-xs font-semibold text-ink truncate max-w-40">{gymName}</span>
         </div>
 
         {/* Global search trigger */}
         <button
           onClick={() => setPaletteOpen(true)}
-          className="ml-auto md:ml-0 inline-flex items-center gap-2 h-9 px-3 rounded-md bg-[var(--surface-2)] hover:bg-[var(--surface-2)]/80 text-ink-3 text-xs border border-transparent hover:border-[var(--line)] transition-colors md:w-72"
+          className="ml-auto md:ml-0 inline-flex items-center gap-2 h-9 px-3 rounded-md bg-(--surface-2) hover:bg-(--surface-2)/80 text-ink-3 text-xs border border-transparent hover:border-(--line) transition-colors md:w-72"
         >
           <Search className="h-3.5 w-3.5" />
           <span className="hidden md:inline">Search…</span>
           <span className="md:hidden">Search</span>
-          <kbd className="hidden md:inline-block ml-auto text-[10px] font-mono bg-[var(--surface)] border border-[var(--line)] rounded px-1.5 h-[18px] leading-[16px] text-ink-3">
+          <kbd className="hidden md:inline-block ml-auto text-[10px] font-mono bg-surface border border-(--line) rounded px-1.5 h-4.5 leading-4 text-ink-3">
             ⌘K
           </kbd>
         </button>
@@ -134,7 +134,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
         <div className="ml-auto md:ml-0 flex items-center gap-1">
           <button
             onClick={() => setPaletteOpen(true)}
-            className="md:hidden h-9 w-9 rounded-md text-ink-3 hover:bg-[var(--surface-2)] flex items-center justify-center"
+            className="md:hidden h-9 w-9 rounded-md text-ink-3 hover:bg-(--surface-2) flex items-center justify-center"
             aria-label="Search"
           >
             <Search className="h-4 w-4" />
@@ -142,18 +142,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
 
           <button
             onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
-            className="h-9 w-9 rounded-md text-ink-3 hover:bg-[var(--surface-2)] hover:text-ink-2 flex items-center justify-center"
+            className="h-9 w-9 rounded-md text-ink-3 hover:bg-(--surface-2) hover:text-ink-2 flex items-center justify-center"
             aria-label="Toggle theme"
           >
             {theme === 'dark' ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
           <button
-            className="hidden sm:inline-flex h-9 w-9 rounded-md text-ink-3 hover:bg-[var(--surface-2)] hover:text-ink-2 items-center justify-center relative"
+            className="hidden sm:inline-flex h-9 w-9 rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink-2 items-center justify-center relative"
             aria-label="Notifications"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-[var(--iron)] ring-2 ring-[var(--surface)]" />
+            <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-iron ring-2 ring-surface" />
           </button>
 
           {user && user.role !== 'MEMBER' && (
@@ -169,10 +169,10 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
 
       {/* Command palette */}
       <Dialog open={paletteOpen} onOpenChange={setPaletteOpen}>
-        <DialogContent className="p-0 gap-0 max-w-[560px] w-[calc(100vw-32px)] top-[15vh] translate-y-0">
+        <DialogContent className="p-0 gap-0 max-w-140 w-[calc(100vw-32px)] top-[15vh] translate-y-0 bg-(--surface) border-(--line) shadow-lg">
           <DialogTitle className="sr-only">Command palette</DialogTitle>
-          <div className="flex items-center gap-2 px-4 h-12 border-b border-[var(--line)]">
-            <Search className="h-4 w-4 text-ink-3" />
+          <div className="flex items-center gap-2 px-4 h-12 border-b border-(--line)">
+            <Search className="h-4 w-4 text-(--ink-3)" />
             <input
               autoFocus
               value={query}
@@ -190,17 +190,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
                 }
               }}
               placeholder="Type a command or search…"
-              className="flex-1 bg-transparent border-0 outline-none text-sm placeholder:text-ink-3"
+              className="flex-1 bg-transparent border-0 outline-none text-sm text-(--ink) placeholder:text-(--ink-3)"
             />
-            <kbd className="text-[10px] font-mono text-ink-3 bg-[var(--surface-2)] border border-[var(--line)] rounded px-1.5 h-[18px] leading-[16px] flex items-center gap-1">
+            <kbd className="text-[10px] font-mono text-(--ink-3) bg-(--surface-2) border border-(--line) rounded px-1.5 h-4.5 leading-4 flex items-center gap-1">
               <span>ESC</span>
             </kbd>
           </div>
 
           <div className="max-h-[60vh] overflow-y-auto py-2">
             {filtered.length === 0 ? (
-              <div className="px-6 py-12 text-center text-sm text-ink-3">
-                No results for <span className="font-mono text-ink-2">"{query}"</span>
+              <div className="px-6 py-12 text-center text-sm text-(--ink-3)">
+                No results for <span className="font-mono text-(--ink-2)">"{query}"</span>
               </div>
             ) : (
               ['Navigate', 'Action'].map((group) => {
@@ -208,7 +208,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
                 if (groupItems.length === 0) return null;
                 return (
                   <div key={group} className="px-2 pb-2">
-                    <div className="px-2 py-1.5 text-[10px] uppercase tracking-wider text-ink-3 font-semibold">
+                    <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-(--ink-3) font-semibold">
                       {group}
                     </div>
                     {groupItems.map((item) => {
@@ -219,17 +219,19 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
                           onClick={() => runItem(item)}
                           onMouseEnter={() => setHighlight(idx)}
                           className={cn(
-                            'w-full flex items-center gap-3 px-2 h-9 rounded-md text-sm text-ink text-left',
-                            idx === highlight ? 'bg-[var(--surface-2)]' : 'hover:bg-[var(--surface-2)]/50'
+                            'w-full flex items-center gap-3 px-3 h-10 rounded-lg text-sm text-(--ink) text-left transition-colors',
+                            idx === highlight
+                              ? 'bg-(--iron-soft) text-(--iron)'
+                              : 'hover:bg-(--surface-2)'
                           )}
                         >
-                          <item.icon className="h-4 w-4 text-ink-3 shrink-0" />
+                          <item.icon className={cn('h-4 w-4 shrink-0', idx === highlight ? 'text-(--iron)' : 'text-(--ink-3)')} />
                           <span className="flex-1 truncate">{item.label}</span>
                           {item.hint && (
-                            <span className="text-[11px] text-ink-3">{item.hint}</span>
+                            <span className="text-[11px] text-(--ink-3)">{item.hint}</span>
                           )}
                           {item.shortcut && (
-                            <kbd className="text-[10px] font-mono text-ink-3 bg-[var(--surface)] border border-[var(--line)] rounded px-1.5 h-[18px] leading-[16px]">
+                            <kbd className="text-[10px] font-mono text-(--ink-3) bg-(--surface-2) border border-(--line) rounded px-1.5 h-4.5 leading-4">
                               ⌘{item.shortcut}
                             </kbd>
                           )}
@@ -242,15 +244,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
             )}
           </div>
 
-          <div className="border-t border-[var(--line)] px-3 py-2 flex items-center justify-between text-[10px] text-ink-3">
+          <div className="border-t border-(--line) px-4 py-2.5 flex items-center justify-between text-[10px] text-(--ink-3)">
             <div className="flex items-center gap-3">
               <span className="flex items-center gap-1">
-                <kbd className="font-mono bg-[var(--surface-2)] border border-[var(--line)] rounded px-1 h-[16px] leading-[14px]">↑</kbd>
-                <kbd className="font-mono bg-[var(--surface-2)] border border-[var(--line)] rounded px-1 h-[16px] leading-[14px]">↓</kbd>
+                <kbd className="font-mono bg-(--surface-2) border border-(--line) rounded px-1 h-4 leading-3.5">↑</kbd>
+                <kbd className="font-mono bg-(--surface-2) border border-(--line) rounded px-1 h-4 leading-3.5">↓</kbd>
                 navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="font-mono bg-[var(--surface-2)] border border-[var(--line)] rounded px-1 h-[16px] leading-[14px]">↵</kbd>
+                <kbd className="font-mono bg-(--surface-2) border border-(--line) rounded px-1 h-4 leading-3.5">↵</kbd>
                 open
               </span>
             </div>

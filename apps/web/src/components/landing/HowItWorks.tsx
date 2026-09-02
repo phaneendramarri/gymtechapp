@@ -32,7 +32,7 @@ const STEPS = [
 
 export const HowItWorks: React.FC = () => {
   return (
-    <section id="how-it-works" className="py-24 sm:py-32 bg-[var(--bg)] border-t border-[var(--line)]">
+    <section id="how-it-works" className="py-24 sm:py-32 bg-(--bg) border-t border-(--line)">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div {...fadeUp(0)} className="max-w-2xl mx-auto text-center mb-14">
           <p className="gt-kicker">Day 1, ready by 6 PM</p>
@@ -44,17 +44,17 @@ export const HowItWorks: React.FC = () => {
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[var(--line)] border border-[var(--line)] rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-(--line) border border-(--line) rounded-2xl overflow-hidden">
           {STEPS.map((s, idx) => {
             const Icon = s.icon;
             return (
               <motion.div
                 key={s.n}
                 {...fadeUp(idx * 0.05)}
-                className="bg-[var(--surface)] p-8 hover:bg-[var(--bg)] transition-colors"
+                className="bg-(--surface) p-8 hover:bg-(--bg) transition-colors hover:shadow-sm"
               >
                 <div className="flex items-center justify-between mb-6">
-                  <span className="size-10 rounded-lg bg-[var(--ink)] text-[var(--ink-inverse)] flex items-center justify-center">
+                  <span className="size-10 rounded-lg bg-(--ink) text-(--ink-inverse) flex items-center justify-center">
                     <Icon className="size-4" strokeWidth={1.5} />
                   </span>
                   <span className="text-[11px] font-mono text-ink-3">Step {s.n}</span>

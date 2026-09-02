@@ -10,23 +10,25 @@ import { MemberRepository } from '../repositories/member.repository';
 import { MembershipRepository } from '../repositories/membership.repository';
 import { NotificationService } from '../lib/notifications';
 import { auditGymFromCtx } from '../services/audit.service';
-import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
 
 export const paymentRoutes = new Hono();
 
 // List payments
 paymentRoutes.get('/', requireGym, requireFeature('payments'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const limit = parseInt(c.req.query('limit') || '100', 10);
+  const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'payments');
   const memberId = c.req.query('memberId');
   const paymentRepo = new PaymentRepository(ctx.env.DB, ctx.gymId!);
-  const [payments, summary] = await Promise.all([
-    paymentRepo.list({ limit, memberId: memberId ? parseInt(memberId, 10) : undefined }),
+  const memberIdNum = memberId ? parseInt(memberId, 10) : undefined;
+  const [payments, total, summary] = await Promise.all([
+    paymentRepo.list({ limit, offset, memberId: memberIdNum }),
+    paymentRepo.count({ memberId: memberIdNum }),
     ctx.user?.role === 'MANAGER'
       ? Promise.resolve({ monthlyRevenue: 0, pendingDues: 0 })
       : paymentRepo.getSummaryMetrics(),
   ]);
-  return jsonOk({ payments, summary });
+  return jsonOk({ items: payments, total, limit, offset, hasMore: offset + payments.length < total, summary });
 }));
 
 // Record payment

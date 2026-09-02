@@ -46,7 +46,7 @@ export const ReportsPage: React.FC = () => {
       title="Reports"
       description="The shape of your business over time. Export when you need to share."
       actions={
-        <div className="flex items-center gap-1 rounded-md border border-[var(--line)] p-0.5 bg-[var(--surface-2)]">
+        <div className="flex items-center gap-1 rounded-md border border-(--line) p-0.5 bg-surface-2">
           {PERIODS.map((p) => (
             <button
               key={p.key}
@@ -54,7 +54,7 @@ export const ReportsPage: React.FC = () => {
               className={cn(
                 'h-7 px-2.5 rounded text-[11px] font-medium transition-colors',
                 period === p.key
-                  ? 'bg-[var(--surface)] text-ink shadow-sm'
+                  ? 'bg-surface text-ink shadow-sm'
                   : 'text-ink-3 hover:text-ink-2'
               )}
             >
@@ -141,7 +141,7 @@ export const ReportsPage: React.FC = () => {
               {planBreakdown.length === 0 ? (
                 <p className="text-meta">No plan data yet.</p>
               ) : (
-                <ul className="divide-y divide-[var(--line-2)]">
+                <ul className="divide-y divide-line-2">
                   {planBreakdown.slice(0, 6).map((p: any) => {
                     const max = Math.max(...planBreakdown.map((x: any) => Number(x.count) || 0)) || 1;
                     const pct = Math.round(((Number(p.count) || 0) / max) * 100);
@@ -152,8 +152,8 @@ export const ReportsPage: React.FC = () => {
                             <span className="text-ink truncate">{p.name}</span>
                             <span className="text-ink-3 num text-[11px]">{p.count}</span>
                           </div>
-                          <div className="h-1.5 bg-[var(--surface-2)] rounded-full overflow-hidden">
-                            <div className="h-full bg-[var(--ink)] rounded-full" style={{ width: `${pct}%` }} />
+                          <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
+                            <div className="h-full bg-ink rounded-full" style={{ width: `${pct}%` }} />
                           </div>
                         </div>
                         <p className="text-sm num text-ink">{formatCurrency(p.revenue || 0)}</p>
@@ -194,7 +194,7 @@ export const ReportsPage: React.FC = () => {
               </div>
             </section>
 
-            <div className="h-px bg-[var(--line)]" />
+            <div className="h-px bg-(--line)" />
 
             <section>
               <p className="text-eyebrow mb-3">Exports</p>
@@ -205,11 +205,11 @@ export const ReportsPage: React.FC = () => {
                   { key: 'attendance' as const, label: 'Attendance', desc: 'CSV, last 5,000 visits' },
                   { key: 'dues' as const, label: 'Outstanding dues', desc: 'CSV, who owes what' },
                 ].map((e, i) => (
-                  <li key={e.key} className={cn(i > 0 && 'border-t border-[var(--line-2)]')}>
+                  <li key={e.key} className={cn(i > 0 && 'border-t border-line-2')}>
                     <button
                       onClick={() => handleExport(e.key)}
                       disabled={exporting === e.key}
-                      className="w-full flex items-center gap-3 py-3 -mx-2 px-2 rounded-md hover:bg-[var(--surface-2)] transition-colors text-left"
+                      className="w-full flex items-center gap-3 py-3 -mx-2 px-2 rounded-md hover:bg-surface-2 transition-colors text-left"
                     >
                       <FileText className="h-4 w-4 text-ink-3 shrink-0" />
                       <div className="min-w-0 flex-1">

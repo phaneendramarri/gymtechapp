@@ -20,18 +20,15 @@
     "deploy": "pnpm build && wrangler deploy",
     "preview": "pnpm build && wrangler dev"
   },
+  "engines": {
+    "node": ">=20",
+    "pnpm": ">=9"
+  },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@types/node": "^22.13.1",
     "concurrently": "^9.2.4",
     "typescript": "^5.7.3",
     "vitest": "^4.1.11"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "workerd",
-      "better-sqlite3"
-    ]
   }
 }

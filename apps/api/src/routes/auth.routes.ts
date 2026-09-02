@@ -41,7 +41,7 @@ authRoutes.post('/login', safeHandler(async (c) => {
     if (!turnstileRes.success) return jsonErr(turnstileRes.error || 'Bot verification failed', 403);
   }
 
-  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET);
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const client = extractClientInfo(c.req.raw);
   try {
     const res = await authService.login(parsed.data.email, parsed.data.password);
@@ -98,7 +98,7 @@ authRoutes.post('/platform-login', safeHandler(async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = LoginRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid credentials payload');
-  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET);
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const client = extractClientInfo(c.req.raw);
   try {
     const res = await authService.loginPlatformAdmin(parsed.data.email, parsed.data.password);
@@ -127,9 +127,40 @@ authRoutes.post('/platform-login', safeHandler(async (c) => {
 
 authRoutes.get('/me', requireAuth, safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET);
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const res = await authService.getCurrentUser(ctx.user!);
   return jsonOk(res);
+}));
+
+/**
+ * POST /auth/refresh — Sliding-window refresh token rotation.
+ * Accepts { refreshToken } in body, returns { token, refreshToken }.
+ * The old refresh token is immediately revoked after use (rotation).
+ */
+authRoutes.post('/refresh', safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const body = await c.req.json().catch(() => ({}));
+  const refreshToken = body?.refreshToken;
+  if (!refreshToken || typeof refreshToken !== 'string') {
+    return jsonErr('refreshToken is required', 400);
+  }
+
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
+  const result = await authService.refreshToken(refreshToken);
+  if (!result) return jsonErr('Invalid or expired refresh token', 401);
+
+  const csrf = generateCsrfToken();
+  return jsonOk(
+    { token: result.token, refreshToken: result.refreshToken, user: result.user },
+    200,
+    {
+      'Set-Cookie': [
+        buildSessionCookie(result.token, ctx.env.APP_ENV),
+        buildCsrfCookie(csrf, ctx.env.APP_ENV),
+      ].join(', '),
+      'X-CSRF-Token': csrf,
+    }
+  );
 }));
 
 authRoutes.post('/forgot-password', safeHandler(async (c) => {
@@ -247,7 +278,7 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
     ORDER BY ms.end_date DESC LIMIT 1
   `).bind(member.id, member.gym_id).first();
 
-  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET);
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const token = await authService.signMemberToken({
     id: member.id, gymId: member.gym_id, memberCode: member.member_code,
     phone: member.phone, name: `${member.first_name} ${member.last_name || ''}`.trim(),
@@ -278,7 +309,7 @@ authRoutes.get('/portal', safeHandler(async (c) => {
   const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!token) return jsonErr('Unauthorized: Member token required', 401);
 
-  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET);
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const session = await authService.verifyToken(token);
   if (!session || !session.userId || session.role !== 'MEMBER') {
     return jsonErr('Invalid or expired member session', 401);
@@ -308,9 +339,13 @@ authRoutes.get('/portal', safeHandler(async (c) => {
   });
 }));
 
-authRoutes.post('/logout', safeHandler(async (c) => {
+authRoutes.post('/logout', requireAuth, safeHandler(async (c) => {
   const ctx = getCtx(c);
-  // Clear the session + CSRF cookies. Idempotent.
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
+  // Revoke the session from DB so the access token can never be used again
+  if (ctx.user?.jti) {
+    await authService.logout(ctx.user.jti);
+  }
   return jsonOk(
     { success: true, message: 'Logged out.' },
     200,

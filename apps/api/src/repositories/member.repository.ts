@@ -5,7 +5,33 @@ export class MemberRepository {
   constructor(private db: D1Database, private gymId: number) {}
 
   async list(params: { search?: string; status?: string; limit?: number; offset?: number }): Promise<MemberListItem[]> {
-    let query = `
+    const bindings: any[] = [this.gymId];
+    const conditions: string[] = ['m.gym_id = ?', 'm.deleted_at IS NULL'];
+
+    if (params.status && params.status !== 'ALL') {
+      if (params.status === 'EXPIRED') {
+        conditions.push(
+          `(m.status = 'EXPIRED' OR EXISTS (` +
+            `SELECT 1 FROM memberships ms2` +
+            ` WHERE ms2.member_id = m.id AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL` +
+          `))`
+        );
+      } else if (params.status === 'ACTIVE') {
+        conditions.push(`m.status = 'ACTIVE' AND (ms.end_date IS NULL OR ms.end_date >= unixepoch())`);
+      } else {
+        conditions.push(`m.status = ?`);
+        bindings.push(params.status);
+      }
+    }
+
+    if (params.search) {
+      conditions.push(`(m.first_name LIKE ? OR m.last_name LIKE ? OR m.phone LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)`);
+      const term = `%${params.search}%`;
+      bindings.push(term, term, term, term, term);
+    }
+
+    const where = conditions.join(' AND ');
+    const query = `
       SELECT m.*,
              ms.id as active_membership_id,
              ms.status as membership_status,
@@ -18,28 +44,10 @@ export class MemberRepository {
         SELECT id FROM memberships WHERE member_id = m.id ORDER BY end_date DESC LIMIT 1
       )
       LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-      WHERE m.gym_id = ? AND m.deleted_at IS NULL
+      WHERE ${where}
+      ORDER BY m.created_at DESC
+      LIMIT ? OFFSET ?
     `;
-    const bindings: any[] = [this.gymId];
-
-    if (params.status && params.status !== 'ALL') {
-      if (params.status === 'EXPIRED') {
-        query += ` AND (m.status = 'EXPIRED' OR (ms.end_date IS NOT NULL AND ms.end_date < unixepoch()))`;
-      } else if (params.status === 'ACTIVE') {
-        query += ` AND m.status = 'ACTIVE' AND (ms.end_date IS NULL OR ms.end_date >= unixepoch())`;
-      } else {
-        query += ` AND m.status = ?`;
-        bindings.push(params.status);
-      }
-    }
-
-    if (params.search) {
-      query += ` AND (m.first_name LIKE ? OR m.last_name LIKE ? OR m.phone LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)`;
-      const term = `%${params.search}%`;
-      bindings.push(term, term, term, term, term);
-    }
-
-    query += ` ORDER BY m.created_at DESC LIMIT ? OFFSET ?`;
     bindings.push(params.limit || 50, params.offset || 0);
 
     const { results } = await this.db.prepare(query).bind(...bindings).all<MemberListItem>();
@@ -51,6 +59,39 @@ export class MemberRepository {
       .prepare(`SELECT COUNT(*) as count FROM members WHERE gym_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL`)
       .bind(this.gymId)
       .first<{ count: number }>();
+    return res?.count || 0;
+  }
+
+  async countTotal(params: { search?: string; status?: string } = {}): Promise<number> {
+    const bindings: any[] = [this.gymId];
+    const conditions: string[] = ['m.gym_id = ?', 'm.deleted_at IS NULL'];
+
+    if (params.status && params.status !== 'ALL') {
+      if (params.status === 'EXPIRED') {
+        conditions.push(
+          `(m.status = 'EXPIRED' OR EXISTS (` +
+            `SELECT 1 FROM memberships ms2` +
+            ` WHERE ms2.member_id = m.id AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL` +
+          `))`
+        );
+      } else if (params.status === 'ACTIVE') {
+        conditions.push(`m.status = 'ACTIVE'`);
+      } else {
+        conditions.push(`m.status = ?`);
+        bindings.push(params.status);
+      }
+    }
+
+    if (params.search) {
+      conditions.push(`(m.first_name LIKE ? OR m.last_name LIKE ? OR m.phone LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)`);
+      const term = `%${params.search}%`;
+      bindings.push(term, term, term, term, term);
+    }
+
+    const where = conditions.join(' AND ');
+    const query = `SELECT COUNT(*) as count FROM members m WHERE ${where}`;
+
+    const res = await this.db.prepare(query).bind(...bindings).first<{ count: number }>();
     return res?.count || 0;
   }
 
@@ -350,6 +391,28 @@ export class MemberRepository {
       .bind(id, this.gymId)
       .run();
     return (res.meta?.changes ?? 0) > 0;
+  }
+
+  /**
+   * Phase 4.3 GDPR Article 17 erasure.
+   * Clears biometric data, anonymises personal identifiers, and wipes communication logs.
+   * The member record is retained (hard-delete would break audit trails) but personal data is purged.
+   */
+  async erasePersonalData(id: number, gymId: number): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await this.db.prepare(
+      `UPDATE members
+       SET first_name = '[ERASED]', last_name = NULL, email = NULL, phone = '[ERASED]',
+           face_embedding = NULL, photo_url = NULL, address = NULL, city = NULL, pincode = NULL,
+           date_of_birth = NULL, emergency_contact_name = NULL, emergency_contact_phone = NULL,
+           health_notes = NULL, biometric_consent_given = 0, biometric_consent_at = NULL,
+           deleted_at = unixepoch(), status = 'ERASED', updated_at = unixepoch()
+       WHERE id = ? AND gym_id = ?`
+    ).bind(id, gymId).run();
+    // Delete communication logs for this member (GDPR right to erasure)
+    await this.db.prepare(
+      `DELETE FROM communication_logs WHERE member_id = ? AND gym_id = ?`
+    ).bind(id, gymId).run();
   }
 }
 

@@ -11,7 +11,7 @@ export const CTASection: React.FC = () => {
   }, [location.search]);
 
   return (
-    <section className="py-24 sm:py-32 px-4 sm:px-6 lg:px-8 bg-[var(--bg)] border-t border-[var(--line)]">
+    <section className="py-24 sm:py-32 px-4 sm:px-6 lg:px-8 bg-(--bg) border-t border-(--line)">
       <div className="max-w-3xl mx-auto text-center">
         <p className="gt-kicker">{isDemo ? 'See it on your data' : 'Ready when you are'}</p>
         <h2 className="text-display-serif-sm sm:text-display-serif text-ink mt-4">
@@ -28,9 +28,10 @@ export const CTASection: React.FC = () => {
           <Button
             asChild
             size="lg"
-            className="bg-[var(--ink)] text-[var(--ink-inverse)] hover:bg-[var(--ink-2)] border-[var(--ink)] font-medium h-11 px-6 gap-2 rounded-lg"
+            className="bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) font-medium h-11 px-6 gap-2 rounded-lg"
           >
-            <a href={isDemo ? '#/contact?intent=demo' : '#/login'}>
+            <a href={isDemo ? '/contact?intent=demo' : '/login'}>
+
               {isDemo ? <Calendar className="size-4" /> : <ArrowRight className="size-4" />}
               {isDemo ? 'Book a walkthrough' : 'Start free trial'}
             </a>
@@ -39,7 +40,7 @@ export const CTASection: React.FC = () => {
             asChild
             variant="outline"
             size="lg"
-            className="h-11 px-6 font-medium text-sm border-[var(--line)] hover:bg-[var(--surface-2)] rounded-lg"
+            className="h-11 px-6 font-medium text-sm border-(--line) hover:bg-(--surface-2) rounded-lg"
           >
             <a href="#pricing">Compare plans</a>
           </Button>

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, Clock } from 'lucide-react';
+import { Plus, Clock, Tag } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import {
@@ -11,6 +11,7 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency } from '@/lib/utils';
@@ -70,7 +71,7 @@ export const PlansPage: React.FC = () => {
       description="The catalog of packages you sell to your members. Simple, predictable, easy to tweak."
       actions={
         canManage && (
-          <Button size="sm" className="gt-btn-primary" onClick={() => setDialogOpen(true)}>
+          <Button variant="default" size="sm" onClick={() => setDialogOpen(true)}>
             <Plus className="h-3.5 w-3.5" /> New plan
           </Button>
         )
@@ -83,17 +84,18 @@ export const PlansPage: React.FC = () => {
           ))}
         </div>
       ) : plans.length === 0 ? (
-        <div className="gt-empty py-16">
-          <p className="text-h2 text-ink">No plans yet.</p>
-          <p className="text-meta max-w-md">
-            Create your first membership package — pick a duration, set a price, and it becomes available at the front desk.
-          </p>
-          {canManage && (
-            <Button className="gt-btn-primary mt-3" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Create plan
-            </Button>
-          )}
-        </div>
+        <EmptyState
+          icon={Tag}
+          title="No plans yet."
+          description="Create your first membership package — pick a duration, set a price, and it becomes available at the front desk."
+          action={
+            canManage ? (
+              <Button variant="default" onClick={() => setDialogOpen(true)}>
+                <Plus className="h-3.5 w-3.5" /> Create plan
+              </Button>
+            ) : undefined
+          }
+        />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {plans.map((p: any) => {
@@ -101,7 +103,7 @@ export const PlansPage: React.FC = () => {
             return (
               <article
                 key={p.id}
-                className="flex flex-col gap-4 p-6 rounded-md border border-[var(--line)] bg-[var(--surface)] hover:border-[var(--ink-3)] transition-colors"
+                className="flex flex-col gap-4 p-6 rounded-md border border-(--line) bg-(--surface) hover:border-(--ink-3) transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
@@ -133,7 +135,7 @@ export const PlansPage: React.FC = () => {
                   <p className="text-meta text-ink-2 line-clamp-2">{p.description}</p>
                 )}
 
-                <div className="mt-auto pt-3 border-t border-[var(--line-2)] flex items-center justify-between text-[11px] text-ink-3">
+                <div className="mt-auto pt-3 border-t border-(--line-2) flex items-center justify-between text-[11px] text-ink-3">
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" /> {p.duration_months} mo
                   </span>

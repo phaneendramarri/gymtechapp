@@ -175,7 +175,7 @@ export const DashboardPage: React.FC = () => {
             </span>
             <span className="hidden sm:inline">{isRefetching ? 'Refreshing' : 'Refresh'}</span>
           </Button>
-          <Button asChild size="sm" className="bg-[var(--ink)] text-[var(--ink-inverse)] hover:bg-[var(--ink-2)] border-[var(--ink)] gap-1.5">
+          <Button asChild size="sm" className="bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) gap-1.5">
             <Link to="/members/new">
               <UserPlus className="h-3.5 w-3.5" /> New member
             </Link>
@@ -189,11 +189,11 @@ export const DashboardPage: React.FC = () => {
           ============================================================ */}
       <motion.section
         {...fadeUp(0)}
-        className="flex flex-col gap-1 pb-8 border-b border-[var(--line)]"
+        className="flex flex-col gap-1 pt-10 pb-8 border-b border-(--line)"
       >
         <div className="flex items-center gap-3 flex-wrap">
           <span className="gt-kicker">
-            <span className="size-1.5 rounded-full bg-[var(--iron)]" /> Today at {gym?.name || 'your gym'}
+            <span className="size-1.5 rounded-full bg-(--iron)" /> Today at {gym?.name || 'your gym'}
           </span>
           {todayCount > 0 && (
             <span className="gt-live-pill">
@@ -317,13 +317,13 @@ export const DashboardPage: React.FC = () => {
             {isLoading ? (
               <SkeletonRows rows={4} />
             ) : todayCheckIns.length === 0 ? (
-              <div className="rounded-lg border border-dashed border-[var(--line)] px-6 py-8 text-center">
+              <div className="rounded-lg border border-dashed border-(--line) px-6 py-8 text-center">
                 <p className="text-h3 text-ink">No one has checked in yet.</p>
                 <p className="text-meta mt-1.5 max-w-md mx-auto">
                   When a member scans in or the desk logs them, you'll see the live stream here.
                 </p>
                 <div className="mt-4">
-                  <Button asChild size="sm" className="bg-[var(--iron)] text-[var(--iron-ink)] hover:bg-[var(--iron-hover)] border-[var(--iron)]">
+                  <Button asChild size="sm" className="bg-iron text-iron-ink hover:bg-iron-hover border-iron">
                     <Link to="/attendance">
                       Open the desk
                     </Link>
@@ -331,7 +331,7 @@ export const DashboardPage: React.FC = () => {
                 </div>
               </div>
             ) : (
-              <ul className="divide-y divide-[var(--line-2)] border-t border-b border-[var(--line)]">
+              <ul className="divide-y divide-line-2 border-t border-b border-(--line)">
                 {todayCheckIns.slice(0, 6).map((c: any) => (
                   <li key={c.id} className="flex items-center gap-3 py-3.5">
                     <span className="gt-avatar" data-size="md">
@@ -341,11 +341,11 @@ export const DashboardPage: React.FC = () => {
                       <p className="text-sm font-medium text-ink truncate">
                         {c.first_name} {c.last_name || ''}
                       </p>
-                      <p className="text-[11px] text-ink-3 mt-0.5 font-mono">
+                      <p className="text-meta mt-0.5 font-mono">
                         {c.member_code}
                       </p>
                     </div>
-                    <span className="text-[11px] text-ink-3 hidden sm:inline">
+                      <span className="text-meta hidden sm:inline">
                       {c.check_in_time ? new Date(c.check_in_time * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                     </span>
                     <span className="gt-tag" data-tone={c.method === 'FACE_ID' ? 'iron' : 'ok'}>
@@ -375,7 +375,7 @@ export const DashboardPage: React.FC = () => {
             {last7Days.length > 0 ? (
               <WeeklyBars data={weeklyAttendance.slice(-7)} />
             ) : (
-              <div className="rounded-lg border border-dashed border-[var(--line)] px-6 py-10 text-center">
+              <div className="rounded-lg border border-dashed border-(--line) px-6 py-10 text-center">
                 <p className="text-meta">Footfall will appear here once members start checking in.</p>
               </div>
             )}
@@ -411,7 +411,7 @@ export const DashboardPage: React.FC = () => {
                 {expiring.slice(0, 4).map((m: ExpiringMember) => {
                   const due = (m.due_amount_paise || 0) / 100;
                   return (
-                    <li key={m.id} className="group flex items-center gap-3 py-3 border-t border-[var(--line-2)] first:border-t-0">
+                    <li key={m.id} className="group flex items-center gap-3 py-3 border-t border-(--line-2) first:border-t-0">
                       <span className="gt-avatar" data-size="md">
                         {initials(m.first_name, m.last_name)}
                       </span>
@@ -436,7 +436,7 @@ export const DashboardPage: React.FC = () => {
                         target="_blank"
                         rel="noreferrer"
                         aria-label="WhatsApp reminder"
-                        className="size-8 rounded-md text-[var(--positive)] hover:bg-[var(--positive-soft)] flex items-center justify-center shrink-0"
+                        className="size-8 rounded-md text-(--positive) hover:bg-(--positive-soft) flex items-center justify-center shrink-0"
                       >
                         <MessageCircle className="h-3.5 w-3.5" />
                       </a>
@@ -466,7 +466,7 @@ export const DashboardPage: React.FC = () => {
             ) : (
               <ul className="flex flex-col">
                 {recentPayments.slice(0, 5).map((p: any) => (
-                  <li key={p.id} className="flex items-center gap-3 py-3 border-t border-[var(--line-2)] first:border-t-0">
+                  <li key={p.id} className="flex items-center gap-3 py-3 border-t border-line-2 first:border-t-0">
                     <span className="gt-avatar" data-size="md" style={{ backgroundColor: 'var(--positive-soft)', color: 'var(--positive)' }}>
                       <CreditCard className="h-3.5 w-3.5" />
                     </span>
@@ -501,7 +501,7 @@ export const DashboardPage: React.FC = () => {
               </header>
               <ul className="flex flex-col">
                 {atRisk.slice(0, 4).map((m: any) => (
-                  <li key={m.id} className="group flex items-center gap-3 py-3 border-t border-[var(--line-2)] first:border-t-0">
+                  <li key={m.id} className="group flex items-center gap-3 py-3 border-t border-(--line-2) first:border-t-0">
                     <span className="gt-avatar" data-size="md">
                       {initials(m.name?.split(' ')[0], m.name?.split(' ')[1])}
                     </span>
@@ -513,7 +513,7 @@ export const DashboardPage: React.FC = () => {
                     </div>
                     <a
                       href={`tel:${m.phone}`}
-                      className="size-8 rounded-md text-ink-3 hover:text-ink hover:bg-[var(--surface-2)] flex items-center justify-center shrink-0"
+                      className="size-8 rounded-md text-ink-3 hover:text-ink hover:bg-(--surface-2) flex items-center justify-center shrink-0"
                       aria-label="Call"
                     >
                       <Phone className="h-3.5 w-3.5" />
@@ -546,17 +546,17 @@ const StripCell: React.FC<{
   <div className="gt-strip-cell">
     <div className="flex items-center gap-1.5">
       <span className="text-eyebrow">{label}</span>
-      {live && <span className="size-1.5 rounded-full bg-[var(--positive)] gt-live" />}
+      {live && <span className="size-1.5 rounded-full bg-(--positive) gt-live" />}
     </div>
     <div className="flex items-baseline gap-1 mt-1">
-      {prefix && <span className={cn('text-stat-md text-ink-2', tone === 'warn' && 'text-[var(--warning)]')}>{prefix}</span>}
-      <span className={cn('text-stat-xl text-ink num', tone === 'warn' && 'text-[var(--warning)]')}>
+      {prefix && <span className={cn('text-stat-md text-ink-2', tone === 'warn' && 'text-(--warning)')}>{prefix}</span>}
+      <span className={cn('text-stat-xl text-ink num', tone === 'warn' && 'text-(--warning)')}>
         {value}
       </span>
       {delta && (
         <span className={cn(
           'text-xs font-medium num ml-1.5 inline-flex items-center gap-0.5',
-          delta.up ? 'text-[var(--positive)]' : 'text-[var(--danger)]'
+          delta.up ? 'text-(--positive)' : 'text-(--danger)'
         )}>
           {delta.up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
           {delta.value}
@@ -583,19 +583,19 @@ const SkeletonRows: React.FC<{ rows: number }> = ({ rows }) => (
 const WeeklyBars: React.FC<{ data: { day: string; count: number }[] }> = ({ data }) => {
   const max = Math.max(1, ...data.map((d) => d.count));
   return (
-    <div className="border-t border-b border-[var(--line)] py-6 px-2">
+    <div className="border-t border-b border-(--line) py-6 px-2">
       <div className="flex items-end gap-3 h-32">
         {data.map((d, i) => {
           const pct = (d.count / max) * 100;
           return (
             <div key={i} className="flex-1 flex flex-col items-center gap-2 min-w-0">
               <span className="text-[10px] text-ink num font-mono">{d.count}</span>
-              <div className="w-full bg-[var(--surface-2)] rounded-sm relative h-full overflow-hidden">
+              <div className="w-full bg-(--surface-2) rounded-sm relative h-full overflow-hidden">
                 <motion.div
                   initial={{ height: 0 }}
                   animate={{ height: `${pct}%` }}
                   transition={{ duration: 0.6, delay: 0.1 + i * 0.04, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute bottom-0 left-0 right-0 bg-[var(--ink-2)] rounded-sm"
+                  className="absolute bottom-0 left-0 right-0 bg-ink-2 rounded-sm"
                 />
               </div>
               <span className="text-[10px] text-ink-3 font-mono uppercase">{d.day.slice(0, 3)}</span>

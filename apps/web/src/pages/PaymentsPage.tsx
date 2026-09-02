@@ -85,7 +85,7 @@ export const PaymentsPage: React.FC = () => {
       {/* Strip KPIs */}
       <motion.section
         {...fadeUp(0)}
-        className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6 pb-8 border-b border-[var(--line)]"
+        className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6 pb-8 border-b border-(--line)"
       >
         <StripKpi
           eyebrow="Today"
@@ -164,7 +164,7 @@ const StripKpi: React.FC<{
     <p
       className={cn(
         'text-stat-xl mt-2 num',
-        tone === 'warn' && 'text-[var(--warning)]'
+        tone === 'warn' && 'text-(--warning)'
       )}
     >
       {value}

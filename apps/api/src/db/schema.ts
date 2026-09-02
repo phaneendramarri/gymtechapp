@@ -155,6 +155,10 @@ export const members = sqliteTable('members', {
   dateOfBirth: integer('date_of_birth'),
   photoUrl: text('photo_url'),
   faceEmbedding: text('face_embedding'),
+  // Phase 4.1: Biometric consent
+  biometricConsentGiven: integer('biometric_consent_given').default(0),
+  biometricConsentAt: integer('biometric_consent_at'),
+  biometricConsentVersion: text('biometric_consent_version').default('1.0'),
   address: text('address'),
   city: text('city'),
   pincode: text('pincode'),
@@ -282,7 +286,9 @@ export const userSessions = sqliteTable('user_sessions', {
   id: integer('id').primaryKey(),
   gymId: integer('gym_id').notNull(),
   userId: integer('user_id').notNull(),
-  tokenHash: text('token_hash').notNull().unique(),
+  tokenHash: text('token_hash').notNull().unique(), // access token jti hash
+  refreshTokenHash: text('refresh_token_hash'),    // refresh token jti hash (for rotation)
+  refreshTokenExpiresAt: integer('refresh_token_expires_at'), // Unix ts — expiry of refresh token
   ip: text('ip'),
   userAgent: text('user_agent'),
   issuedAt: integer('issued_at').notNull(),
@@ -388,6 +394,9 @@ export const communicationLogs = sqliteTable('communication_logs', {
   dispatchedById: integer('dispatched_by_id'),
   ip: text('ip'),
   createdAt: integer('created_at').notNull(),
+  // Phase 4.4: Retention + lawful basis
+  lawfulBasis: text('lawful_basis'),
+  retentionUntil: integer('retention_until'),
 }, (t) => ({
   gymIdx: index('idx_comm_logs_gym').on(t.gymId, t.createdAt),
 }));

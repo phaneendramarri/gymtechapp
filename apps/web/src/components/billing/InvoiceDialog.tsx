@@ -71,7 +71,7 @@ export const InvoiceDialog: React.FC<InvoiceDialogProps> = ({ paymentId, open, o
               </div>
             </div>
 
-            <div className="h-px bg-[var(--border)]/60" />
+            <div className="h-px bg-border/60" />
 
             {/* Billed to */}
             <div>

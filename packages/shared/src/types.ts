@@ -200,6 +200,10 @@ export interface Member {
   created_at: number
   updated_at: number
   deleted_at: number | null
+  // Phase 4.1: Biometric consent
+  biometric_consent_given?: number // 0 or 1
+  biometric_consent_at?: number | null
+  biometric_consent_version?: string | null
 }
 
 export interface Membership {
@@ -339,6 +343,8 @@ export interface SessionUser {
   name: string
   role: UserRole
   gymId: number | null
+  /** jti of the current access token — used for server-side session revocation */
+  jti?: string
 }
 
 // =====================================================

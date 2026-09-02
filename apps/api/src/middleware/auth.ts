@@ -42,8 +42,21 @@ export const requireAuth: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthV
     return jsonError('Missing or invalid session credential', 401);
   }
 
-  const session = await verifySessionToken(token, c.env.JWT_SECRET);
+  const session = await verifySessionToken(token, c.env.JWT_SECRET, {
+    iss: ctx.env.APP_URL ?? 'gymtech',
+    aud: 'gymtech-api',
+  });
   if (!session) return jsonError('Invalid or expired session token', 401);
+
+  // Phase 3.5c: Check jti has not been revoked server-side
+  if (session.jti) {
+    const now = Math.floor(Date.now() / 1000);
+    const dbSession = await c.env.DB
+      .prepare(`SELECT 1 FROM user_sessions WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?`)
+      .bind(session.jti, now)
+      .first();
+    if (!dbSession) return jsonError('Session has been revoked', 401);
+  }
 
   if (session.gymId !== null) {
     const dbUser = await c.env.DB
@@ -69,8 +82,22 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   if (!token) {
     return jsonError('Missing or invalid session credential', 401);
   }
-  const session = await verifySessionToken(token, c.env.JWT_SECRET);
+  const session = await verifySessionToken(token, c.env.JWT_SECRET, {
+    iss: ctx.env.APP_URL ?? 'gymtech',
+    aud: 'gymtech-api',
+  });
   if (!session) return jsonError('Invalid or expired session token', 401);
+
+  // Phase 3.5c: Check jti has not been revoked server-side
+  if (session.jti) {
+    const now = Math.floor(Date.now() / 1000);
+    const dbSession = await c.env.DB
+      .prepare(`SELECT 1 FROM user_sessions WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?`)
+      .bind(session.jti, now)
+      .first();
+    if (!dbSession) return jsonError('Session has been revoked', 401);
+  }
+
   setUser(c, payloadToSessionUser(session), session.gymId ?? undefined);
 
   if (!ctx.gymId) {
@@ -145,8 +172,22 @@ export const requireSuperAdminMiddleware: MiddlewareHandler<{ Bindings: AppEnv; 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return jsonError('Missing or invalid Authorization header', 401);
   }
-  const session = await verifySessionToken(authHeader.substring(7), c.env.JWT_SECRET);
+  const session = await verifySessionToken(authHeader.substring(7), c.env.JWT_SECRET, {
+    iss: c.env.APP_URL ?? 'gymtech',
+    aud: 'gymtech-api',
+  });
   if (!session) return jsonError('Invalid or expired session token', 401);
+
+  // Phase 3.5c: Check jti has not been revoked server-side
+  if (session.jti) {
+    const now = Math.floor(Date.now() / 1000);
+    const dbSession = await c.env.DB
+      .prepare(`SELECT 1 FROM user_sessions WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?`)
+      .bind(session.jti, now)
+      .first();
+    if (!dbSession) return jsonError('Session has been revoked', 401);
+  }
+
   setUser(c, payloadToSessionUser(session), session.gymId ?? undefined);
 
   if (session.role !== 'PLATFORM_ADMIN') {

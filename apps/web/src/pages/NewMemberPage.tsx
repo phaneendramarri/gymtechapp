@@ -116,7 +116,7 @@ export const NewMemberPage: React.FC = () => {
       <div className="max-w-2xl mx-auto w-full flex flex-col gap-6">
         <div>
           <a
-            href="#/members"
+            href="/members"
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
           >
             <ArrowLeft className="size-3.5" /> Back to Member Directory
@@ -167,7 +167,7 @@ export const NewMemberPage: React.FC = () => {
                 </Button>
               )}
               <Button asChild variant="outline" className="flex-1 h-10 text-xs font-medium">
-                <a href="#/members">View Directory</a>
+                <a href="/members">View Directory</a>
               </Button>
             </div>
           </Card>
@@ -243,9 +243,9 @@ export const NewMemberPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="gender" className="text-xs font-semibold">Gender</Label>
+                    <Label id="gender-label" className="text-xs font-semibold">Gender</Label>
                     <Select value={gender} onValueChange={(val: any) => setGender(val)}>
-                      <SelectTrigger id="gender" className="text-xs">
+                      <SelectTrigger className="text-xs" aria-labelledby="gender-label">
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
                       <SelectContent>
@@ -366,7 +366,7 @@ export const NewMemberPage: React.FC = () => {
             {/* Form Actions */}
             <div className="flex items-center justify-between pt-2">
               <Button asChild variant="ghost" className="text-xs">
-                <a href="#/members">Cancel</a>
+                <a href="/members">Cancel</a>
               </Button>
               <Button
                 type="submit"

@@ -12,25 +12,39 @@ const fadeUp = (delay = 0) => ({
 
 export const HeroSection: React.FC = () => {
   return (
-    <section className="relative pt-12 sm:pt-16 pb-20 sm:pb-28 bg-[var(--bg)]">
+    <section className="relative pt-24 sm:pt-28 pb-20 sm:pb-28 overflow-hidden">
+      {/* Warm gradient mesh — subtle depth behind the headline */}
+      <div
+        aria-hidden
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background:
+            'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(245,124,0,0.08) 0%, transparent 70%), radial-gradient(ellipse 60% 50% at 80% 40%, rgba(255,109,0,0.04) 0%, transparent 60%)',
+        }}
+      />
+
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Kicker */}
         <motion.div {...fadeUp(0)} className="flex items-center justify-center mb-6">
-          <span className="gt-kicker">
-            <span className="size-1.5 rounded-full bg-[var(--iron)]" />
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-(--iron)/20 bg-(--iron-soft) text-[11px] font-semibold text-(--iron) tracking-wide">
+            <span className="size-1.5 rounded-full bg-(--iron) animate-pulse" />
             Built for gyms across India
           </span>
         </motion.div>
 
-        {/* Headline — Inter for body, Fraunces for the italic emphasis. */}
+        {/* Headline */}
         <motion.h1
           {...fadeUp(0.05)}
           className="font-display text-center text-[40px] sm:text-6xl lg:text-7xl font-semibold tracking-[-0.025em] leading-[1.05] text-ink max-w-4xl mx-auto"
         >
-          The gym management software that <span className="text-italic-accent">actually</span> gets used.
+          The gym management software that{' '}
+          <span className="relative inline-block">
+            <span className="text-(--iron)">actually</span>
+          </span>{' '}
+          gets used.
         </motion.h1>
 
-        {/* Subhead — product truth, not marketing-speak. */}
+        {/* Subhead */}
         <motion.p
           {...fadeUp(0.1)}
           className="text-center text-base sm:text-lg text-ink-2 max-w-2xl mx-auto leading-relaxed mt-6"
@@ -46,9 +60,9 @@ export const HeroSection: React.FC = () => {
           <Button
             asChild
             size="lg"
-            className="bg-[var(--ink)] text-[var(--ink-inverse)] hover:bg-[var(--ink-2)] border-[var(--ink)] font-medium h-11 px-6 gap-2 rounded-lg"
+            className="bg-(--iron) hover:bg-(--iron-hover) text-white font-semibold h-11 px-6 gap-2 rounded-lg shadow-sm"
           >
-            <a href="#/login">
+            <a href="/login">
               Start free trial
               <ArrowRight className="h-4 w-4" />
             </a>
@@ -57,13 +71,13 @@ export const HeroSection: React.FC = () => {
             asChild
             variant="outline"
             size="lg"
-            className="h-11 px-6 font-medium text-sm border-[var(--line)] hover:bg-[var(--surface-2)] rounded-lg"
+            className="h-11 px-6 font-medium text-sm border-(--line) hover:bg-(--surface-2) rounded-lg"
           >
             <a href="#product">See the product</a>
           </Button>
         </motion.div>
 
-        {/* One-line trust strip — three real, concrete promises. */}
+        {/* Trust strip */}
         <motion.div
           {...fadeUp(0.2)}
           className="flex flex-wrap items-center justify-center gap-x-6 gap-y-2 mt-8 text-[12px] text-ink-3"
@@ -74,13 +88,13 @@ export const HeroSection: React.FC = () => {
             'Set up in under 30 minutes',
           ].map((p, i) => (
             <span key={i} className="inline-flex items-center gap-1.5">
-              <Check className="h-3.5 w-3.5 text-[var(--positive)]" />
+              <Check className="h-3.5 w-3.5 text-(--positive)" />
               <span>{p}</span>
             </span>
           ))}
         </motion.div>
 
-        {/* Product demo — single, focused, no fake mesh glow. */}
+        {/* Product demo */}
         <motion.div
           {...fadeUp(0.3)}
           className="mt-16 sm:mt-20 max-w-5xl mx-auto"

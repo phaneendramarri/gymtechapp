@@ -1,8 +1,17 @@
 import type { SessionUser, UserRole } from '@gymtech/shared';
+import { hashOpaqueToken, verifyOpaqueToken } from './password';
 
 /**
  * The JWT payload. Numeric ids (INTEGER PKs) and numeric gymId.
  * `gymId === null` for platform admins.
+ *
+ * Hardened with RFC 7519 claims:
+ *   iss – issuer – set to the APP_URL env var
+ *   aud – audience – `gymtech-api`
+ *   jti – unique token id – random 16-byte hex, stored in user_sessions for revocation
+ *   exp – short-lived access token (15 min), refreshed via the refresh token flow
+ *
+ * Fields `iss`, `aud`, `jti` are optional for backward compat with legacy tokens.
  */
 export interface UserSessionPayload {
   id: number;
@@ -11,11 +20,19 @@ export interface UserSessionPayload {
   role: UserRole;
   gymId: number | null;
   exp: number;
+  iss?: string;
+  aud?: string;
+  jti?: string;
 }
 
 // Re-export the password hashing API. The implementation lives in
 // `lib/password.ts` (Argon2id with legacy SHA-256 support).
 // Existing call-sites can keep importing `hashPassword` from `lib/session`.
+
+/** How long an access token is valid (seconds). */
+export const ACCESS_TOKEN_EXPIRY_SECONDS = 900; // 15 minutes
+/** How long a refresh token is valid (seconds). */
+export const REFRESH_TOKEN_EXPIRY_SECONDS = 2_592_000; // 30 days
 export {
   hashPassword,
   hashPasswordLegacySha256,
@@ -35,14 +52,25 @@ function b64urlDecode(s: string): string {
 }
 
 export async function createSessionToken(
-  user: Omit<UserSessionPayload, 'exp'>,
+  user: Omit<UserSessionPayload, 'exp' | 'iss' | 'aud' | 'jti'>,
   secret: string,
-  expiresInSeconds = 86400 * 7
-): Promise<string> {
+  opts: { iss?: string; aud?: string; expiresInSeconds?: number } = {}
+): Promise<{ token: string; jti: string }> {
   const header = { alg: 'HS256', typ: 'JWT' };
+  // Generate a random jti (16 bytes = 32 hex chars)
+  const jtiBytes = new Uint8Array(16);
+  crypto.getRandomValues(jtiBytes);
+  const jti = Array.from(jtiBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+
+  const expiresInSeconds = opts.expiresInSeconds ?? 900; // 15 minutes default for access tokens
   const payload: UserSessionPayload = {
     ...user,
     exp: Math.floor(Date.now() / 1000) + expiresInSeconds,
+    iss: opts.iss ?? 'gymtech',
+    aud: opts.aud ?? 'gymtech-api',
+    jti,
   };
 
   const encodedHeader = b64urlEncode(JSON.stringify(header));
@@ -63,12 +91,14 @@ export async function createSessionToken(
   for (let i = 0; i < sigBytes.length; i++) bin += String.fromCharCode(sigBytes[i]);
   const encodedSignature = btoa(bin).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
 
-  return `${dataToSign}.${encodedSignature}`;
+  const token = `${dataToSign}.${encodedSignature}`;
+  return { token, jti };
 }
 
 export async function verifySessionToken(
   token: string,
-  secret: string
+  secret: string,
+  opts?: { iss: string; aud: string }
 ): Promise<UserSessionPayload | null> {
   try {
     const parts = token.split('.');
@@ -105,6 +135,13 @@ export async function verifySessionToken(
       return null;
     }
 
+    // Strict validation only when opts are supplied (new tokens with iss/aud).
+    // Legacy tokens without iss/aud/jti are accepted without strict validation.
+    if (opts) {
+      if (payload.iss !== undefined && payload.iss !== opts.iss) return null;
+      if (payload.aud !== undefined && payload.aud !== opts.aud) return null;
+    }
+
     return payload;
   } catch {
     return null;
@@ -123,5 +160,40 @@ export function payloadToSessionUser(p: UserSessionPayload): SessionUser {
     name: p.name,
     role: p.role,
     gymId: p.gymId,
+    jti: p.jti,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Refresh token helpers
+// ---------------------------------------------------------------------------
+
+const REFRESH_TOKEN_BYTES = 32; // 256 bits — large enough for a cryptographically random refresh token
+
+/**
+ * Generate a new refresh token (opaque, not a JWT).
+ * Returns { token, jti } where `token` is the raw token and `jti` is its hash for storage.
+ */
+export async function createRefreshToken(secret: string): Promise<{ token: string; jti: string }> {
+  const tokenBytes = new Uint8Array(REFRESH_TOKEN_BYTES);
+  crypto.getRandomValues(tokenBytes);
+  const rawToken = Array.from(tokenBytes)
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+  // Store jti = hash(opaque_token, secret) so we can look up sessions without storing raw token
+  const jti = await hashOpaqueToken(rawToken, secret);
+  return { token: rawToken, jti };
+}
+
+/**
+ * Given a raw refresh token and the stored jti hash, verify the token.
+ * Returns true if valid (not expired, not revoked).
+ * Checks are done by the caller against the DB — this only verifies the HMAC.
+ */
+export async function verifyRefreshToken(
+  token: string,
+  secret: string,
+  storedJti: string
+): Promise<boolean> {
+  return verifyOpaqueToken(token, storedJti, secret);
 }

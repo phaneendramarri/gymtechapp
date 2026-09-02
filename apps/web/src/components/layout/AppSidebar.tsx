@@ -67,26 +67,26 @@ const STAFF: NavRole[] = ['OWNER', 'MANAGER', 'STAFF'];
 const navGroups: NavGroup[] = [
   {
     items: [
-      { key: 'dashboard', label: 'Dashboard', href: '#/dashboard', icon: LayoutDashboard, roles: ALL, shortcut: '1' },
+      { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ALL, shortcut: '1' },
     ],
   },
   {
     label: 'Operate',
     items: [
-      { key: 'members', label: 'Members', href: '#/members', icon: Users, roles: ALL, shortcut: '2' },
-      { key: 'attendance', label: 'Floor', href: '#/attendance', icon: CalendarCheck, roles: ALL, shortcut: '3' },
-      { key: 'payments', label: 'Payments', href: '#/payments', icon: CreditCard, roles: STAFF, shortcut: '5' },
-      { key: 'pt', label: 'PT Collections', href: '#/pt-collections', icon: Trophy, roles: ['OWNER', 'MANAGER', 'TRAINER'] as NavRole[] },
+      { key: 'members', label: 'Members', href: '/members', icon: Users, roles: ALL, shortcut: '2' },
+      { key: 'attendance', label: 'Floor', href: '/attendance', icon: CalendarCheck, roles: ALL, shortcut: '3' },
+      { key: 'payments', label: 'Payments', href: '/payments', icon: CreditCard, roles: STAFF, shortcut: '5' },
+      { key: 'pt', label: 'PT Collections', href: '/pt-collections', icon: Trophy, roles: ['OWNER', 'MANAGER', 'TRAINER'] as NavRole[] },
     ],
   },
   {
     label: 'Configure',
     items: [
-      { key: 'plans', label: 'Plans', href: '#/plans', icon: Tag, roles: ['OWNER', 'MANAGER'] as NavRole[] },
-      { key: 'staff', label: 'Staff', href: '#/staff', icon: UserCog, roles: ['OWNER'] as NavRole[] },
-      { key: 'reports', label: 'Reports', href: '#/reports', icon: BarChart3, roles: ['OWNER'] as NavRole[] },
-      { key: 'settings', label: 'Settings', href: '#/settings/notifications', icon: Settings, roles: ['OWNER'] as NavRole[] },
-      { key: 'settings', label: 'Audit Logs', href: '#/audit-logs', icon: History, roles: ['OWNER'] as NavRole[] },
+      { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, roles: ['OWNER', 'MANAGER'] as NavRole[] },
+      { key: 'staff', label: 'Staff', href: '/staff', icon: UserCog, roles: ['OWNER'] as NavRole[] },
+      { key: 'reports', label: 'Reports', href: '/reports', icon: BarChart3, roles: ['OWNER'] as NavRole[] },
+      { key: 'settings', label: 'Settings', href: '/settings/notifications', icon: Settings, roles: ['OWNER'] as NavRole[] },
+      { key: 'settings', label: 'Audit Logs', href: '/audit-logs', icon: History, roles: ['OWNER'] as NavRole[] },
     ],
   },
 ];
@@ -117,7 +117,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     return true;
   };
 
-  const isActive = (href: string) => location.pathname === href.replace('#', '');
+  const isActive = (href: string) => location.pathname === href;
 
   const renderItem = (item: NavItem, mode: 'rail' | 'drawer') => {
     if (!isAllowed(item)) return null;
@@ -142,12 +142,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <span className="flex-1 truncate">{item.label}</span>
         )}
         {(!collapsed || mode === 'drawer') && item.shortcut && (
-          <kbd className="hidden lg:inline-block text-[10px] font-mono text-ink-3 bg-[var(--surface-2)] border border-[var(--line)] rounded px-1.5 h-[18px] leading-[16px]">
+          <kbd className="hidden lg:inline-block text-[10px] font-mono text-ink-3 bg-(--surface-2) border border-(--line) rounded px-1.5 h-4.5 leading-4">
             {item.shortcut}
           </kbd>
         )}
         {(!collapsed || mode === 'drawer') && item.badge && (
-          <span className="gt-chip gt-chip-iron h-[18px] text-[10px]">{item.badge}</span>
+          <span className="gt-chip gt-chip-iron h-4.5 text-[10px]">{item.badge}</span>
         )}
       </a>
     );
@@ -191,16 +191,16 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     <div className="h-full flex flex-col">
       {/* Brand */}
       <div className={cn(
-        'h-16 flex items-center border-b border-[var(--line)] shrink-0',
+        'h-16 flex items-center border-b border-(--line) shrink-0',
         collapsed ? 'justify-center px-1' : 'px-4 gap-2.5'
       )}>
-        <a href="#/dashboard" className="flex items-center group/logo">
+        <a href="/dashboard" className="flex items-center group/logo">
           <Logo size="sm" showText={!collapsed || mobileOpen} />
         </a>
         {mobileOpen && (
           <button
             onClick={onCloseMobile}
-            className="ml-auto h-8 w-8 rounded-md text-ink-3 hover:bg-[var(--surface-2)] hover:text-ink flex items-center justify-center"
+            className="ml-auto h-8 w-8 rounded-md text-ink-3 hover:bg-surface-2 hover:text-ink flex items-center justify-center"
             aria-label="Close menu"
           >
             <X className="h-4 w-4" />
@@ -212,7 +212,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       {(!collapsed || mobileOpen) && gym && (
         <div className="px-3 pt-3">
           <div className="gt-card p-2.5 flex items-center gap-2.5">
-            <div className="h-7 w-7 rounded-md bg-[var(--surface-2)] text-ink-2 flex items-center justify-center text-xs font-semibold shrink-0">
+            <div className="h-7 w-7 rounded-md bg-surface-2 text-ink-2 flex items-center justify-center text-xs font-semibold shrink-0">
               {gym.name?.[0] || 'G'}
             </div>
             <div className="min-w-0 flex-1">
@@ -262,19 +262,19 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       </nav>
 
       {/* Footer user */}
-      <div className={cn('border-t border-[var(--line)] p-3 shrink-0', collapsed && !mobileOpen ? 'flex justify-center' : '')}>
+      <div className={cn('border-t border-(--line) p-3 shrink-0', collapsed && !mobileOpen ? 'flex justify-center' : '')}>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             {collapsed && !mobileOpen ? (
               <button
-                className="h-9 w-9 rounded-full bg-[var(--surface-2)] text-ink-2 flex items-center justify-center text-xs font-semibold"
+                className="h-9 w-9 rounded-full bg-surface-2 text-ink-2 flex items-center justify-center text-xs font-semibold"
                 aria-label="Account menu"
               >
                 {userInitial}
               </button>
             ) : (
-              <button className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-[var(--surface-2)] transition-colors">
-                <div className="h-8 w-8 rounded-full bg-[var(--iron)] text-[var(--iron-ink)] flex items-center justify-center text-xs font-semibold shrink-0">
+              <button className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-surface-2 transition-colors">
+                <div className="h-8 w-8 rounded-full bg-iron text-iron-ink flex items-center justify-center text-xs font-semibold shrink-0">
                   {userInitial}
                 </div>
                 <div className="min-w-0 flex-1 text-left">
@@ -306,14 +306,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       {/* Desktop rail */}
       <aside
         className={cn(
-          'hidden md:flex shrink-0 border-r border-[var(--line)] bg-[var(--surface)] relative z-10',
-          collapsed ? 'w-[60px]' : 'w-[224px]'
+          'hidden md:flex shrink-0 border-r border-(--line) bg-surface relative z-10',
+          collapsed ? 'w-15' : 'w-56'
         )}
       >
         {body}
         <button
           onClick={onToggleCollapsed}
-          className="absolute -right-3 top-16 h-6 w-6 rounded-full border border-[var(--line)] bg-[var(--surface)] text-ink-3 hover:text-ink flex items-center justify-center shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
+          className="absolute -right-3 top-16 h-6 w-6 rounded-full border border-(--line) bg-surface text-ink-3 hover:text-ink flex items-center justify-center shadow-[0_1px_2px_rgba(0,0,0,0.04)]"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
           {collapsed ? <ChevronRight className="h-3 w-3" /> : <ChevronLeft className="h-3 w-3" />}
@@ -339,7 +339,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               animate={{ x: 0 }}
               exit={{ x: -240 }}
               transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}
-              className="md:hidden fixed left-0 top-0 bottom-0 w-[260px] bg-[var(--surface)] z-50 border-r border-[var(--line)]"
+              className="md:hidden fixed left-0 top-0 bottom-0 w-65 bg-surface z-50 border-r border-(--line)"
             >
               {body}
             </motion.aside>

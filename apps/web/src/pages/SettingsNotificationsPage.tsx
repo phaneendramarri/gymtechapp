@@ -89,7 +89,7 @@ export const SettingsNotificationsPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
               {/* SMS Balance Card */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 flex flex-col justify-between shadow-xs">
+              <div className="rounded-xl border border-(--line) bg-(--surface) p-4 flex flex-col justify-between shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
@@ -115,7 +115,7 @@ export const SettingsNotificationsPage: React.FC = () => {
                     <span>{smsBal.used} used</span>
                     <span>{smsBal.total} total quota</span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-[var(--surface-2)] overflow-hidden">
+                  <div className="h-2 w-full rounded-full bg-(--surface-2) overflow-hidden">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-300",
@@ -128,7 +128,7 @@ export const SettingsNotificationsPage: React.FC = () => {
               </div>
 
               {/* WhatsApp Balance Card */}
-              <div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 flex flex-col justify-between shadow-xs">
+              <div className="rounded-xl border border-(--line) bg-(--surface) p-4 flex flex-col justify-between shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
                     <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
@@ -154,7 +154,7 @@ export const SettingsNotificationsPage: React.FC = () => {
                     <span>{waBal.used} used</span>
                     <span>{waBal.total} total quota</span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-[var(--surface-2)] overflow-hidden">
+                  <div className="h-2 w-full rounded-full bg-(--surface-2) overflow-hidden">
                     <div
                       className={cn(
                         "h-full rounded-full transition-all duration-300",
@@ -232,7 +232,7 @@ export const SettingsNotificationsPage: React.FC = () => {
                         className={cn(
                           'h-6 px-2 rounded text-[11px] font-mono transition-colors',
                           reminderDays === d
-                            ? 'bg-[var(--ink)] text-[var(--ink-inverse)]'
+                            ? 'bg-(--ink) text-(--ink-inverse)'
                             : 'text-ink-3 hover:text-ink'
                         )}
                       >
@@ -300,8 +300,8 @@ const ChannelRow: React.FC<{
   on: React.ReactNode;
   locked?: boolean;
 }> = ({ icon, name, desc, on, locked }) => (
-  <li className="grid grid-cols-[auto_1fr_auto] items-center gap-4 py-4 border-t border-[var(--line-2)] first:border-t-0">
-    <div className="h-8 w-8 rounded-md bg-[var(--surface-2)] text-ink-2 flex items-center justify-center shrink-0">
+  <li className="grid grid-cols-[auto_1fr_auto] items-center gap-4 py-4 border-t border-line-2 first:border-t-0">
+    <div className="h-8 w-8 rounded-md bg-(--surface-2) text-ink-2 flex items-center justify-center shrink-0">
       {icon}
     </div>
     <div>
@@ -322,7 +322,7 @@ const TriggerRow: React.FC<{
   onToggle: (v: boolean) => void;
   footer?: React.ReactNode;
 }> = ({ title, desc, enabled, onToggle, footer }) => (
-  <li className="py-4 border-t border-[var(--line-2)] first:border-t-0">
+  <li className="py-4 border-t border-(--line-2) first:border-t-0">
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         <p className="text-sm text-ink font-medium">{title}</p>
@@ -335,12 +335,12 @@ const TriggerRow: React.FC<{
 );
 
 const PreviewChat: React.FC<{ label: string; tone: 'ok' | 'info' | 'muted'; body: string }> = ({ label, tone, body }) => (
-  <div className="rounded-md border border-[var(--line)] bg-[var(--surface)] p-3">
+  <div className="rounded-md border border-(--line) bg-(--surface) p-3">
     <p
       className={cn(
         'text-[10px] uppercase tracking-wider font-semibold mb-2',
-        tone === 'ok' && 'text-[var(--positive)]',
-        tone === 'info' && 'text-[var(--info)]',
+        tone === 'ok' && 'text-(--positive)',
+        tone === 'info' && 'text-(--info)',
         tone === 'muted' && 'text-ink-3'
       )}
     >

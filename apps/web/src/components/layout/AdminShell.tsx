@@ -20,7 +20,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({ title, children }) => {
   const prefersReducedMotion = useReducedMotion();
 
   const navItems: Array<{ label: string; href: string; icon: React.ReactNode }> = [
-    { label: 'Gyms & Tenants', href: '#/admin', icon: <Building2 className="size-4 shrink-0" /> },
+    { label: 'Gyms & Tenants', href: '/admin', icon: <Building2 className="size-4 shrink-0" /> },
   ];
 
   return (
@@ -71,7 +71,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({ title, children }) => {
         <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-1">
           {navItems.map((item) => {
             // For hash routing, compare against current hash.
-            const isActive = location.hash === item.href || (location.hash === '' && item.href === '#/admin');
+            const isActive = location.pathname === item.href || (location.pathname === '' && item.href === '/admin');
             return (
               <a
                 key={item.href}

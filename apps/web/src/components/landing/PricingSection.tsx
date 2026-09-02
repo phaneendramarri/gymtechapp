@@ -77,7 +77,7 @@ export const PricingSection: React.FC = () => {
   const [yearly, setYearly] = useState(false);
 
   return (
-    <section id="pricing" className="py-24 sm:py-32 border-t border-[var(--line)] bg-[var(--surface)]">
+    <section id="pricing" className="py-24 sm:py-32 border-t border-(--line) bg-(--surface)">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div {...fadeUp(0)} className="max-w-2xl mx-auto text-center mb-10">
           <p className="gt-kicker">Pricing</p>
@@ -94,7 +94,7 @@ export const PricingSection: React.FC = () => {
           <div
             role="tablist"
             aria-label="Billing period"
-            className="inline-flex items-center gap-1 p-1 bg-[var(--surface-2)] border border-[var(--line)] rounded-lg"
+            className="inline-flex items-center gap-1 p-1 bg-(--surface-2) border border-(--line) rounded-lg"
           >
             {(['monthly', 'yearly'] as const).map((v) => {
               const active = (v === 'yearly') === yearly;
@@ -108,13 +108,13 @@ export const PricingSection: React.FC = () => {
                   className={
                     'px-3.5 h-8 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 ' +
                     (active
-                      ? 'bg-[var(--ink)] text-[var(--ink-inverse)]'
+                      ? 'bg-(--ink) text-(--ink-inverse)'
                       : 'text-ink-2 hover:text-ink')
                   }
                 >
                   {v === 'monthly' ? 'Monthly' : 'Yearly'}
                   {v === 'yearly' && (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-[var(--positive-soft)] text-[var(--positive)]">
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-(--positive-soft) text-(--positive)">
                       Save 2 months
                     </span>
                   )}
@@ -125,14 +125,14 @@ export const PricingSection: React.FC = () => {
         </motion.div>
 
         {/* Plans */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-[var(--line)] border border-[var(--line)] rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-(--line) border border-(--line) rounded-2xl overflow-hidden">
           {PLANS.map((p, idx) => (
             <motion.div
               key={p.name}
               {...fadeUp(idx * 0.05)}
               className={
-                'p-8 flex flex-col bg-[var(--surface)] ' +
-                (p.highlight ? 'bg-[var(--bg)]' : '')
+                'p-8 flex flex-col bg-(--surface) ' +
+                (p.highlight ? 'bg-(--bg)' : '')
               }
             >
               <div className="flex items-center justify-between mb-4">
@@ -158,13 +158,13 @@ export const PricingSection: React.FC = () => {
               <Button
                 asChild
                 className={
-                  'mt-6 h-10 gap-1.5 ' +
+                  'mt-6 h-10 gap-1.5 rounded-lg font-medium ' +
                   (p.highlight
-                    ? 'bg-[var(--ink)] text-[var(--ink-inverse)] hover:bg-[var(--ink-2)] border-[var(--ink)]'
-                    : 'bg-[var(--surface)] text-ink hover:bg-[var(--surface-2)] border-[var(--line)]')
+                    ? 'bg-(--iron) hover:bg-(--iron-hover) text-white border-transparent shadow-sm'
+                    : 'bg-(--surface) text-ink hover:bg-(--surface-2) border-(--line)')
                 }
               >
-                <a href="#/login">
+                <a href="/login">
                   {p.cta}
                   <ArrowRight className="h-3.5 w-3.5" />
                 </a>
@@ -173,7 +173,7 @@ export const PricingSection: React.FC = () => {
               <ul className="mt-7 flex flex-col gap-2.5">
                 {p.features.map((f) => (
                   <li key={f} className="flex items-start gap-2 text-[13px] text-ink-2">
-                    <Check className="h-3.5 w-3.5 text-[var(--positive)] shrink-0 mt-0.5" />
+                    <Check className="h-3.5 w-3.5 text-(--positive) shrink-0 mt-0.5" />
                     <span>{f}</span>
                   </li>
                 ))}
@@ -183,7 +183,7 @@ export const PricingSection: React.FC = () => {
         </div>
 
         <p className="mt-6 text-center text-[12px] text-ink-3">
-          All prices in INR, exclusive of GST. Need a custom plan? <a href="#/contact" className="text-ink underline underline-offset-2">Talk to us</a>.
+          All prices in INR, exclusive of GST. Need a custom plan? <a href="/contact" className="text-ink underline underline-offset-2">Talk to us</a>.
         </p>
       </div>
     </section>

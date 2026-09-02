@@ -120,7 +120,7 @@ export const AttendancePage: React.FC = () => {
       {/* LIVE HERO BAND — one dense row showing what's happening right now. */}
       <motion.section
         {...fadeUp(0)}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-0 border-t border-b border-[var(--line)] mb-8"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-0 border-t border-b border-(--line) mb-8"
       >
         <HeroCell
           icon={<Activity className="h-4 w-4" />}
@@ -181,24 +181,24 @@ export const AttendancePage: React.FC = () => {
               ))}
             </ul>
           ) : logs.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-[var(--line)] px-6 py-12 text-center">
+            <div className="rounded-lg border border-dashed border-(--line) px-6 py-12 text-center">
               <p className="text-h3 text-ink">The floor is empty.</p>
               <p className="text-meta mt-1.5 max-w-md mx-auto">
                 When members arrive, they'll appear here in real time.
               </p>
             </div>
           ) : (
-            <ul className="flex flex-col border-t border-[var(--line)]">
+            <ul className="flex flex-col border-t border-(--line)">
               {logs.map((log: any) => (
                 <motion.li
                   key={log.id}
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="flex items-center gap-3.5 py-3 border-b border-[var(--line-2)] last:border-b-0"
+                  className="flex items-center gap-3.5 py-3 border-b border-line-2 last:border-b-0"
                 >
                   {log.photo_url ? (
-                    <img src={log.photo_url} alt="" className="size-9 rounded-full object-cover border border-[var(--line)]" />
+                    <img src={log.photo_url} alt={log.first_name ? `${log.first_name} ${log.last_name || ''}`.trim() : 'Member photo'} className="size-9 rounded-full object-cover border border-(--line)" />
                   ) : (
                     <span className="gt-avatar" data-size="md">
                       {initials(log.first_name, log.last_name)}
@@ -249,11 +249,11 @@ const HeroCell: React.FC<{
   live?: boolean;
   hint?: string;
 }> = ({ icon, label, value, isString, live, hint }) => (
-  <div className="px-6 py-5 border-r border-[var(--line-2)] last:border-r-0">
+  <div className="px-6 py-5 border-r border-line-2 last:border-r-0">
     <p className="text-eyebrow flex items-center gap-1.5">
       {icon}
       {label}
-      {live && <span className="size-1.5 rounded-full bg-[var(--positive)] gt-live ml-1" />}
+      {live && <span className="size-1.5 rounded-full bg-(--positive) gt-live ml-1" />}
     </p>
     <p className={cn('mt-2 text-ink', isString ? 'text-h2' : 'text-stat-xl num')}>
       {value}

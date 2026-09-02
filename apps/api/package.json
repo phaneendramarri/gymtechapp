@@ -11,6 +11,8 @@
     "dev": "wrangler dev -c ../../wrangler.jsonc",
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext ts",
+    "format": "prettier src --write",
     "db:migrate:local": "wrangler d1 migrations apply gym-d1-prod --local -c ../../wrangler.jsonc",
     "db:migrate:remote": "wrangler d1 migrations apply gym-d1-prod --remote -c ../../wrangler.jsonc",
     "db:seed:local": "wrangler d1 execute gym-d1-prod --local --file=./seed/seed_dev.sql -c ../../wrangler.jsonc",

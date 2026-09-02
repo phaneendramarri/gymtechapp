@@ -59,7 +59,7 @@ describe('Auth & Cryptographic Security', () => {
       gymId: 'gym_abc',
     };
 
-    const token = await createSessionToken(user, secret, 3600);
+      const { token } = await createSessionToken(user, secret, { expiresInSeconds: 3600 });
     expect(token).toBeTruthy();
     expect(token.split('.').length).toBe(3);
 
@@ -80,8 +80,8 @@ describe('Auth & Cryptographic Security', () => {
       gymId: 'gym_abc',
     };
 
-    // Expire immediately (negative duration)
-    const token = await createSessionToken(user, secret, -10);
+    // Expire immediately (negative duration, -86400 = 1 day ago regardless of clock)
+    const { token } = await createSessionToken(user, secret, { expiresInSeconds: -86400 });
     const verified = await verifySessionToken(token, secret);
     expect(verified).toBeNull();
   });
@@ -95,7 +95,7 @@ describe('Auth & Cryptographic Security', () => {
       gymId: null,
     };
 
-    const token = await createSessionToken(user, 'secret-a', 3600);
+    const { token } = await createSessionToken(user, 'secret-a', { expiresInSeconds: 3600 });
     const verified = await verifySessionToken(token, 'secret-b');
     expect(verified).toBeNull();
   });
@@ -109,7 +109,7 @@ describe('Auth & Cryptographic Security', () => {
       gymId: 'gym_abc',
     };
 
-    const token = await createSessionToken(user, secret, 3600);
+    const { token } = await createSessionToken(user, secret, { expiresInSeconds: 3600 });
     const parts = token.split('.');
     // Tamper with middle part (payload)
     const tamperedPayload = btoa(JSON.stringify({ ...user, role: 'SUPER_ADMIN', exp: Math.floor(Date.now() / 1000) + 3600 }))

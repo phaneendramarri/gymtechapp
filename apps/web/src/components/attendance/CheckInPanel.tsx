@@ -358,12 +358,12 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
             {blockedMember?.id && (
               <div className="flex items-center gap-2 pt-1">
                 <Button asChild size="sm" className="bg-destructive text-white hover:bg-destructive/90 font-bold text-xs h-8">
-                  <a href={`#/members/${blockedMember.id}/renew`}>
+                  <a href={`/members/${blockedMember.id}/renew`}>
                     Renew Membership Now <ArrowRight className="size-3.5 ml-1" />
                   </a>
                 </Button>
                 <Button asChild size="sm" variant="outline" className="text-xs h-8 border-destructive/40 text-destructive hover:bg-destructive/10">
-                  <a href={`#/members/${blockedMember.id}`}>View Profile</a>
+                  <a href={`/members/${blockedMember.id}`}>View Profile</a>
                 </Button>
               </div>
             )}
@@ -540,7 +540,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                     >
                       <div className="size-8 rounded-full border border-border bg-card flex items-center justify-center overflow-hidden shrink-0">
                         {m.photo_url ? (
-                          <img src={m.photo_url} alt="" className="size-full object-cover" />
+                          <img src={m.photo_url} alt={m.first_name ? `${m.first_name} ${m.last_name || ''}`.trim() : 'Member photo'} className="size-full object-cover" />
                         ) : (
                           <span className="font-bold text-[10px] text-muted-foreground">
                             {(m.first_name?.[0] || '') + (m.last_name?.[0] || '')}
@@ -568,7 +568,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
         {activeMode === 'face' && (
           <div className="flex flex-col gap-4">
             {/* Camera Viewfinder Box */}
-            <div className="relative rounded-2xl overflow-hidden border-2 border-border bg-black aspect-[4/3] flex items-center justify-center shadow-inner group">
+            <div className="relative rounded-2xl overflow-hidden border-2 border-border bg-black aspect-4/3 flex items-center justify-center shadow-inner group">
               {cameraActive ? (
                 <>
                   <video
@@ -602,7 +602,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                       <div className="absolute -bottom-1.5 -right-1.5 size-5 border-b-3 border-r-3 border-primary rounded-br-lg" />
 
                       {/* Animated Laser Scanning Line */}
-                      <div className="absolute inset-x-2 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent shadow-[0_0_12px_var(--primary)] animate-[bounce_2s_infinite]" />
+                      <div className="absolute inset-x-2 h-0.5 bg-linear-to-r from-transparent via-primary to-transparent shadow-[0_0_12px_var(--primary)] animate-[bounce_2s_infinite]" />
 
                       {/* Status indicator inside reticle */}
                       {isMatchingFace ? (
@@ -653,7 +653,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="size-11 rounded-full border-2 border-primary overflow-hidden shrink-0">
                     {currentMatch.member.photoUrl ? (
-                      <img src={currentMatch.member.photoUrl} alt="" className="size-full object-cover" />
+                      <img src={currentMatch.member.photoUrl} alt={currentMatch.member.name || 'Member photo'} className="size-full object-cover" />
                     ) : (
                       <div className="size-full bg-secondary flex items-center justify-center font-bold text-xs text-muted-foreground">
                         {currentMatch.member.name.charAt(0)}

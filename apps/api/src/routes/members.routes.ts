@@ -17,7 +17,8 @@ import { MemberService } from '../services/member.service';
 import { LicenseService } from '../services/license.service';
 import { EmailService } from '../services/email.service';
 import { auditGymFromCtx } from '../services/audit.service';
-import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
+import { encryptFaceEmbedding } from '../lib/crypto';
+import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
 
 export const memberRoutes = new Hono();
 
@@ -28,11 +29,13 @@ memberRoutes.get('/', requireGym, safeHandler(async (c) => {
   const ctx = getCtx(c);
   const search = c.req.query('search') || undefined;
   const status = c.req.query('status') || undefined;
-  const limit = parseInt(c.req.query('limit') || '100', 10);
-  const offset = parseInt(c.req.query('offset') || '0', 10);
+  const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'members');
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
-  const members = await memberRepo.list({ search, status, limit, offset });
-  return jsonOk({ members });
+  const [members, total] = await Promise.all([
+    memberRepo.list({ search, status, limit, offset }),
+    memberRepo.countTotal({ search, status }),
+  ]);
+  return jsonPaginated(members, total, limit, offset);
 }));
 
 // ----- Create member -----
@@ -43,15 +46,20 @@ memberRoutes.post('/', requireGym, safeHandler(async (c) => {
   const parsed = CreateMemberRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid member data');
 
-  const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id, tenant.gym.name);
+  const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id, tenant.gym.name, ctx.env as unknown as Record<string, string | undefined>);
   try {
+    // Phase 4.2: encrypt face embedding before storing
+    let encryptedFaceEmbedding: string | undefined;
+    if (parsed.data.faceEmbedding) {
+      encryptedFaceEmbedding = await encryptFaceEmbedding(parsed.data.faceEmbedding, ctx.env as unknown as Record<string, string | undefined>);
+    }
     const result = await memberService.createMemberWithPlan({
       firstName: parsed.data.firstName, lastName: parsed.data.lastName, phone: parsed.data.phone,
       email: parsed.data.email && parsed.data.email.length > 0 ? parsed.data.email : undefined,
       gender: parsed.data.gender,
       dateOfBirth: parsed.data.dateOfBirth ? Math.floor(new Date(parsed.data.dateOfBirth).getTime() / 1000) : undefined,
       joinedDate: parsed.data.joinedDate ? Math.floor(new Date(parsed.data.joinedDate).getTime() / 1000) : undefined,
-      photoUrl: parsed.data.photoUrl, faceEmbedding: parsed.data.faceEmbedding,
+      photoUrl: parsed.data.photoUrl, faceEmbedding: encryptedFaceEmbedding,
       address: parsed.data.address, city: parsed.data.city, pincode: parsed.data.pincode,
       emergencyContactName: parsed.data.emergencyContactName, emergencyContactPhone: parsed.data.emergencyContactPhone,
       healthNotes: parsed.data.healthNotes, planId: parsed.data.planId,
@@ -95,7 +103,7 @@ memberRoutes.get('/:id', requireGym, safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const id = paramId(c.req.param() as Record<string, string>);
-  const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id, tenant.gym.name);
+  const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id, tenant.gym.name, ctx.env as unknown as Record<string, string | undefined>);
   try {
     return jsonOk(await memberService.getMemberDetails(id));
   } catch (e: any) { return jsonErr(e.message, 404); }
@@ -113,11 +121,21 @@ memberRoutes.put('/:id', requireGym, safeHandler(async (c) => {
   const before = await memberRepo.findById(id);
   if (!before) return jsonErr('Member not found', 404);
 
+  // Phase 4.2: encrypt face embedding before storing
+  let encryptedFaceEmbedding: string | undefined | null = undefined; // undefined = no change, null = clear
+  if ('faceEmbedding' in parsed.data) {
+    if (parsed.data.faceEmbedding === null) {
+      encryptedFaceEmbedding = null; // clear the embedding
+    } else if (parsed.data.faceEmbedding) {
+      encryptedFaceEmbedding = await encryptFaceEmbedding(parsed.data.faceEmbedding, ctx.env as unknown as Record<string, string | undefined>);
+    }
+  }
+
   await memberRepo.update(id, {
     first_name: parsed.data.firstName, last_name: parsed.data.lastName, phone: parsed.data.phone,
     email: parsed.data.email, gender: parsed.data.gender,
     date_of_birth: parsed.data.dateOfBirth ? Math.floor(new Date(parsed.data.dateOfBirth).getTime() / 1000) : undefined,
-    photo_url: parsed.data.photoUrl, face_embedding: parsed.data.faceEmbedding,
+    photo_url: parsed.data.photoUrl, face_embedding: encryptedFaceEmbedding,
     address: parsed.data.address, emergency_contact_name: parsed.data.emergencyContactName,
     emergency_contact_phone: parsed.data.emergencyContactPhone, health_notes: parsed.data.healthNotes,
     status: parsed.data.status,
@@ -139,6 +157,55 @@ memberRoutes.delete('/:id', requireGym, requireFeature('members'), requireRole('
     before, after: { ...before, deleted_at: Math.floor(Date.now() / 1000), status: 'INACTIVE' },
   });
   return jsonOk({ success: true, message: 'Member archived successfully. Historical records preserved.' });
+}));
+
+// ----- GDPR Article 17 erasure (right to be forgotten) -----
+// DELETE /members/:id/personal-data — OWNER only — wipes all personal data, deletes comms logs, clears biometric
+memberRoutes.delete('/:id/personal-data', requireGym, requireFeature('members'), requireRole('OWNER'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const id = paramId(c.req.param() as Record<string, string>);
+  const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
+  const member = await memberRepo.findById(id);
+  if (!member) return jsonErr('Member not found', 404);
+
+  // Verify biometric consent was previously given (audit trail)
+  if (member.biometric_consent_given) {
+    await auditGym(ctx, 'member.gdpr_erasure', 'member', id, {
+      before: { first_name: member.first_name, email: member.email, face_embedding: '[ENCRYPTED]' },
+      after: { first_name: '[ERASED]', email: null, face_embedding: null },
+      metadata: 'GDPR erasure: all personal data wiped, communication logs deleted',
+    });
+  }
+
+  await memberRepo.erasePersonalData(id, ctx.gymId!);
+  return jsonOk({ success: true, message: 'All personal data has been permanently erased. Retaining minimal audit record.' });
+}));
+
+// ----- Data portability export (GDPR Article 20) -----
+// GET /members/:id/export — returns all personal data for the member
+memberRoutes.get('/:id/export', requireGym, requireFeature('members'), requireRole('OWNER', 'MANAGER'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const tenant = c.get('tenant' as never) as { gym: { name: string } };
+  const id = paramId(c.req.param() as Record<string, string>);
+  const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id, tenant.gym.name, ctx.env as unknown as Record<string, string | undefined>);
+  try {
+    const details = await memberService.getMemberDetails(id);
+    // GDPR Article 20: provide data in machine-readable format
+    const exportData = {
+      exportedAt: new Date().toISOString(),
+      gym: { id: ctx.gymId, name: tenant.gym.name },
+      member: {
+        ...details.member,
+        // Never include face embedding in export for privacy
+        faceEmbedding: details.member.faceEmbedding ? '[REDACTED - biometric data]' : null,
+      },
+      activeMembership: details.activeMembership,
+      memberships: details.memberships,
+      payments: details.payments,
+      attendance: details.attendance,
+    };
+    return c.json(exportData, 200);
+  } catch (e: any) { return jsonErr(e.message, 404); }
 }));
 
 // ----- Restore -----

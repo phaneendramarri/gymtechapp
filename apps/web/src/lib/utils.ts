@@ -10,9 +10,4 @@ export function formatCurrency(paise: number): string {
   return `₹${((paise || 0) / 100).toLocaleString('en-IN')}`;
 }
 
-// Builds a wa.me click-to-chat URL with a pre-filled message for an Indian mobile number.
-export function buildWhatsAppUrl(phone: string, message: string): string {
-  const cleanPhone = (phone || '').replace(/\D/g, '');
-  const waPhone = cleanPhone.length === 10 ? `91${cleanPhone}` : cleanPhone;
-  return `https://wa.me/${waPhone}?text=${encodeURIComponent(message)}`;
-}
+

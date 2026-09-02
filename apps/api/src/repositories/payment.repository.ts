@@ -25,6 +25,17 @@ export class PaymentRepository {
     return results || [];
   }
 
+  async count(params: { memberId?: number } = {}): Promise<number> {
+    let query = `SELECT COUNT(*) as count FROM payments WHERE gym_id = ?`;
+    const bindings: any[] = [this.gymId];
+    if (params.memberId) {
+      query += ` AND member_id = ?`;
+      bindings.push(params.memberId);
+    }
+    const res = await this.db.prepare(query).bind(...bindings).first<{ count: number }>();
+    return res?.count || 0;
+  }
+
   async getNextReceiptNumber(): Promise<string> {
     const year = new Date().getFullYear();
     const res = await this.db

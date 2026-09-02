@@ -31,7 +31,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
             description="Add your first member to start tracking attendance, plans, and payments."
             action={
               <Button asChild className="font-semibold">
-                <a href="#/members/new">Add your first member</a>
+                <a href="/members/new">Add your first member</a>
               </Button>
             }
             onboardingSteps={[
@@ -65,7 +65,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
             </div>
             <div className="flex flex-col min-w-0">
               <a
-                href={`#/members/${m.id}`}
+                href={`/members/${m.id}`}
                 className="font-semibold text-xs text-foreground hover:text-primary transition-colors truncate"
               >
                 {m.first_name} {m.last_name || ''}
@@ -83,7 +83,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       cell: (m) => (
         <div className="flex flex-col text-xs font-mono">
           <span className="text-foreground">{m.phone}</span>
-          {m.email && <span className="text-muted-foreground text-[11px] truncate">{m.email}</span>}
+          {m.email && <span className="text-muted-foreground text-meta truncate">{m.email}</span>}
         </div>
       ),
     },

@@ -55,5 +55,16 @@
 
   "observability": {
     "enabled": true
-  }
+  },
+
+  // KV namespace for rate limiting. Created via:
+  //   wrangler kv:namespace create "RATELIMIT_KV"
+  // Then set the id below (replace the placeholder).
+  "kv_namespaces": [
+    {
+      "binding": "RATELIMIT_KV",
+      "id": "YOUR_RATELIMIT_KV_NAMESPACE_ID",
+      "preview_id": "YOUR_RATELIMIT_KV_PREVIEW_ID"
+    }
+  ]
 }

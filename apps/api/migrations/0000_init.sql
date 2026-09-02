@@ -1,7 +1,7 @@
 -- ============================================================================
--- GYM SAAS D1 MIGRATION 0000 — Multi-tenant v3 schema
+-- GYM SAAS D1 MIGRATION 0000 — Multi-tenant v3 schema (consolidated)
 -- ============================================================================
--- Single consolidated migration. Replaces the old 0000/0001/0002 files.
+-- Single migration for fresh installs. Contains every table and column.
 --
 -- Tenancy model:
 --   - One database, many gyms. gym_id is the tenant isolation key.
@@ -20,15 +20,18 @@ PRAGMA foreign_keys = ON;
 -- 1. platform_admins  (SUPER_ADMIN login identities; no gym_id)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS platform_admins (
-    id              INTEGER PRIMARY KEY,
-    email           TEXT NOT NULL UNIQUE,
-    password_hash   TEXT NOT NULL,
-    name            TEXT NOT NULL,
-    status          TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED')),
-    last_login_at   INTEGER,
-    created_at      INTEGER NOT NULL,
-    updated_at      INTEGER NOT NULL,
-    deleted_at      INTEGER
+    id                  INTEGER PRIMARY KEY,
+    email               TEXT NOT NULL UNIQUE,
+    password_hash       TEXT NOT NULL,
+    password_algo       TEXT NOT NULL DEFAULT 'argon2id' CHECK (password_algo IN ('sha256', 'argon2id')),
+    name                TEXT NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED')),
+    failed_login_count  INTEGER NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
+    locked_until        INTEGER,
+    last_login_at       INTEGER,
+    created_at          INTEGER NOT NULL,
+    updated_at          INTEGER NOT NULL,
+    deleted_at          INTEGER
 );
 
 -- ============================================================================
@@ -63,11 +66,11 @@ CREATE INDEX IF NOT EXISTS idx_gyms_status ON gyms(status, deleted_at);
 CREATE TABLE IF NOT EXISTS licenses (
     id                INTEGER PRIMARY KEY,
     gym_id            INTEGER NOT NULL UNIQUE,
-    name              TEXT NOT NULL,                   -- "Professional"
-    code              TEXT NOT NULL,                   -- "PRO"
-    price_paise       INTEGER NOT NULL,                -- what this gym pays
+    name              TEXT NOT NULL,
+    code              TEXT NOT NULL,
+    price_paise       INTEGER NOT NULL,
     billing_period    TEXT NOT NULL DEFAULT 'MONTHLY' CHECK (billing_period IN ('MONTHLY','YEARLY')),
-    max_members       INTEGER NOT NULL,                -- -1 = unlimited
+    max_members       INTEGER NOT NULL,
     max_owners        INTEGER NOT NULL DEFAULT 1,
     max_managers      INTEGER NOT NULL,
     max_staff_total   INTEGER NOT NULL,
@@ -97,6 +100,7 @@ CREATE TABLE IF NOT EXISTS users (
     email               TEXT NOT NULL,
     phone               TEXT,
     password_hash       TEXT NOT NULL,
+    password_algo       TEXT NOT NULL DEFAULT 'argon2id' CHECK (password_algo IN ('sha256', 'argon2id')),
     role                TEXT NOT NULL CHECK (role IN ('OWNER','MANAGER','STAFF','TRAINER','MEMBER')),
     status              TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED')),
     permissions         TEXT NOT NULL DEFAULT '{}',
@@ -107,7 +111,7 @@ CREATE TABLE IF NOT EXISTS users (
     updated_at          INTEGER NOT NULL,
     deleted_at          INTEGER,
     FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    UNIQUE (gym_id, id),     -- composite FK target for tenant-aware child tables
+    UNIQUE (gym_id, id),
     UNIQUE (gym_id, email)
 );
 
@@ -129,20 +133,20 @@ CREATE TABLE IF NOT EXISTS gym_settings (
 -- 6. membership_plans  (gym-level catalog; sold to members)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS membership_plans (
-    id                INTEGER PRIMARY KEY,
-    gym_id            INTEGER NOT NULL,
-    name              TEXT NOT NULL,
-    description       TEXT,
-    duration_months   INTEGER NOT NULL,
-    price_paise       INTEGER NOT NULL,
+    id                  INTEGER PRIMARY KEY,
+    gym_id              INTEGER NOT NULL,
+    name                TEXT NOT NULL,
+    description         TEXT,
+    duration_months     INTEGER NOT NULL,
+    price_paise         INTEGER NOT NULL,
     admission_fee_paise INTEGER NOT NULL DEFAULT 0,
-    tax_percentage    REAL NOT NULL DEFAULT 0,
-    is_active         INTEGER NOT NULL DEFAULT 1,
-    created_at        INTEGER NOT NULL,
-    updated_at        INTEGER NOT NULL,
-    deleted_at        INTEGER,
+    tax_percentage      REAL NOT NULL DEFAULT 0,
+    is_active           INTEGER NOT NULL DEFAULT 1,
+    created_at          INTEGER NOT NULL,
+    updated_at          INTEGER NOT NULL,
+    deleted_at          INTEGER,
     FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    UNIQUE (gym_id, id),     -- composite FK target for memberships
+    UNIQUE (gym_id, id),
     UNIQUE (gym_id, name)
 );
 
@@ -153,38 +157,39 @@ CREATE INDEX IF NOT EXISTS idx_membership_plans_gym_active
 -- 7. members  (gym customers)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS members (
-    id                       INTEGER PRIMARY KEY,
-    gym_id                   INTEGER NOT NULL,
-    member_code              TEXT NOT NULL,
-    first_name               TEXT NOT NULL,
-    last_name                TEXT,
-    email                    TEXT,
-    phone                    TEXT NOT NULL,
-    gender                   TEXT CHECK (gender IS NULL OR gender IN ('MALE','FEMALE','OTHER')),
-    date_of_birth            INTEGER,                    -- unix seconds
-    photo_url                TEXT,
-    face_embedding           TEXT,
-    address                  TEXT,
-    city                     TEXT,
-    pincode                  TEXT,
-    emergency_contact_name   TEXT,
-    emergency_contact_phone  TEXT,
-    health_notes             TEXT,
-    status                   TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE','BLOCKED','EXPIRED','FROZEN')),
-    joined_date              INTEGER NOT NULL,
-    created_at               INTEGER NOT NULL,
-    updated_at               INTEGER NOT NULL,
-    deleted_at               INTEGER,
+    id                         INTEGER PRIMARY KEY,
+    gym_id                     INTEGER NOT NULL,
+    member_code                TEXT NOT NULL,
+    first_name                 TEXT NOT NULL,
+    last_name                  TEXT,
+    email                      TEXT,
+    phone                      TEXT NOT NULL,
+    gender                     TEXT CHECK (gender IS NULL OR gender IN ('MALE','FEMALE','OTHER')),
+    date_of_birth              INTEGER,
+    photo_url                  TEXT,
+    face_embedding             TEXT,
+    address                    TEXT,
+    city                       TEXT,
+    pincode                    TEXT,
+    emergency_contact_name     TEXT,
+    emergency_contact_phone    TEXT,
+    health_notes               TEXT,
+    status                     TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE','BLOCKED','EXPIRED','FROZEN','ERASED')),
+    joined_date                INTEGER NOT NULL,
+    biometric_consent_given   INTEGER NOT NULL DEFAULT 0,
+    biometric_consent_at       INTEGER,
+    biometric_consent_version  TEXT DEFAULT '1.0',
+    created_at                 INTEGER NOT NULL,
+    updated_at                 INTEGER NOT NULL,
+    deleted_at                 INTEGER,
     FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    UNIQUE (gym_id, id),     -- composite FK target for tenant-aware child tables
+    UNIQUE (gym_id, id),
     UNIQUE (gym_id, member_code),
     UNIQUE (gym_id, phone)
 );
 
-CREATE INDEX IF NOT EXISTS idx_members_gym_status
-    ON members(gym_id, status, deleted_at);
-CREATE INDEX IF NOT EXISTS idx_members_gym_name
-    ON members(gym_id, last_name, first_name);
+CREATE INDEX IF NOT EXISTS idx_members_gym_status ON members(gym_id, status, deleted_at);
+CREATE INDEX IF NOT EXISTS idx_members_gym_name ON members(gym_id, last_name, first_name);
 
 -- ============================================================================
 -- 8. memberships  (member ↔ plan instance)
@@ -209,15 +214,11 @@ CREATE TABLE IF NOT EXISTS memberships (
     updated_at          INTEGER NOT NULL,
     deleted_at          INTEGER,
     FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    -- Composite FKs enforce same-gym invariant at the DB level
     FOREIGN KEY (gym_id, member_id) REFERENCES members(gym_id, id) ON DELETE CASCADE,
     FOREIGN KEY (gym_id, membership_plan_id) REFERENCES membership_plans(gym_id, id) ON DELETE RESTRICT
 );
 
--- `memberships` is also referenced by payments/pt_collections as a composite FK,
--- so it needs its own (gym_id, id) uniqueness invariant.
 CREATE UNIQUE INDEX IF NOT EXISTS idx_memberships_gym_id ON memberships(gym_id, id);
-
 CREATE INDEX IF NOT EXISTS idx_memberships_gym_member ON memberships(gym_id, member_id);
 CREATE INDEX IF NOT EXISTS idx_memberships_gym_status_dates ON memberships(gym_id, status, end_date);
 CREATE INDEX IF NOT EXISTS idx_memberships_gym_end_date ON memberships(gym_id, end_date);
@@ -237,7 +238,7 @@ CREATE TABLE IF NOT EXISTS payments (
     payment_mode          TEXT NOT NULL CHECK (payment_mode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
     reference_id          TEXT,
     status                TEXT NOT NULL DEFAULT 'COMPLETED' CHECK (status IN ('COMPLETED','REFUNDED','VOID')),
-    recorded_by_user_id  INTEGER,
+    recorded_by_user_id   INTEGER,
     notes                 TEXT,
     created_at            INTEGER NOT NULL,
     updated_at            INTEGER NOT NULL,
@@ -262,14 +263,14 @@ CREATE TABLE IF NOT EXISTS pt_collections (
     trainer_id            INTEGER NOT NULL,
     sessions              INTEGER NOT NULL DEFAULT 0,
     amount_paise          INTEGER NOT NULL,
-    commission_percentage REAL NOT NULL DEFAULT 0,
+    commission_percentage  REAL NOT NULL DEFAULT 0,
     commission_paise      INTEGER NOT NULL DEFAULT 0,
     commission_status     TEXT NOT NULL DEFAULT 'PENDING' CHECK (commission_status IN ('PENDING','PAID')),
     payment_mode          TEXT NOT NULL DEFAULT 'CASH' CHECK (payment_mode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
     payment_date          INTEGER NOT NULL,
     receipt_number        TEXT,
     notes                 TEXT,
-    recorded_by_user_id  INTEGER,
+    recorded_by_user_id   INTEGER,
     created_at            INTEGER NOT NULL,
     updated_at            INTEGER NOT NULL,
     deleted_at            INTEGER,
@@ -285,16 +286,16 @@ CREATE INDEX IF NOT EXISTS idx_pt_collections_gym_trainer ON pt_collections(gym_
 -- 11. attendance
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS attendance (
-    id                    INTEGER PRIMARY KEY,
-    gym_id                INTEGER NOT NULL,
-    member_id             INTEGER NOT NULL,
-    check_in_time         INTEGER NOT NULL,
-    check_out_time        INTEGER,
-    attendance_date       INTEGER NOT NULL,             -- YYYYMMDD for fast day-equality
-    method                TEXT NOT NULL CHECK (method IN ('MANUAL','QR','FACE_ID')),
-    recorded_by_user_id   INTEGER,
-    device_info           TEXT,
-    created_at            INTEGER NOT NULL,
+    id                  INTEGER PRIMARY KEY,
+    gym_id              INTEGER NOT NULL,
+    member_id           INTEGER NOT NULL,
+    check_in_time       INTEGER NOT NULL,
+    check_out_time      INTEGER,
+    attendance_date      INTEGER NOT NULL,
+    method              TEXT NOT NULL CHECK (method IN ('MANUAL','QR','FACE_ID')),
+    recorded_by_user_id INTEGER,
+    device_info         TEXT,
+    created_at          INTEGER NOT NULL,
     FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
     FOREIGN KEY (gym_id, member_id) REFERENCES members(gym_id, id) ON DELETE CASCADE
 );
@@ -307,15 +308,17 @@ CREATE INDEX IF NOT EXISTS idx_attendance_gym_checkin ON attendance(gym_id, chec
 -- 12. user_sessions  (server-side session records)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_sessions (
-    id          INTEGER PRIMARY KEY,
-    gym_id      INTEGER NOT NULL,
-    user_id     INTEGER NOT NULL,
-    token_hash  TEXT NOT NULL UNIQUE,
-    ip          TEXT,
-    user_agent  TEXT,
-    issued_at   INTEGER NOT NULL,
-    expires_at  INTEGER NOT NULL,
-    revoked_at  INTEGER,
+    id                      INTEGER PRIMARY KEY,
+    gym_id                  INTEGER NOT NULL,
+    user_id                 INTEGER NOT NULL,
+    token_hash              TEXT NOT NULL UNIQUE,
+    refresh_token_hash     TEXT,
+    refresh_token_expires_at INTEGER,
+    ip                      TEXT,
+    user_agent              TEXT,
+    issued_at               INTEGER NOT NULL,
+    expires_at              INTEGER NOT NULL,
+    revoked_at              INTEGER,
     FOREIGN KEY (gym_id, user_id) REFERENCES users(gym_id, id) ON DELETE CASCADE
 );
 
@@ -344,8 +347,8 @@ CREATE TABLE IF NOT EXISTS audit_events (
     gym_id        INTEGER NOT NULL,
     actor_user_id INTEGER,
     actor_role    TEXT,
-    action        TEXT NOT NULL,                       -- e.g. 'member.create'
-    entity_type   TEXT NOT NULL,                       -- e.g. 'member'
+    action        TEXT NOT NULL,
+    entity_type   TEXT NOT NULL,
     entity_id     INTEGER,
     before_state  TEXT,
     after_state   TEXT,
@@ -418,6 +421,8 @@ CREATE TABLE IF NOT EXISTS communication_logs (
     message_type      TEXT NOT NULL,
     credits_deducted  INTEGER NOT NULL DEFAULT 1,
     remaining_balance INTEGER NOT NULL,
+    lawful_basis      TEXT,
+    retention_until   INTEGER,
     dispatched_by_id  INTEGER,
     ip                TEXT,
     created_at        INTEGER NOT NULL,
@@ -427,11 +432,11 @@ CREATE TABLE IF NOT EXISTS communication_logs (
 CREATE INDEX IF NOT EXISTS idx_comm_logs_gym ON communication_logs(gym_id, created_at);
 
 -- ============================================================================
--- Seed: bootstrap a single SUPER_ADMIN and a single starter gym so the app
--- boots for the very first run. The seed is idempotent and uses fixed ids.
+-- Seed: bootstrap a single SUPER_ADMIN and a single starter gym for first run.
+-- Idempotent — safe to re-apply.
 -- ============================================================================
-INSERT OR IGNORE INTO platform_admins (id, email, password_hash, name, status, created_at, updated_at)
-VALUES (1, 'admin@gymtech.app', '__SET_VIA_ENV__', 'Platform Admin', 'ACTIVE', unixepoch(), unixepoch());
+INSERT OR IGNORE INTO platform_admins (id, email, password_hash, password_algo, name, status, created_at, updated_at)
+VALUES (1, 'admin@gymtech.app', '__SET_VIA_ENV__', 'argon2id', 'Platform Admin', 'ACTIVE', unixepoch(), unixepoch());
 
 INSERT OR IGNORE INTO gyms (id, name, slug, phone, status, created_at, updated_at)
 VALUES (1, 'GymTech Demo Gym', 'demo', '9999999999', 'ACTIVE', unixepoch(), unixepoch());
@@ -460,4 +465,3 @@ FROM (
     UNION SELECT 'reports'
     UNION SELECT 'settings'
 );
-

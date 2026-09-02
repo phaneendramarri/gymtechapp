@@ -201,7 +201,7 @@ export const ResetPasswordPage: React.FC = () => {
         </Card>
 
         <div className="text-center">
-          <a href="#/login" className="text-xs text-muted-foreground hover:text-foreground transition-colors font-mono">
+          <a href="/login" className="text-xs text-muted-foreground hover:text-foreground transition-colors font-mono">
             ← Back to Login
           </a>
         </div>

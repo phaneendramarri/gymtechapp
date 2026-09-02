@@ -35,7 +35,7 @@ export const FooterSection: React.FC = () => {
               The all-in-one operating system for modern gyms, fitness centers, and strength clubs. Manage members, automated attendance, GST receipts, and trainer commissions in one place.
             </p>
             <a
-              href="#/status"
+              href="/status"
               className="inline-flex items-center gap-2 text-[11px] font-mono text-primary pt-1 font-semibold hover:underline"
             >
               <span className="size-2 rounded-full bg-primary animate-pulse" />
@@ -71,14 +71,13 @@ export const FooterSection: React.FC = () => {
             </ul>
           </div>
 
-          {/* Col 3: Resources */}
+          {/* Col 3: Contact */}
           <div>
-            <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground mb-3">Resources</h4>
+            <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground mb-3">Contact</h4>
             <ul className="space-y-2 text-xs text-muted-foreground">
-              <li><a href="#/blog" className="hover:text-foreground transition-colors">Blog</a></li>
-              <li><a href="#/changelog" className="hover:text-foreground transition-colors">Changelog</a></li>
-              <li><a href="#/help" className="hover:text-foreground transition-colors">Help center</a></li>
-              <li><a href="#/status" className="hover:text-foreground transition-colors">Status</a></li>
+              <li><a href="/contact" className="hover:text-foreground transition-colors">Contact us</a></li>
+              <li><a href="mailto:hello@gymtech.in" className="hover:text-foreground transition-colors">hello@gymtech.in</a></li>
+              <li><a href="https://wa.me/919876543210" target="_blank" rel="noreferrer" className="hover:text-foreground transition-colors">WhatsApp</a></li>
             </ul>
           </div>
 
@@ -86,10 +85,10 @@ export const FooterSection: React.FC = () => {
           <div>
             <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-foreground mb-3">Company</h4>
             <ul className="space-y-2 text-xs text-muted-foreground">
-              <li><a href="#/about" className="hover:text-foreground transition-colors">About</a></li>
-              <li><a href="#/careers" className="hover:text-foreground transition-colors">Careers</a></li>
-              <li><a href="#/press" className="hover:text-foreground transition-colors">Press</a></li>
-              <li><a href="#/contact" className="hover:text-foreground transition-colors">Contact</a></li>
+              <li><a href="/about" className="hover:text-foreground transition-colors">About</a></li>
+              <li><a href="/careers" className="hover:text-foreground transition-colors">Careers</a></li>
+              <li><a href="/press" className="hover:text-foreground transition-colors">Press</a></li>
+              <li><a href="/contact" className="hover:text-foreground transition-colors">Contact</a></li>
             </ul>
           </div>
         </div>
@@ -97,9 +96,9 @@ export const FooterSection: React.FC = () => {
         <div className="border-t border-border/60 pt-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[11px] font-mono text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} GymTech. All rights reserved.</p>
           <div className="flex items-center gap-6">
-            <a href="#/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
-            <a href="#/terms" className="hover:text-foreground transition-colors">Terms of Service</a>
-            <a href="#/security" className="hover:text-foreground transition-colors">Security</a>
+            <a href="/privacy" className="hover:text-foreground transition-colors">Privacy Policy</a>
+            <a href="/terms" className="hover:text-foreground transition-colors">Terms of Service</a>
+            <a href="/security" className="hover:text-foreground transition-colors">Security</a>
           </div>
         </div>
       </div>

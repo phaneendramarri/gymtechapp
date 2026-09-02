@@ -70,7 +70,7 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
     };
 
     it('creates and verifies a valid session token', async () => {
-      const token = await createSessionToken(mockUser, SECRET_A, 3600);
+      const { token } = await createSessionToken(mockUser, SECRET_A, { expiresInSeconds: 3600 });
       expect(typeof token).toBe('string');
       expect(token.split('.')).toHaveLength(3);
 
@@ -83,20 +83,19 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
     });
 
     it('rejects token when verified with wrong secret', async () => {
-      const token = await createSessionToken(mockUser, SECRET_A, 3600);
+      const { token } = await createSessionToken(mockUser, SECRET_A, { expiresInSeconds: 3600 });
       const verified = await verifySessionToken(token, SECRET_B);
       expect(verified).toBeNull();
     });
 
     it('rejects expired token', async () => {
-      // Created with -100 seconds (already expired)
-      const token = await createSessionToken(mockUser, SECRET_A, -100);
+      const { token } = await createSessionToken(mockUser, SECRET_A, { expiresInSeconds: -86400 });
       const verified = await verifySessionToken(token, SECRET_A);
       expect(verified).toBeNull();
     });
 
     it('rejects tampered token payload', async () => {
-      const token = await createSessionToken(mockUser, SECRET_A, 3600);
+      const { token } = await createSessionToken(mockUser, SECRET_A, { expiresInSeconds: 3600 });
       const [h, p, s] = token.split('.');
 
       // Alter payload by decoding, changing role to SUPER_ADMIN, and re-encoding

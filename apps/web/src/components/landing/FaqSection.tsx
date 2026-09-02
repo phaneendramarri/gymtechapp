@@ -27,7 +27,7 @@ const FAQS = [
 
 export const FaqSection: React.FC = () => {
   return (
-    <section id="faq" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-[var(--border)]/60 w-full">
+    <section id="faq" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-(--border)/60 w-full">
       <div className="text-center mb-12">
         <Badge variant="outline" className="mb-3 px-3 py-1 rounded-full border-primary/30 bg-primary/10 text-primary text-xs font-mono font-bold tracking-wider uppercase">
           <Lock className="size-3 text-primary mr-1.5 inline" />
@@ -41,13 +41,13 @@ export const FaqSection: React.FC = () => {
         </p>
       </div>
 
-      <ul className="divide-y divide-[var(--border)]/60 rounded-xl border border-[var(--border)]/60 bg-card">
+      <ul className="divide-y divide-(--border)/60 rounded-xl border border-(--border)/60 bg-card">
         {FAQS.map((item, i) => (
           <li key={i}>
             <details className="group" {...(i === 0 ? { open: true } : {})}>
               <summary className="flex items-center justify-between gap-4 cursor-pointer list-none px-5 py-4 text-sm font-medium text-foreground hover:text-primary transition-colors">
                 <span>{item.q}</span>
-                <span className="size-6 rounded-full border border-[var(--border)]/60 flex items-center justify-center text-muted-foreground group-open:text-primary group-open:border-primary/40 transition-colors">
+                <span className="size-6 rounded-full border border-(--border)/60 flex items-center justify-center text-muted-foreground group-open:text-primary group-open:border-primary/40 transition-colors">
                   <Plus className="size-3.5 group-open:hidden" />
                   <Minus className="size-3.5 hidden group-open:block" />
                 </span>

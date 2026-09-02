@@ -18,7 +18,7 @@ import { AdminRepository } from '../repositories/admin.repository';
 import { LicenseRepository } from '../repositories/license.repository';
 import { AuditService, auditSaasFromCtx } from '../services/audit.service';
 import { EmailService } from '../services/email.service';
-import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
 
 export const adminRoutes = new Hono();
 
@@ -161,12 +161,12 @@ adminRoutes.put('/gyms/:id/license-limits', safeHandler(async (c) => {
 
 adminRoutes.get('/audit-logs', safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const limit = parseInt(c.req.query('limit') || '50', 10);
-  const offset = parseInt(c.req.query('offset') || '0', 10);
+  const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'audit');
   const action = c.req.query('action') || undefined;
   const affectedGymId = c.req.query('affectedGymId') ? parseInt(c.req.query('affectedGymId')!, 10) : undefined;
   const auditService = new AuditService(ctx.env.DB);
-  return jsonOk(await auditService.listSaasEvents({ limit, offset, action, affectedGymId }));
+  const result = await auditService.listSaasEvents({ limit, offset, action, affectedGymId });
+  return jsonPaginated(result.events, result.total, limit, offset);
 }));
 
 adminRoutes.get('/communications', safeHandler(async (c) => {

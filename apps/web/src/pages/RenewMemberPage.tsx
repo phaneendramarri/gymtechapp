@@ -97,7 +97,7 @@ export const RenewMemberPage: React.FC = () => {
       <div className="max-w-xl mx-auto w-full flex flex-col gap-6">
         <div>
           <a
-            href={`#/members/${id}`}
+            href={`/members/${id}`}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
           >
             <ArrowLeft className="size-3.5" /> Back to {member?.first_name || 'Member'}'s Profile
@@ -145,7 +145,7 @@ export const RenewMemberPage: React.FC = () => {
                 </Button>
               )}
               <Button asChild variant="outline" className="flex-1 h-10 text-xs font-medium">
-                <a href={`#/members/${id}`}>View Profile</a>
+                <a href={`/members/${id}`}>View Profile</a>
               </Button>
             </div>
           </Card>
@@ -245,7 +245,7 @@ export const RenewMemberPage: React.FC = () => {
 
             <div className="flex items-center justify-between">
               <Button asChild variant="ghost" className="text-xs">
-                <a href={`#/members/${id}`}>Cancel</a>
+                <a href={`/members/${id}`}>Cancel</a>
               </Button>
               <Button
                 type="submit"

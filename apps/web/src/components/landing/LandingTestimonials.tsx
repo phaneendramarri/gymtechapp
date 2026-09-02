@@ -84,13 +84,13 @@ export const LandingTestimonials: React.FC = () => {
   const t = TESTIMONIALS[i]
 
   return (
-    <section className="py-20 border-t border-border/40 bg-card/30">
+    <section className="py-20 border-t border-(--line) bg-(--surface-2)/30">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
-          <p className="font-mono text-[10px] font-bold uppercase tracking-wider text-primary">
+          <p className="gt-kicker">
             Loved by operators
           </p>
-          <h2 className="mt-2 font-display text-3xl sm:text-4xl font-bold tracking-tight text-foreground">
+          <h2 className="text-h1 sm:text-display-serif-sm text-ink mt-3">
             What gym owners say
           </h2>
         </div>
@@ -104,10 +104,10 @@ export const LandingTestimonials: React.FC = () => {
               exit={prefersReducedMotion ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.32, ease: [0.16, 1, 0.3, 1] }}
             >
-              <Card className="border-border shadow-sm bg-card">
+              <Card className="border-(--line) shadow-sm bg-(--surface)">
                 <CardContent className="p-6 sm:p-8">
-                  <Quote className="size-6 text-primary/40" />
-                  <p className="mt-3 text-base sm:text-lg leading-relaxed text-foreground text-balance">
+                  <Quote className="size-6 text-(--iron)/40" />
+                  <p className="mt-3 text-base sm:text-lg leading-relaxed text-ink text-balance">
                     &ldquo;{t.quote}&rdquo;
                   </p>
                   <div className="mt-5 flex items-center gap-3">
@@ -119,12 +119,12 @@ export const LandingTestimonials: React.FC = () => {
                       {t.initials}
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-foreground">{t.name}</p>
-                      <p className="text-xs text-muted-foreground font-mono">
+                      <p className="text-sm font-semibold text-ink">{t.name}</p>
+                      <p className="text-xs text-ink-3 font-mono">
                         {t.role} · {t.gym}
                       </p>
                     </div>
-                    <div className="ml-auto flex items-center gap-0.5 text-warn">
+                    <div className="ml-auto flex items-center gap-0.5 text-(--warning)">
                       {[0, 1, 2, 3, 4].map((n) => (
                         <Star key={n} className="size-3.5 fill-current" />
                       ))}
@@ -145,7 +145,7 @@ export const LandingTestimonials: React.FC = () => {
               aria-label={`Show testimonial from ${tt.name}`}
               className={cn(
                 "size-2 rounded-full transition-all",
-                idx === i ? "bg-primary w-6" : "bg-muted-foreground/30 hover:bg-muted-foreground/60"
+                idx === i ? "bg-(--iron) w-6" : "bg-(--ink-3)/30 hover:bg-(--ink-3)/60"
               )}
             />
           ))}
