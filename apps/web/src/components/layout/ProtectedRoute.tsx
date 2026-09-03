@@ -51,13 +51,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // Feature authorization guard — gates on gym plan features (e.g. PT disabled)
-  if (requiredFeature && gym?.enabled_features && !gym.enabled_features.includes(requiredFeature as any)) {
+  if (requiredFeature && gym?.enabledFeatures && !gym.enabledFeatures.includes(requiredFeature as any)) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Permission guard — owner (isOwner) bypasses all; otherwise all requiredPermissions must be present
+  // Permission guard — PLATFORM_ADMIN bypasses all; everyone else needs all requiredPermissions
   if (requiredPermissions && requiredPermissions.length > 0) {
-    if (!user.isOwner) {
+    const isPlatformAdmin = user.role === 'PLATFORM_ADMIN';
+    if (!isPlatformAdmin) {
       const hasAll = requiredPermissions.every((perm) => user.permissions?.includes(perm));
       if (!hasAll) {
         return <Navigate to="/dashboard" replace />;

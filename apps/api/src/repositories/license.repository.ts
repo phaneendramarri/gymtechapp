@@ -1,112 +1,107 @@
-import type { License, BillingPeriod, LicenseStatus } from '@gymtech/shared';
+import { eq, sql } from 'drizzle-orm';
+import type { Database, D1Database } from '../db/client';
+import { createDatabase } from '../db/client';
+import type { License } from '@gymtech/shared';
+import { licenses } from '../db/schema';
 
-/**
- * One license per gym. Plan metadata is inlined on the row, so the
- * repository is mostly a thin wrapper that returns the single row.
- */
 export class LicenseRepository {
-  constructor(private db: D1Database, private gymId: number) {}
+  private db: Database;
+
+  constructor(db: Database | D1Database, private gymId: number) {
+    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+  }
 
   async findByGymId(gymId: number = this.gymId): Promise<License | null> {
-    return await this.db
-      .prepare(`SELECT * FROM licenses WHERE gym_id = ?`)
-      .bind(gymId)
-      .first<License>();
+    const rows = await this.db
+      .select()
+      .from(licenses)
+      .where(eq(licenses.gymId, gymId))
+      .limit(1);
+    return (rows[0] as License) ?? null;
   }
 
   async listAll(): Promise<License[]> {
-    const { results } = await this.db
-      .prepare(`SELECT * FROM licenses ORDER BY gym_id ASC`)
-      .all<License>();
-    return results || [];
+    return this.db
+      .select()
+      .from(licenses)
+      .orderBy(licenses.gymId) as unknown as License[];
   }
 
-  async create(data: Omit<License, 'id' | 'created_at' | 'updated_at' | 'sms_used' | 'whatsapp_used' | 'email_used'>): Promise<number> {
+  async create(
+    data: Omit<License, 'id' | 'createdAt' | 'updatedAt' | 'smsUsed' | 'whatsappUsed' | 'emailUsed'>
+  ): Promise<number> {
     const now = Math.floor(Date.now() / 1000);
-    const res = await this.db
-      .prepare(
-        `INSERT INTO licenses (
-          gym_id, name, code, price_paise, billing_period,
-          max_members, max_owners, max_managers, max_staff_total,
-          max_sms, max_whatsapp, max_email,
-          features, started_at, expires_at, status,
-          created_by_admin_id, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        RETURNING id`
-      )
-      .bind(
-        data.gym_id,
-        data.name,
-        data.code,
-        data.price_paise,
-        data.billing_period,
-        data.max_members,
-        data.max_owners,
-        data.max_managers,
-        data.max_staff_total,
-        data.max_sms,
-        data.max_whatsapp,
-        data.max_email,
-        data.features,
-        data.started_at,
-        data.expires_at,
-        data.status,
-        data.created_by_admin_id,
-        now,
-        now
-      )
-      .first<{ id: number }>();
-    return res!.id;
+    const row = await this.db
+      .insert(licenses)
+      .values({
+        gymId: data.gymId,
+        name: data.name,
+        code: data.code,
+        pricePaise: data.pricePaise,
+        billingPeriod: data.billingPeriod,
+        maxMembers: data.maxMembers,
+        maxOwners: data.maxOwners,
+        maxManagers: data.maxManagers,
+        maxStaffTotal: data.maxStaffTotal,
+        maxSms: data.maxSms,
+        maxWhatsapp: data.maxWhatsapp,
+        maxEmail: data.maxEmail,
+        features: data.features,
+        startedAt: data.startedAt,
+        expiresAt: data.expiresAt,
+        status: data.status,
+        createdByAdminId: data.createdByAdminId,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: licenses.id });
+    return row[0]!.id;
   }
 
   async updateByGym(gymId: number, patch: Partial<License>): Promise<void> {
-    const fields: string[] = [];
-    const bindings: any[] = [];
-    const allowed: (keyof License)[] = [
-      'name',
-      'code',
-      'price_paise',
-      'billing_period',
-      'max_members',
-      'max_owners',
-      'max_managers',
-      'max_staff_total',
-      'max_sms',
-      'max_whatsapp',
-      'max_email',
-      'features',
-      'expires_at',
-      'status',
-    ];
-    for (const k of allowed) {
-      if (patch[k] !== undefined) {
-        fields.push(`${String(k)} = ?`);
-        bindings.push(patch[k]);
-      }
-    }
-    if (fields.length === 0) return;
-    fields.push('updated_at = unixepoch()');
-    bindings.push(gymId);
+    const sets: Record<string, unknown> = {};
+    if (patch.name !== undefined) sets.name = patch.name;
+    if (patch.code !== undefined) sets.code = patch.code;
+    if (patch.pricePaise !== undefined) sets.pricePaise = patch.pricePaise;
+    if (patch.billingPeriod !== undefined) sets.billingPeriod = patch.billingPeriod;
+    if (patch.maxMembers !== undefined) sets.maxMembers = patch.maxMembers;
+    if (patch.maxOwners !== undefined) sets.maxOwners = patch.maxOwners;
+    if (patch.maxManagers !== undefined) sets.maxManagers = patch.maxManagers;
+    if (patch.maxStaffTotal !== undefined) sets.maxStaffTotal = patch.maxStaffTotal;
+    if (patch.maxSms !== undefined) sets.maxSms = patch.maxSms;
+    if (patch.maxWhatsapp !== undefined) sets.maxWhatsapp = patch.maxWhatsapp;
+    if (patch.maxEmail !== undefined) sets.maxEmail = patch.maxEmail;
+    if (patch.features !== undefined) sets.features = patch.features;
+    if (patch.expiresAt !== undefined) sets.expiresAt = patch.expiresAt;
+    if (patch.status !== undefined) sets.status = patch.status;
+    if (Object.keys(sets).length === 0) return;
+    sets.updatedAt = Math.floor(Date.now() / 1000);
+
     await this.db
-      .prepare(`UPDATE licenses SET ${fields.join(', ')} WHERE gym_id = ?`)
-      .bind(...bindings)
-      .run();
+      .update(licenses)
+      .set(sets as Partial<typeof licenses.$inferInsert>)
+      .where(eq(licenses.gymId, gymId));
   }
 
   async incrementUsage(gymId: number, channel: 'sms' | 'whatsapp' | 'email', delta = 1): Promise<void> {
-    const col = `${channel}_used`;
-    await this.db
-      .prepare(`UPDATE licenses SET ${col} = ${col} + ?, updated_at = unixepoch() WHERE gym_id = ?`)
-      .bind(delta, gymId)
-      .run();
+    const now = Math.floor(Date.now() / 1000);
+    if (channel === 'sms') {
+      await this.db.update(licenses).set({ smsUsed: sql`${licenses.smsUsed} + ${delta}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
+    } else if (channel === 'whatsapp') {
+      await this.db.update(licenses).set({ whatsappUsed: sql`${licenses.whatsappUsed} + ${delta}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
+    } else {
+      await this.db.update(licenses).set({ emailUsed: sql`${licenses.emailUsed} + ${delta}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
+    }
   }
 
   async topUpCredits(gymId: number, channel: 'sms' | 'whatsapp' | 'email', credits: number): Promise<void> {
-    const col = `max_${channel}`;
-    await this.db
-      .prepare(`UPDATE licenses SET ${col} = ${col} + ?, updated_at = unixepoch() WHERE gym_id = ?`)
-      .bind(credits, gymId)
-      .run();
+    const now = Math.floor(Date.now() / 1000);
+    if (channel === 'sms') {
+      await this.db.update(licenses).set({ maxSms: sql`${licenses.maxSms} + ${credits}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
+    } else if (channel === 'whatsapp') {
+      await this.db.update(licenses).set({ maxWhatsapp: sql`${licenses.maxWhatsapp} + ${credits}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
+    } else {
+      await this.db.update(licenses).set({ maxEmail: sql`${licenses.maxEmail} + ${credits}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
+    }
   }
 }
-

@@ -38,6 +38,7 @@ import {
   TestSmtpRequest,
   PlatformCommunicationsConfig,
   SendNotificationRequest,
+  MenuNode,
 } from '@gymtech/shared';
 
 // The Hono API is served from the same origin as the SPA (single Cloudflare
@@ -113,6 +114,11 @@ class ApiClient {
 
   async getMe(): Promise<MeResponse> {
     return this.request<MeResponse>('/api/auth/me');
+  }
+
+  // Menu — fetched from DB, filtered by user permissions
+  async getMenu(): Promise<{ menu: MenuNode[] }> {
+    return this.request<{ menu: MenuNode[] }>('/api/menu');
   }
 
   async forgotPassword(email: string): Promise<ForgotPasswordResponse> {

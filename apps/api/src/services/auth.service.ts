@@ -43,30 +43,30 @@ export class AuthService {
     const user = await this.userRepo.findByEmail(email);
     if (!user) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
     if (user.status !== 'ACTIVE') { throw new Error('This account has been deactivated or suspended'); }
-    if (isAccountLocked(user.failed_login_count, user.locked_until)) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
+    if (isAccountLocked(user.failedLoginCount, user.lockedUntil)) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
 
-    const ok = await verifyPassword(passwordPlain, user.password_hash);
+    const ok = await verifyPassword(passwordPlain, user.passwordHash);
     if (!ok) {
-      const newCount = await this.userRepo.incrementFailedLogin(user.id, user.gym_id);
+      const newCount = await this.userRepo.incrementFailedLogin(user.id, user.gymId);
       const lockSeconds = nextLockoutSeconds(newCount);
       if (lockSeconds !== null) {
         const until = Math.floor(Date.now() / 1000) + lockSeconds;
-        await this.userRepo.setLockUntil(user.id, user.gym_id, until);
+        await this.userRepo.setLockUntil(user.id, user.gymId, until);
       }
       throw new Error(GENERIC_INVALID_CREDENTIALS);
     }
-    if (user.failed_login_count > 0 || user.locked_until !== null) { await this.userRepo.resetFailedLogin(user.id, user.gym_id); }
+    if (user.failedLoginCount > 0 || user.lockedUntil !== null) { await this.userRepo.resetFailedLogin(user.id, user.gymId); }
 
-    if (isLegacyHash(user.password_hash)) {
+    if (isLegacyHash(user.passwordHash)) {
       try {
         const newHash = await hashPassword(passwordPlain);
-        await this.userRepo.upgradePasswordHash(user.id, user.gym_id, newHash, 'argon2id');
+        await this.userRepo.upgradePasswordHash(user.id, user.gymId, newHash, 'argon2id');
       } catch (err) { console.error('Lazy rehash failed for user', user.id, err); }
     }
 
     let gym: Gym | null = null;
-    if (user.gym_id) {
-      gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`).bind(user.gym_id).first<Gym>();
+    if (user.gymId) {
+      gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`).bind(user.gymId).first<Gym>();
       if (gym && gym.status === 'SUSPENDED') { throw new Error('This gym account has been suspended by the platform administrator'); }
     }
 
@@ -78,17 +78,18 @@ export class AuthService {
       id: user.id,
       email: user.email,
       name: user.name,
-      role: user.role,
-      gymId: user.gym_id,
-      isOwner: Boolean((user as any).is_owner),
+      role: user.role as UserRole,
+      gymId: user.gymId,
+      isOwner: Boolean(user.isOwner),
       permissions,
+      roleId: user.roleId ?? null,
     };
     const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
     const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
     const now = Math.floor(Date.now() / 1000);
 
     await this.sessionRepo.create({
-      gymId: user.gym_id, userId: user.id, tokenHash: accessJti, refreshTokenHash: refreshJti,
+      gymId: user.gymId, userId: user.id, tokenHash: accessJti, refreshTokenHash: refreshJti,
       refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
       issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
     });
@@ -100,9 +101,9 @@ export class AuthService {
     const admin = await this.userRepo.findPlatformAdminByEmail(email);
     if (!admin) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
     if (admin.status !== 'ACTIVE') { throw new Error('This admin account has been deactivated or suspended'); }
-    if (isAccountLocked(admin.failed_login_count, admin.locked_until)) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
+    if (isAccountLocked(admin.failedLoginCount, admin.lockedUntil)) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
 
-    const ok = await verifyPassword(passwordPlain, admin.password_hash);
+    const ok = await verifyPassword(passwordPlain, admin.passwordHash);
     if (!ok) {
       const newCount = await this.userRepo.incrementPlatformAdminFailedLogin(admin.id);
       const lockSeconds = nextLockoutSeconds(newCount);
@@ -112,9 +113,9 @@ export class AuthService {
       }
       throw new Error(GENERIC_INVALID_CREDENTIALS);
     }
-    if (admin.failed_login_count > 0 || admin.locked_until !== null) { await this.userRepo.resetPlatformAdminFailedLogin(admin.id); }
+    if (admin.failedLoginCount > 0 || admin.lockedUntil !== null) { await this.userRepo.resetPlatformAdminFailedLogin(admin.id); }
 
-    if (isLegacyHash(admin.password_hash)) {
+    if (isLegacyHash(admin.passwordHash)) {
       try {
         const newHash = await hashPassword(passwordPlain);
         await this.userRepo.upgradePlatformAdminPasswordHash(admin.id, newHash, 'argon2id');
@@ -131,6 +132,7 @@ export class AuthService {
       gymId: null,
       isOwner: false,
       permissions: ['*'], // PLATFORM_ADMIN bypasses all permission checks in middleware
+      roleId: null,
     };
     const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
     const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
@@ -158,10 +160,11 @@ export class AuthService {
       id: userRow.id,
       email: userRow.email,
       name: userRow.name,
-      role: userRow.role,
-      gymId: userRow.gym_id,
-      isOwner: Boolean((userRow as any).is_owner),
+      role: userRow.role as UserRole,
+      gymId: userRow.gymId,
+      isOwner: Boolean(userRow.isOwner),
       permissions,
+      roleId: userRow.roleId ?? null,
     };
 
     const { token, jti: newAccessJti } = await this._createAccessToken(sessionUser);
@@ -169,7 +172,7 @@ export class AuthService {
     const now = Math.floor(Date.now() / 1000);
 
     await this.sessionRepo.create({
-      gymId: userRow.gym_id ?? 0, userId: userRow.id, tokenHash: newAccessJti, refreshTokenHash: newRefreshJti,
+      gymId: userRow.gymId ?? 0, userId: userRow.id, tokenHash: newAccessJti, refreshTokenHash: newRefreshJti,
       refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
       issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
     });
@@ -198,6 +201,7 @@ export class AuthService {
       gymId: member.gymId,
       isOwner: false,
       permissions: [], // Members have no dashboard permissions
+      roleId: null,
     };
     const { token } = await this._createAccessToken(sessionUser);
     return token;

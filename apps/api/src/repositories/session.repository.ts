@@ -1,7 +1,14 @@
-import type { D1Database } from '@cloudflare/workers-types';
+import { eq, and, isNull, gt } from 'drizzle-orm';
+import type { Database, D1Database } from '../db/client';
+import { createDatabase } from '../db/client';
+import { userSessions } from '../db/schema';
 
 export class SessionRepository {
-  constructor(private db: D1Database) {}
+  private db: Database;
+
+  constructor(db: Database | D1Database) {
+    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+  }
 
   async create(params: {
     gymId: number;
@@ -14,53 +21,57 @@ export class SessionRepository {
     ip?: string;
     userAgent?: string;
   }): Promise<void> {
-    await this.db
-      .prepare(
-        `INSERT INTO user_sessions (gym_id, user_id, token_hash, refresh_token_hash, refresh_token_expires_at, issued_at, expires_at, ip, user_agent)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        params.gymId,
-        params.userId,
-        params.tokenHash,
-        params.refreshTokenHash ?? null,
-        params.refreshTokenExpiresAt ?? null,
-        params.issuedAt,
-        params.expiresAt,
-        params.ip ?? null,
-        params.userAgent ?? null
-      )
-      .run();
+    await this.db.insert(userSessions).values({
+      gymId: params.gymId,
+      userId: params.userId,
+      tokenHash: params.tokenHash,
+      refreshTokenHash: params.refreshTokenHash ?? null,
+      refreshTokenExpiresAt: params.refreshTokenExpiresAt ?? null,
+      issuedAt: params.issuedAt,
+      expiresAt: params.expiresAt,
+      ip: params.ip ?? null,
+      userAgent: params.userAgent ?? null,
+    });
   }
 
   async findActiveByTokenHash(tokenHash: string) {
     const now = Math.floor(Date.now() / 1000);
-    return this.db
-      .prepare(
-        `SELECT * FROM user_sessions
-         WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?`
+    const rows = await this.db
+      .select()
+      .from(userSessions)
+      .where(
+        and(
+          eq(userSessions.tokenHash, tokenHash),
+          isNull(userSessions.revokedAt),
+          gt(userSessions.expiresAt, now)
+        )
       )
-      .bind(tokenHash, now)
-      .first<Record<string, unknown>>();
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   async findActiveByRefreshTokenHash(refreshTokenHash: string) {
     const now = Math.floor(Date.now() / 1000);
-    return this.db
-      .prepare(
-        `SELECT * FROM user_sessions
-         WHERE refresh_token_hash = ? AND revoked_at IS NULL AND refresh_token_expires_at > ?`
+    const rows = await this.db
+      .select()
+      .from(userSessions)
+      .where(
+        and(
+          eq(userSessions.refreshTokenHash, refreshTokenHash),
+          isNull(userSessions.revokedAt),
+          gt(userSessions.refreshTokenExpiresAt ?? 0, now)
+        )
       )
-      .bind(refreshTokenHash, now)
-      .first<Record<string, unknown>>();
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   async revokeByTokenHash(tokenHash: string): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     await this.db
-      .prepare(`UPDATE user_sessions SET revoked_at = ? WHERE token_hash = ?`)
-      .bind(now, tokenHash)
-      .run();
+      .update(userSessions)
+      .set({ revokedAt: now })
+      .where(and(eq(userSessions.tokenHash, tokenHash), isNull(userSessions.revokedAt)));
   }
 
   async rotateRefreshToken(params: {
@@ -73,46 +84,53 @@ export class SessionRepository {
     const now = Math.floor(Date.now() / 1000);
 
     await this.db
-      .prepare(`UPDATE user_sessions SET revoked_at = ? WHERE refresh_token_hash = ?`)
-      .bind(now, params.oldRefreshTokenHash)
-      .run();
+      .update(userSessions)
+      .set({ revokedAt: now })
+      .where(eq(userSessions.refreshTokenHash, params.oldRefreshTokenHash));
 
     const old = await this.db
-      .prepare(`SELECT gym_id, user_id, ip, user_agent FROM user_sessions WHERE refresh_token_hash = ? LIMIT 1`)
-      .bind(params.oldRefreshTokenHash)
-      .first<{ gym_id: number; user_id: number; ip: string | null; user_agent: string | null }>();
+      .select({
+        gymId: userSessions.gymId,
+        userId: userSessions.userId,
+        ip: userSessions.ip,
+        userAgent: userSessions.userAgent,
+      })
+      .from(userSessions)
+      .where(eq(userSessions.refreshTokenHash, params.oldRefreshTokenHash))
+      .limit(1)
+      .then((rows) => rows[0]);
 
     if (!old) return null;
 
-    const result = await this.db
-      .prepare(
-        `INSERT INTO user_sessions (gym_id, user_id, token_hash, refresh_token_hash, refresh_token_expires_at, issued_at, expires_at, ip, user_agent)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        old.gym_id,
-        old.user_id,
-        params.newAccessTokenHash,
-        params.newRefreshTokenHash,
-        params.newRefreshTokenExpiresAt,
-        now,
-        params.newAccessTokenExpiresAt,
-        old.ip,
-        old.user_agent
-      )
-      .run();
+    const row = await this.db
+      .insert(userSessions)
+      .values({
+        gymId: old.gymId,
+        userId: old.userId,
+        tokenHash: params.newAccessTokenHash,
+        refreshTokenHash: params.newRefreshTokenHash,
+        refreshTokenExpiresAt: params.newRefreshTokenExpiresAt,
+        issuedAt: now,
+        expiresAt: params.newAccessTokenExpiresAt,
+        ip: old.ip,
+        userAgent: old.userAgent,
+      })
+      .returning({ id: userSessions.id });
 
-    return result.meta?.last_row_id ?? null;
+    return row[0]?.id ?? null;
   }
 
   async revokeAllForUser(gymId: number, userId: number): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     await this.db
-      .prepare(
-        `UPDATE user_sessions SET revoked_at = ?
-         WHERE gym_id = ? AND user_id = ? AND revoked_at IS NULL`
-      )
-      .bind(now, gymId, userId)
-      .run();
+      .update(userSessions)
+      .set({ revokedAt: now })
+      .where(
+        and(
+          eq(userSessions.gymId, gymId),
+          eq(userSessions.userId, userId),
+          isNull(userSessions.revokedAt)
+        )
+      );
   }
 }

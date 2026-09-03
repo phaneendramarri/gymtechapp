@@ -97,7 +97,7 @@ export const AttendancePage: React.FC = () => {
 
   // 3 most recent check-ins.
   const recent = logs.slice(0, 3);
-  const lastHour = logs.filter((l: any) => Date.now() / 1000 - l.check_in_time < 3600).length;
+  const lastHour = logs.filter((l: any) => Date.now() / 1000 - l.checkInTime < 3600).length;
 
   return (
     <AppShell
@@ -138,9 +138,9 @@ export const AttendancePage: React.FC = () => {
         <HeroCell
           icon={<ScanFace className="h-4 w-4" />}
           label="Last check-in"
-          value={logs[0] ? timeAgo(logs[0].check_in_time) : '—'}
+          value={logs[0] ? timeAgo(logs[0].checkInTime) : '—'}
           isString
-          hint={logs[0] ? `${logs[0].first_name} ${logs[0].last_name || ''}`.trim() : 'Awaiting first arrival'}
+          hint={logs[0] ? `${logs[0].firstName} ${logs[0].lastName || ''}`.trim() : 'Awaiting first arrival'}
         />
       </motion.section>
 
@@ -197,20 +197,20 @@ export const AttendancePage: React.FC = () => {
                   transition={{ duration: 0.2 }}
                   className="flex items-center gap-3.5 py-3 border-b border-line-2 last:border-b-0"
                 >
-                  {log.photo_url ? (
-                    <img src={log.photo_url} alt={log.first_name ? `${log.first_name} ${log.last_name || ''}`.trim() : 'Member photo'} className="size-9 rounded-full object-cover border border-(--line)" />
+                  {log.photoUrl ? (
+                    <img src={log.photoUrl} alt={log.firstName ? `${log.firstName} ${log.lastName || ''}`.trim() : 'Member photo'} className="size-9 rounded-full object-cover border border-(--line)" />
                   ) : (
                     <span className="gt-avatar" data-size="md">
-                      {initials(log.first_name, log.last_name)}
+                      {initials(log.firstName, log.lastName)}
                     </span>
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-ink truncate">
-                      <span className="font-medium">{log.first_name} {log.last_name || ''}</span>
-                      <span className="text-ink-3 font-mono text-[11px] ml-2">{log.member_code}</span>
+                      <span className="font-medium">{log.firstName} {log.lastName || ''}</span>
+                      <span className="text-ink-3 font-mono text-[11px] ml-2">{log.memberCode}</span>
                     </p>
                     <p className="text-[11px] text-ink-3 mt-0.5">
-                      {timeAgo(log.check_in_time)}
+                      {timeAgo(log.checkInTime)}
                     </p>
                   </div>
                   <span

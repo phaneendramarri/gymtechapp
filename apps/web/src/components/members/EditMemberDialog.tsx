@@ -32,36 +32,36 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
 }) => {
   const queryClient = useQueryClient();
 
-  const [firstName, setFirstName] = useState(member.first_name || '');
-  const [lastName, setLastName] = useState(member.last_name || '');
+  const [firstName, setFirstName] = useState(member.firstName || '');
+  const [lastName, setLastName] = useState(member.lastName || '');
   const [phone, setPhone] = useState(member.phone || '');
   const [email, setEmail] = useState(member.email || '');
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>((member.gender as any) || 'MALE');
   const [status, setStatus] = useState<NonNullable<typeof member.status>>(member.status || 'ACTIVE');
-  const [dateOfBirth, setDateOfBirth] = useState<string>(member.date_of_birth ? new Date(member.date_of_birth * 1000).toISOString().split('T')[0] : '');
+  const [dateOfBirth, setDateOfBirth] = useState<string>(member.dateOfBirth ? new Date(member.dateOfBirth * 1000).toISOString().split('T')[0] : '');
   const [address, setAddress] = useState(member.address || '');
-  const [emergencyContactName, setEmergencyContactName] = useState(member.emergency_contact_name || '');
-  const [emergencyContactPhone, setEmergencyContactPhone] = useState(member.emergency_contact_phone || '');
-  const [healthNotes, setHealthNotes] = useState(member.health_notes || '');
-  const [photoUrl, setPhotoUrl] = useState(member.photo_url || '');
+  const [emergencyContactName, setEmergencyContactName] = useState(member.emergencyContactName || '');
+  const [emergencyContactPhone, setEmergencyContactPhone] = useState(member.emergencyContactPhone || '');
+  const [healthNotes, setHealthNotes] = useState(member.healthNotes || '');
+  const [photoUrl, setPhotoUrl] = useState(member.photoUrl || '');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Sync state whenever member prop changes
   useEffect(() => {
-    setFirstName(member.first_name || '');
-    setLastName(member.last_name || '');
+    setFirstName(member.firstName || '');
+    setLastName(member.lastName || '');
     setPhone(member.phone || '');
     setEmail(member.email || '');
     setGender((member.gender as any) || 'MALE');
     setStatus(member.status || 'ACTIVE');
-    setDateOfBirth(member.date_of_birth ? new Date(member.date_of_birth * 1000).toISOString().split('T')[0] : '');
+    setDateOfBirth(member.dateOfBirth ? new Date(member.dateOfBirth * 1000).toISOString().split('T')[0] : '');
     setAddress(member.address || '');
-    setEmergencyContactName(member.emergency_contact_name || '');
-    setEmergencyContactPhone(member.emergency_contact_phone || '');
-    setHealthNotes(member.health_notes || '');
-    setPhotoUrl(member.photo_url || '');
+    setEmergencyContactName(member.emergencyContactName || '');
+    setEmergencyContactPhone(member.emergencyContactPhone || '');
+    setHealthNotes(member.healthNotes || '');
+    setPhotoUrl(member.photoUrl || '');
     setError(null);
   }, [member, open]);
 
@@ -78,7 +78,7 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
     setIsSubmitting(true);
 
     let faceEmbedding: string | undefined = undefined;
-    if (photoUrl && photoUrl !== member.photo_url) {
+    if (photoUrl && photoUrl !== member.photoUrl) {
       try {
         const sig = await extractSignatureFromUrl(photoUrl);
         if (sig) faceEmbedding = serializeFaceSignature(sig);
@@ -100,7 +100,7 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
       emergencyContactPhone: emergencyContactPhone.trim() || undefined,
       healthNotes: healthNotes.trim() || undefined,
       photoUrl: photoUrl || undefined,
-      faceEmbedding: faceEmbedding || (photoUrl === member.photo_url ? member.face_embedding || undefined : undefined),
+      faceEmbedding: faceEmbedding || (photoUrl === member.photoUrl ? member.faceEmbedding || undefined : undefined),
     };
 
     try {
@@ -130,7 +130,7 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
                 Edit Member Details
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">
-                Update personal, contact, and account status for {member.member_code}
+                Update personal, contact, and account status for {member.memberCode}
               </DialogDescription>
             </div>
           </div>

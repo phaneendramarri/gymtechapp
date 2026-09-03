@@ -72,9 +72,9 @@ memberRoutes.post('/', requireGym, safeHandler(async (c) => {
         const emailService = new EmailService(ctx.env);
         await emailService.sendWelcomeEmail({
           to: parsed.data.email,
-          name: `${result.member.first_name} ${result.member.last_name || ''}`.trim(),
-          gymName: tenant.gym.name, memberCode: result.member.member_code,
-          planName: result.membership?.membership_plan_id ? String(result.membership.membership_plan_id) : 'Active Membership',
+          name: `${result.member.firstName} ${result.member.lastName || ''}`.trim(),
+          gymName: tenant.gym.name, memberCode: result.member.memberCode,
+          planName: result.membership?.membershipPlanId ? String(result.membership.membershipPlanId) : 'Active Membership',
         });
       } catch (e: any) { console.warn('Welcome email failed:', e.message); }
     }
@@ -132,12 +132,12 @@ memberRoutes.put('/:id', requireGym, safeHandler(async (c) => {
   }
 
   await memberRepo.update(id, {
-    first_name: parsed.data.firstName, last_name: parsed.data.lastName, phone: parsed.data.phone,
+    firstName: parsed.data.firstName, lastName: parsed.data.lastName, phone: parsed.data.phone,
     email: parsed.data.email, gender: parsed.data.gender,
-    date_of_birth: parsed.data.dateOfBirth ? Math.floor(new Date(parsed.data.dateOfBirth).getTime() / 1000) : undefined,
-    photo_url: parsed.data.photoUrl, face_embedding: encryptedFaceEmbedding,
-    address: parsed.data.address, emergency_contact_name: parsed.data.emergencyContactName,
-    emergency_contact_phone: parsed.data.emergencyContactPhone, health_notes: parsed.data.healthNotes,
+    dateOfBirth: parsed.data.dateOfBirth ? Math.floor(new Date(parsed.data.dateOfBirth).getTime() / 1000) : undefined,
+    photoUrl: parsed.data.photoUrl, faceEmbedding: encryptedFaceEmbedding,
+    address: parsed.data.address, emergencyContactName: parsed.data.emergencyContactName,
+    emergencyContactPhone: parsed.data.emergencyContactPhone, healthNotes: parsed.data.healthNotes,
     status: parsed.data.status,
   });
   const after = await memberRepo.findById(id);
@@ -154,7 +154,7 @@ memberRoutes.delete('/:id', requireGym, requireFeature('members'), requirePermis
   if (!before) return jsonErr('Member not found or already archived', 404);
   await memberRepo.softDelete(id);
   await auditGym(ctx, 'member.soft_delete', 'member', id, {
-    before, after: { ...before, deleted_at: Math.floor(Date.now() / 1000), status: 'INACTIVE' },
+    before, after: { ...before, deletedAt: Math.floor(Date.now() / 1000), status: 'INACTIVE' },
   });
   return jsonOk({ success: true, message: 'Member archived successfully. Historical records preserved.' });
 }));
@@ -169,15 +169,15 @@ memberRoutes.delete('/:id/personal-data', requireGym, requireFeature('members'),
   if (!member) return jsonErr('Member not found', 404);
 
   // Verify biometric consent was previously given (audit trail)
-  if (member.biometric_consent_given) {
+  if (member.biometricConsentGiven) {
     await auditGym(ctx, 'member.gdpr_erasure', 'member', id, {
-      before: { first_name: member.first_name, email: member.email, face_embedding: '[ENCRYPTED]' },
-      after: { first_name: '[ERASED]', email: null, face_embedding: null },
+      before: { firstName: member.firstName, email: member.email, faceEmbedding: '[ENCRYPTED]' },
+      after: { firstName: '[ERASED]', email: null, faceEmbedding: null },
       metadata: 'GDPR erasure: all personal data wiped, communication logs deleted',
     });
   }
 
-  await memberRepo.erasePersonalData(id, ctx.gymId!);
+  await memberRepo.erasePersonalData(id);
   return jsonOk({ success: true, message: 'All personal data has been permanently erased. Retaining minimal audit record.' });
 }));
 
@@ -236,7 +236,7 @@ memberRoutes.post('/:id/renew', requireGym, requireFeature('members'), safeHandl
   if (!member || member.status === 'BLOCKED') return jsonErr('Cannot renew membership for an archived or blocked member', 400);
   const planRepo = new PlanRepository(ctx.env.DB, ctx.gymId!);
   const plan = await planRepo.findById(parsed.data.planId);
-  if (!plan || plan.is_active !== 1) return jsonErr('Selected plan is inactive or no longer available', 400);
+  if (!plan || plan.isActive !== 1) return jsonErr('Selected plan is inactive or no longer available', 400);
   const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id, tenant.gym.name);
   try {
     const result = await memberService.renewMembership({

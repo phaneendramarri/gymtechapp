@@ -54,9 +54,9 @@ export const PaymentsPage: React.FC = () => {
   const monthBuckets = React.useMemo(() => {
     const buckets = new Map<string, number>();
     payments.forEach((p: any) => {
-      const d = new Date(p.payment_date * 1000);
+      const d = new Date(p.paymentDate * 1000);
       const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-      buckets.set(k, (buckets.get(k) || 0) + (p.amount_paise || 0) / 100);
+      buckets.set(k, (buckets.get(k) || 0) + (p.amountPaise || 0) / 100);
     });
     return Array.from(buckets.entries()).sort().map(([, v]) => v);
   }, [payments]);

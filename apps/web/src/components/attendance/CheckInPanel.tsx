@@ -200,28 +200,28 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
     try {
       // Fetch members with limit 100
       const res = await api.getMembers({ limit: 100, status: 'ACTIVE' });
-      const eligibleMembers = (res.members || []).filter((m: any) => Boolean(m.face_embedding || m.photo_url));
+      const eligibleMembers = (res.members || []).filter((m: any) => Boolean(m.faceEmbedding || m.photoUrl));
 
       const enrolledArr: Array<{ member: EnrolledFaceMember; signature: FaceSignature }> = [];
 
       for (const m of eligibleMembers) {
-        // 1. Fast path: deserialize pre-computed face_embedding directly from DB!
-        let sig: FaceSignature | null = deserializeFaceSignature(m.face_embedding);
+        // 1. Fast path: deserialize pre-computed faceEmbedding directly from DB!
+        let sig: FaceSignature | null = deserializeFaceSignature(m.faceEmbedding);
 
-        // 2. Fallback: extract from photo_url if embedding was not yet saved
-        if (!sig && m.photo_url) {
-          sig = await extractSignatureFromUrl(m.photo_url);
+        // 2. Fallback: extract from photoUrl if embedding was not yet saved
+        if (!sig && m.photoUrl) {
+          sig = await extractSignatureFromUrl(m.photoUrl);
         }
 
         if (sig) {
           enrolledArr.push({
             member: {
               id: m.id,
-              name: `${m.first_name} ${m.last_name || ''}`.trim(),
-              memberCode: m.member_code,
+              name: `${m.firstName} ${m.lastName || ''}`.trim(),
+              memberCode: m.memberCode,
               phone: m.phone,
-              photoUrl: m.photo_url,
-              faceEmbedding: m.face_embedding,
+              photoUrl: m.photoUrl,
+              faceEmbedding: m.faceEmbedding,
             },
             signature: sig,
           });
@@ -286,7 +286,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
 
     // If we have search results, check in the first matching member
     if (searchResults.length > 0) {
-      onCheckIn(searchResults[0].member_code || searchResults[0].phone || query, 'MANUAL');
+      onCheckIn(searchResults[0].memberCode || searchResults[0].phone || query, 'MANUAL');
       setSearchQuery('');
       setSearchResults([]);
       return;
@@ -465,23 +465,23 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                 ) : (
                   <div className="flex flex-col gap-2 max-h-80 overflow-y-auto pr-1">
                     {searchResults.map((member) => {
-                      const fullName = `${member.first_name} ${member.last_name || ''}`.trim();
+                      const fullName = `${member.firstName} ${member.lastName || ''}`.trim();
                       const isActive = member.status === 'ACTIVE';
 
                       return (
                         <div
                           key={member.id}
-                          onClick={() => onCheckIn(member.member_code, 'MANUAL')}
+                          onClick={() => onCheckIn(member.memberCode, 'MANUAL')}
                           className="group flex items-center justify-between p-3 rounded-xl border border-border bg-card hover:border-primary hover:bg-secondary/40 transition-all cursor-pointer shadow-xs"
                         >
                           <div className="flex items-center gap-3 min-w-0">
                             {/* Member Avatar */}
                             <div className="size-10 rounded-full border border-border bg-secondary flex items-center justify-center overflow-hidden shrink-0">
-                              {member.photo_url ? (
-                                <img src={member.photo_url} alt={fullName} className="size-full object-cover" />
+                              {member.photoUrl ? (
+                                <img src={member.photoUrl} alt={fullName} className="size-full object-cover" />
                               ) : (
                                 <span className="font-bold text-xs text-muted-foreground uppercase">
-                                  {(member.first_name?.[0] || '') + (member.last_name?.[0] || '')}
+                                  {(member.firstName?.[0] || '') + (member.lastName?.[0] || '')}
                                 </span>
                               )}
                             </div>
@@ -497,7 +497,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                                 </Badge>
                               </div>
                               <span className="text-[11px] font-mono text-muted-foreground truncate">
-                                {member.member_code} · {member.phone}
+                                {member.memberCode} · {member.phone}
                               </span>
                             </div>
                           </div>
@@ -507,7 +507,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                             disabled={isCheckingIn}
                             onClick={(e) => {
                               e.stopPropagation();
-                              onCheckIn(member.member_code, 'MANUAL');
+                              onCheckIn(member.memberCode, 'MANUAL');
                             }}
                             className="h-8 text-xs font-bold bg-primary/10 text-primary hover:bg-primary hover:text-white border border-primary/20 group-hover:bg-primary group-hover:text-white transition-all shrink-0 ml-2"
                           >
@@ -535,23 +535,23 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                       key={m.id}
                       type="button"
                       disabled={isCheckingIn}
-                      onClick={() => onCheckIn(m.member_code, 'MANUAL')}
+                      onClick={() => onCheckIn(m.memberCode, 'MANUAL')}
                       className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border bg-secondary/30 hover:border-primary hover:bg-secondary/70 transition-all text-left group"
                     >
                       <div className="size-8 rounded-full border border-border bg-card flex items-center justify-center overflow-hidden shrink-0">
-                        {m.photo_url ? (
-                          <img src={m.photo_url} alt={m.first_name ? `${m.first_name} ${m.last_name || ''}`.trim() : 'Member photo'} className="size-full object-cover" />
+                        {m.photoUrl ? (
+                          <img src={m.photoUrl} alt={m.firstName ? `${m.firstName} ${m.lastName || ''}`.trim() : 'Member photo'} className="size-full object-cover" />
                         ) : (
                           <span className="font-bold text-[10px] text-muted-foreground">
-                            {(m.first_name?.[0] || '') + (m.last_name?.[0] || '')}
+                            {(m.firstName?.[0] || '') + (m.lastName?.[0] || '')}
                           </span>
                         )}
                       </div>
                       <div className="flex flex-col min-w-0 flex-1">
                         <span className="text-xs font-semibold text-foreground truncate group-hover:text-primary">
-                          {m.first_name} {m.last_name || ''}
+                          {m.firstName} {m.lastName || ''}
                         </span>
-                        <span className="text-[10px] font-mono text-muted-foreground truncate">{m.member_code}</span>
+                        <span className="text-[10px] font-mono text-muted-foreground truncate">{m.memberCode}</span>
                       </div>
                       <ArrowRight className="size-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>

@@ -51,34 +51,34 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
     {
       id: 'receipt',
       header: 'Receipt No',
-      sortAccessor: (p) => p.receipt_number,
+      sortAccessor: (p) => p.receiptNumber,
       cell: (p) => (
         <span className="font-mono font-bold text-xs text-foreground group-hover:text-primary transition-colors">
-          {p.receipt_number}
+          {p.receiptNumber}
         </span>
       ),
     },
     {
       id: 'date',
       header: 'Date',
-      sortAccessor: (p) => p.payment_date,
+      sortAccessor: (p) => p.paymentDate,
       cell: (p) => (
         <span className="font-mono text-xs text-muted-foreground">
-          {new Date(p.payment_date * 1000).toLocaleDateString('en-IN')}
+          {new Date(p.paymentDate * 1000).toLocaleDateString('en-IN')}
         </span>
       ),
     },
     {
       id: 'member',
       header: 'Member',
-      sortAccessor: (p) => `${p.first_name} ${p.last_name || ''}`.toLowerCase(),
+      sortAccessor: (p) => `${p.firstName} ${p.lastName || ''}`.toLowerCase(),
       cell: (p) => (
         <div className="flex flex-col text-xs min-w-0">
           <span className="font-semibold text-foreground truncate">
-            {p.first_name} {p.last_name || ''}
+            {p.firstName} {p.lastName || ''}
           </span>
           <span className="font-mono text-[10px] text-muted-foreground">
-            {p.member_code} • {p.phone}
+            {p.memberCode} • {p.phone}
           </span>
         </div>
       ),
@@ -86,8 +86,8 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
     {
       id: 'mode',
       header: 'Mode',
-      sortAccessor: (p) => p.payment_mode,
-      cell: (p) => getModeBadge(p.payment_mode),
+      sortAccessor: (p) => p.paymentMode,
+      cell: (p) => getModeBadge(p.paymentMode),
     },
     {
       id: 'reference',
@@ -99,11 +99,11 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
     {
       id: 'amount',
       header: 'Amount',
-      sortAccessor: (p) => p.amount_paise,
+      sortAccessor: (p) => p.amountPaise,
       numeric: true,
       cell: (p) => (
         <span className="font-mono font-bold text-xs text-foreground">
-          {formatCurrency(p.amount_paise)}
+          {formatCurrency(p.amountPaise)}
         </span>
       ),
     },

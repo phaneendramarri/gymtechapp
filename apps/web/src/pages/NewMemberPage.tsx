@@ -54,7 +54,7 @@ export const NewMemberPage: React.FC = () => {
   React.useEffect(() => {
     if (plans.length > 0 && planId === undefined) {
       setPlanId(plans[0].id);
-      setInitialPaymentAmount(plans[0].price_paise / 100);
+      setInitialPaymentAmount(plans[0].pricePaise / 100);
     }
   }, [plans, planId]);
 
@@ -63,7 +63,7 @@ export const NewMemberPage: React.FC = () => {
     setPlanId(numericId);
     const selectedPlan = plans.find((p) => p.id === numericId);
     if (selectedPlan) {
-      setInitialPaymentAmount(selectedPlan.price_paise / 100);
+      setInitialPaymentAmount(selectedPlan.pricePaise / 100);
     }
   };
 
@@ -148,7 +148,7 @@ export const NewMemberPage: React.FC = () => {
               <p className="text-xs text-muted-foreground mt-1">
                 Assigned Member Code:{' '}
                 <strong className="font-mono text-sm text-primary">
-                  {createdResult.member.member_code}
+                  {createdResult.member.memberCode}
                 </strong>
               </p>
               {createdResult.receiptNumber && (
@@ -299,7 +299,7 @@ export const NewMemberPage: React.FC = () => {
                     <SelectContent>
                       {plans.map((p) => (
                         <SelectItem key={p.id} value={p.id.toString()}>
-                          {p.name} ({p.duration_months} mo) — ₹{(p.price_paise / 100).toLocaleString('en-IN')}
+                          {p.name} ({p.durationMonths} mo) — ₹{(p.pricePaise / 100).toLocaleString('en-IN')}
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -334,18 +334,18 @@ export const DashboardPage: React.FC = () => {
                 {todayCheckIns.slice(0, 6).map((c: any) => (
                   <li key={c.id} className="flex items-center gap-3 py-3.5">
                     <span className="gt-avatar" data-size="md">
-                      {initials(c.first_name, c.last_name)}
+                      {initials(c.firstName, c.lastName)}
                     </span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-ink truncate">
-                        {c.first_name} {c.last_name || ''}
+                        {c.firstName} {c.lastName || ''}
                       </p>
                       <p className="text-meta mt-0.5 font-mono">
-                        {c.member_code}
+                        {c.memberCode}
                       </p>
                     </div>
                       <span className="text-meta hidden sm:inline">
-                      {c.check_in_time ? new Date(c.check_in_time * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
+                      {c.checkInTime ? new Date(c.checkInTime * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '—'}
                     </span>
                     <span className="gt-tag" data-tone={c.method === 'FACE_ID' ? 'iron' : 'ok'}>
                       <CheckCircle2 className="h-3 w-3" /> {c.method === 'FACE_ID' ? 'Face ID' : c.method === 'QR' ? 'QR' : 'Desk'}
@@ -408,18 +408,18 @@ export const DashboardPage: React.FC = () => {
             ) : (
               <ul className="flex flex-col">
                 {expiring.slice(0, 4).map((m: ExpiringMember) => {
-                  const due = (m.due_amount_paise || 0) / 100;
+                  const due = (m.dueAmountPaise || 0) / 100;
                   return (
                     <li key={m.id} className="group flex items-center gap-3 py-3 border-t border-line-2 first:border-t-0">
                       <span className="gt-avatar" data-size="md">
-                        {initials(m.first_name, m.last_name)}
+                        {initials(m.firstName, m.lastName)}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-medium text-ink truncate">
-                          {m.first_name} {m.last_name || ''}
+                          {m.firstName} {m.lastName || ''}
                         </p>
                         <p className="text-[11px] text-ink-3 mt-0.5">
-                          {m.plan_name || 'Plan'} · ends {endDateLabel(m.end_date)}
+                          {m.planName || 'Plan'} · ends {endDateLabel(m.endDate)}
                         </p>
                       </div>
                       <div className="text-right shrink-0">
@@ -431,7 +431,7 @@ export const DashboardPage: React.FC = () => {
                         </p>
                       </div>
                       <a
-                        href={m.whatsapp_url || `https://wa.me/91${m.phone}`}
+                        href={m.whatsappUrl || `https://wa.me/91${m.phone}`}
                         target="_blank"
                         rel="noreferrer"
                         aria-label="WhatsApp reminder"
@@ -471,14 +471,14 @@ export const DashboardPage: React.FC = () => {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-ink truncate">
-                        {p.member_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Member'}
+                        {p.memberName || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Member'}
                       </p>
                       <p className="text-[11px] text-ink-3 mt-0.5">
-                        {p.payment_mode || 'Cash'} · {timeAgo(p.payment_date)}
+                        {p.paymentMode || 'Cash'} · {timeAgo(p.paymentDate)}
                       </p>
                     </div>
                     <p className="text-sm num text-ink font-medium shrink-0">
-                      {formatCurrency((p.amount_paise || 0) / 100)}
+                      {formatCurrency((p.amountPaise || 0) / 100)}
                     </p>
                   </li>
                 ))}

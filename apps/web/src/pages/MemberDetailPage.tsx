@@ -86,11 +86,11 @@ export const MemberDetailPage: React.FC = () => {
   const payments = (data.payments || []) as any[];
   const attendance = (data.attendance || []) as any[];
 
-  const fullName = `${member.first_name} ${member.last_name || ''}`.trim();
-  const initials = `${member.first_name?.[0] || ''}${member.last_name?.[0] || ''}`.toUpperCase() || '·';
+  const fullName = `${member.firstName} ${member.lastName || ''}`.trim();
+  const initials = `${member.firstName?.[0] || ''}${member.lastName?.[0] || ''}`.toUpperCase() || '·';
   const isFrozen = member.status === 'FROZEN';
-  const due = activeMembership ? (activeMembership.due_amount_paise || 0) / 100 : 0;
-  const endDate = activeMembership ? new Date(activeMembership.end_date * 1000) : null;
+  const due = activeMembership ? (activeMembership.dueAmountPaise || 0) / 100 : 0;
+  const endDate = activeMembership ? new Date(activeMembership.endDate * 1000) : null;
   const daysToEnd = endDate ? Math.ceil((endDate.getTime() - Date.now()) / 86400000) : null;
 
   const [isSendingWa, setIsSendingWa] = useState(false);
@@ -102,10 +102,10 @@ export const MemberDetailPage: React.FC = () => {
     try {
       const res = await api.dispatchNotification({
         recipientPhone: member.phone,
-        recipientName: member.first_name,
+        recipientName: member.firstName,
         channel: 'WHATSAPP',
         type: 'CUSTOM',
-        params: { memberCode: member.member_code },
+        params: { memberCode: member.memberCode },
       });
       toast('success', 'WhatsApp Dispatched', `1 credit deducted. (${res.remainingCredits} credits remaining)`);
       if (res.whatsappUrl) {
@@ -124,12 +124,12 @@ export const MemberDetailPage: React.FC = () => {
     try {
       const res = await api.dispatchNotification({
         recipientPhone: member.phone,
-        recipientName: member.first_name,
+        recipientName: member.firstName,
         channel: 'SMS',
         type: 'CUSTOM',
-        params: { memberCode: member.member_code },
+        params: { memberCode: member.memberCode },
       });
-      toast('success', 'SMS Dispatched', `SMS sent to ${member.first_name}. 1 credit deducted. (${res.remainingCredits} credits remaining)`);
+      toast('success', 'SMS Dispatched', `SMS sent to ${member.firstName}. 1 credit deducted. (${res.remainingCredits} credits remaining)`);
     } catch (err: any) {
       toast('error', 'Cannot Send SMS', err.message || 'Check your SMS credits or contact Super Admin.');
     } finally {
@@ -144,7 +144,7 @@ export const MemberDetailPage: React.FC = () => {
         { label: fullName },
       ]}
       title={fullName}
-      description={`Member since ${new Date(member.joined_date * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · ${member.member_code}`}
+      description={`Member since ${new Date(member.joinedDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · ${member.memberCode}`}
       actions={
         <>
           <Button
@@ -184,8 +184,8 @@ export const MemberDetailPage: React.FC = () => {
           <section>
             <div className="flex items-start gap-4">
               <div className="h-16 w-16 rounded-md bg-surface-2 text-ink flex items-center justify-center text-lg font-semibold shrink-0 overflow-hidden">
-                {member.photo_url ? (
-                  <img src={member.photo_url} alt={fullName} className="h-full w-full object-cover" />
+                {member.photoUrl ? (
+                  <img src={member.photoUrl} alt={fullName} className="h-full w-full object-cover" />
                 ) : (
                   initials
                 )}
@@ -206,7 +206,7 @@ export const MemberDetailPage: React.FC = () => {
                   </span>
                   {activeMembership && (
                     <span className="gt-chip gt-chip-muted">
-                      {activeMembership.plan_name || 'Active plan'}
+                      {activeMembership.planName || 'Active plan'}
                     </span>
                   )}
                 </div>
@@ -221,16 +221,16 @@ export const MemberDetailPage: React.FC = () => {
                     />
                     <StatCell
                       label="Plan fee"
-                      value={formatCurrency(activeMembership.final_amount_paise)}
+                      value={formatCurrency(activeMembership.finalAmountPaise)}
                     />
                     <StatCell
                       label="Paid"
-                      value={formatCurrency(activeMembership.paid_amount_paise)}
+                      value={formatCurrency(activeMembership.paidAmountPaise)}
                       tone="ok"
                     />
                     <StatCell
                       label="Pending due"
-                      value={formatCurrency(activeMembership.due_amount_paise)}
+                      value={formatCurrency(activeMembership.dueAmountPaise)}
                       tone={due > 0 ? 'warn' : 'default'}
                     />
                   </div>
@@ -286,20 +286,20 @@ export const MemberDetailPage: React.FC = () => {
                   value={[member.address, member.city, member.pincode].filter(Boolean).join(', ')}
                 />
               )}
-              {member.date_of_birth && (
+              {member.dateOfBirth && (
                 <DetailRow
                   icon={<Cake className="h-3.5 w-3.5" />}
                   label="Birthday"
-                  value={new Date(member.date_of_birth * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
+                  value={new Date(member.dateOfBirth * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}
                 />
               )}
               <DetailRow
                 icon={<Heart className="h-3.5 w-3.5" />}
                 label="Emergency contact"
-                value={member.emergency_contact_name ? `${member.emergency_contact_name} (${member.emergency_contact_phone || '—'})` : '—'}
+                value={member.emergencyContactName ? `${member.emergencyContactName} (${member.emergencyContactPhone || '—'})` : '—'}
               />
-              {member.health_notes && (
-                <DetailRow icon={<User className="h-3.5 w-3.5" />} label="Health notes" value={member.health_notes} />
+              {member.healthNotes && (
+                <DetailRow icon={<User className="h-3.5 w-3.5" />} label="Health notes" value={member.healthNotes} />
               )}
             </dl>
           </section>
@@ -314,11 +314,11 @@ export const MemberDetailPage: React.FC = () => {
                 {memberships.map((m: any) => (
                   <li key={m.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-4 py-3">
                     <div className="min-w-0">
-                      <p className="text-sm text-ink">{m.plan_name || 'Plan'}</p>
+                      <p className="text-sm text-ink">{m.planName || 'Plan'}</p>
                       <p className="text-[11px] text-ink-3 mt-0.5">
-                        {new Date(m.start_date * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {new Date(m.startDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                         {' → '}
-                        {new Date(m.end_date * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        {new Date(m.endDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
                     <span
@@ -331,7 +331,7 @@ export const MemberDetailPage: React.FC = () => {
                     >
                       {m.status}
                     </span>
-                    <p className="text-sm num text-ink">{formatCurrency(m.final_amount_paise)}</p>
+                    <p className="text-sm num text-ink">{formatCurrency(m.finalAmountPaise)}</p>
                   </li>
                 ))}
               </ul>
@@ -353,13 +353,13 @@ export const MemberDetailPage: React.FC = () => {
                     className="grid grid-cols-[1fr_auto] items-center gap-3 py-3 border-t border-(--line-2) first:border-t-0"
                   >
                     <div className="min-w-0">
-                      <p className="text-sm num text-ink">{formatCurrency(p.amount_paise)}</p>
+                      <p className="text-sm num text-ink">{formatCurrency(p.amountPaise)}</p>
                       <p className="text-[11px] text-ink-3 mt-0.5">
-                        {new Date(p.payment_date * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
-                        {' · '}{p.payment_mode}
+                        {new Date(p.paymentDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}
+                        {' · '}{p.paymentMode}
                       </p>
                     </div>
-                    <span className="gt-chip gt-chip-muted font-mono text-[10px]">{p.receipt_number}</span>
+                    <span className="gt-chip gt-chip-muted font-mono text-[10px]">{p.receiptNumber}</span>
                   </li>
                 ))}
               </ul>
@@ -381,7 +381,7 @@ export const MemberDetailPage: React.FC = () => {
                     <div className="min-w-0">
                       <p className="text-sm text-ink">{a.method} check-in</p>
                       <p className="text-[11px] text-ink-3 mt-0.5">
-                        {new Date(a.check_in_time * 1000).toLocaleString('en-IN', {
+                        {new Date(a.checkInTime * 1000).toLocaleString('en-IN', {
                           day: 'numeric',
                           month: 'short',
                           hour: 'numeric',

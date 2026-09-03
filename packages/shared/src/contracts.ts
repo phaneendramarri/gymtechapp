@@ -215,7 +215,25 @@ export interface CheckInResponse {
 }
 
 // ==========================================
-// 6. STAFF CONTRACTS
+// 6. ROLE CONTRACTS
+// ==========================================
+
+export const CreateRoleRequestSchema = z.object({
+  name: z.string().min(1, 'Role name is required').max(50),
+  permissions: z.array(z.string()).default([]),
+  isDefault: z.boolean().default(false),
+});
+export type CreateRoleRequest = z.infer<typeof CreateRoleRequestSchema>;
+
+export const UpdateRoleRequestSchema = z.object({
+  name: z.string().min(1).max(50).optional(),
+  permissions: z.array(z.string()).optional(),
+  isDefault: z.boolean().optional(),
+});
+export type UpdateRoleRequest = z.infer<typeof UpdateRoleRequestSchema>;
+
+// ==========================================
+// 7. STAFF CONTRACTS
 // ==========================================
 
 export const CreateStaffRequestSchema = z.object({
@@ -223,13 +241,26 @@ export const CreateStaffRequestSchema = z.object({
   email: z.string().email('Valid email required'),
   phone: z.string().min(10, 'Valid phone required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  /** Array of permission keys to grant this user (e.g. ['members', 'attendance', 'payments']) */
+  /**
+   * FK to the gym's custom role. Required for non-owner staff.
+   * The owner is created with roleId = null.
+   */
+  roleId: z.number().int().positive().nullable().optional(),
+  /**
+   * Legacy display label stored on the user row.
+   * Defaults to 'STAFF'. Ignored when roleId is set.
+   * @deprecated use roleId instead
+   */
+  role: z.string().optional().default('STAFF'),
+  /** Additional per-user permission overrides (merged with role permissions) */
   permissions: z.array(z.string()).default([]),
 });
 export type CreateStaffRequest = z.infer<typeof CreateStaffRequestSchema>;
 
 // ==========================================
-// 7. SUPER ADMIN CONTRACTS
+// ==========================================
+// 8. SUPER ADMIN CONTRACTS
+// ==========================================
 // ==========================================
 
 export const CreateGymRequestSchema = z.object({
@@ -279,7 +310,7 @@ export const UpdateLicenseRequestSchema = z.object({
 export type UpdateLicenseRequest = z.infer<typeof UpdateLicenseRequestSchema>;
 
 // ==========================================
-// 8. BULK EXCEL MIGRATION CONTRACTS
+// 9. BULK EXCEL MIGRATION CONTRACTS
 // ==========================================
 
 export const BulkImportMemberRowSchema = z.object({
@@ -311,7 +342,7 @@ export interface BulkImportMembersResponse {
 }
 
 // ==========================================
-// 9. FORGOT & RESET PASSWORD CONTRACTS
+// 10. FORGOT & RESET PASSWORD CONTRACTS
 // ==========================================
 
 export const ForgotPasswordRequestSchema = z.object({
@@ -337,7 +368,7 @@ export interface ResetPasswordResponse {
 }
 
 // ==========================================
-// 10. FREEZE / PAUSE MEMBERSHIP CONTRACTS
+// 11. FREEZE / PAUSE MEMBERSHIP CONTRACTS
 // ==========================================
 
 export const FreezeMemberRequestSchema = z.object({
@@ -354,7 +385,7 @@ export interface FreezeMemberResponse {
 }
 
 // ==========================================
-// 11. PT COLLECTION CONTRACTS
+// 12. PT COLLECTION CONTRACTS
 // ==========================================
 
 export const RecordPtCollectionRequestSchema = z.object({
@@ -380,7 +411,7 @@ export const SettlePtCommissionRequestSchema = z.object({
 export type SettlePtCommissionRequest = z.infer<typeof SettlePtCommissionRequestSchema>;
 
 // ==========================================
-// 12. NOTIFICATION & SMTP SETTINGS CONTRACTS
+// 13. NOTIFICATION & SMTP SETTINGS CONTRACTS
 // ==========================================
 
 export const SmtpSettingsSchema = z.object({
@@ -465,13 +496,13 @@ export interface NotificationSettingsResponse {
 }
 
 // ==========================================
-// 13. DASHBOARD
+// 14. DASHBOARD
 // ==========================================
 
 export type { DashboardMetrics };
 
 // ==========================================
-// 14. PLATFORM ADMIN DASHBOARD
+// 15. PLATFORM ADMIN DASHBOARD
 // ==========================================
 
 export interface PlatformOverview {
@@ -485,7 +516,7 @@ export interface PlatformOverview {
 }
 
 // ==========================================
-// 15. DYNAMIC FEATURE PERMISSIONS & AUDIT
+// 16. DYNAMIC FEATURE PERMISSIONS & AUDIT
 // ==========================================
 
 export const UpdateGymFeaturesRequestSchema = z.object({

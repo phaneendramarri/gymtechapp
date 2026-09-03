@@ -3,8 +3,6 @@ import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { HeroSection } from '@/components/landing/HeroSection';
 import { GymOSFlow } from '@/components/landing/GymOSFlow';
 import { HowItWorks } from '@/components/landing/HowItWorks';
-import { LandingLogoMarquee } from '@/components/landing/LandingLogoMarquee';
-import { LandingTestimonials } from '@/components/landing/LandingTestimonials';
 import { PricingSection } from '@/components/landing/PricingSection';
 import { FaqSection } from '@/components/landing/FaqSection';
 import { CTASection } from '@/components/landing/CTASection';
@@ -59,14 +57,8 @@ export const LandingPage: React.FC = () => {
         {/* "Onboarded in an afternoon" — three-step day-1 flow. */}
         <HowItWorks />
 
-        {/* Social proof — gym logos. */}
-        <LandingLogoMarquee />
-
         {/* Honest pricing, three plans. */}
         <PricingSection />
-
-        {/* Real testimonials from real gym owners. */}
-        <LandingTestimonials />
 
         {/* Questions gym owners actually ask. */}
         <FaqSection />

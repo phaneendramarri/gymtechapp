@@ -28,8 +28,8 @@ settingsRoutes.get('/notifications', requireGym, safeHandler(async (c) => {
 
   const licenseRepo = new LicenseRepository(ctx.env.DB, ctx.gymId!);
   const license = await licenseRepo.findByGymId(ctx.gymId!);
-  const maxSms = license?.max_sms ?? 0, smsUsed = license?.sms_used ?? 0;
-  const maxWhatsapp = license?.max_whatsapp ?? 0, whatsappUsed = license?.whatsapp_used ?? 0;
+  const maxSms = license?.maxSms ?? 0, smsUsed = license?.smsUsed ?? 0;
+  const maxWhatsapp = license?.maxWhatsapp ?? 0, whatsappUsed = license?.whatsappUsed ?? 0;
   const smsBalance: ChannelBalance = { total: maxSms, used: smsUsed, remaining: Math.max(0, maxSms - smsUsed) };
   const whatsappBalance: ChannelBalance = { total: maxWhatsapp, used: whatsappUsed, remaining: Math.max(0, maxWhatsapp - whatsappUsed) };
 

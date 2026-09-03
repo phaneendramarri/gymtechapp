@@ -16,6 +16,20 @@ import {
   ChevronRight,
   History,
   UserCog,
+  // ── New icons for menu tree ──
+  LogIn,
+  UserPlus,
+  Receipt,
+  Plus,
+  ShieldCheck,
+  Bell,
+  Sliders,
+  Building2,
+  IdCard,
+  Server,
+  Shield,
+  Key,
+  Download,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import {
@@ -35,6 +49,9 @@ import {
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/shared/Logo';
 import { useRecentRoutes } from '@/hooks/useRecentRoutes';
+import { useMenuAccess } from '@/hooks/useMenuAccess';
+import { resolveIcon } from '@/lib/icons';
+import type { MenuNode } from '@gymtech/shared';
 
 interface NavItem {
   key: string;
@@ -59,33 +76,6 @@ interface AppSidebarProps {
   onCloseMobile: () => void;
 }
 
-const navGroups: NavGroup[] = [
-  {
-    items: [
-      { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permissions: ['dashboard'], shortcut: '1' },
-    ],
-  },
-  {
-    label: 'Operate',
-    items: [
-      { key: 'members', label: 'Members', href: '/members', icon: Users, permissions: ['members'], shortcut: '2' },
-      { key: 'attendance', label: 'Floor', href: '/attendance', icon: CalendarCheck, permissions: ['attendance'], shortcut: '3' },
-      { key: 'payments', label: 'Payments', href: '/payments', icon: CreditCard, permissions: ['payments'], shortcut: '5' },
-      { key: 'pt', label: 'PT Collections', href: '/pt-collections', icon: Trophy, permissions: ['pt_collections'] },
-    ],
-  },
-  {
-    label: 'Configure',
-    items: [
-      { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, permissions: ['plans'] },
-      { key: 'staff', label: 'Staff', href: '/staff', icon: UserCog, permissions: ['staff'] },
-      { key: 'reports', label: 'Reports', href: '/reports', icon: BarChart3, permissions: ['reports'] },
-      { key: 'settings', label: 'Settings', href: '/settings/notifications', icon: Settings, permissions: ['settings'] },
-      { key: 'audit_logs', label: 'Audit Logs', href: '/audit-logs', icon: History, permissions: ['audit_logs'] },
-    ],
-  },
-];
-
 export const AppSidebar: React.FC<AppSidebarProps> = ({
   collapsed,
   onToggleCollapsed,
@@ -96,37 +86,71 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const navigate = useNavigate();
   const { gym, user, logout } = useAuth();
   const { recent, clear: clearRecent } = useRecentRoutes();
+  const { filteredTree } = useMenuAccess();
 
-  const isAllowed = (item: NavItem) => {
-    if (!user) return false;
-    if (user.role === 'PLATFORM_ADMIN') return true;
+  const isActive = (href: string) => location.pathname.startsWith(href);
 
-    // Owners have access to everything
-    if (user.isOwner) return true;
+  /** Render a single MenuNode — returns null if the node should not be rendered. */
+  const renderNode = (node: MenuNode, mode: 'rail' | 'drawer'): React.ReactNode => {
+    // Group/parent node (has children) — only show if there are visible children
+    if (node.children && node.children.length > 0) {
+      const visibleChildren = node.children.filter(
+        (child) => !child.adminOnly || user?.role === 'PLATFORM_ADMIN',
+      );
+      if (visibleChildren.length === 0) return null;
 
-    // Check: does the user have ALL required permission keys for this nav item?
-    if (!item.permissions.every((perm) => user.permissions?.includes(perm))) {
-      return false;
-    }
+      // Show as a collapsible section when collapsed
+      const IconComponent = resolveIcon(node.icon);
 
-    // Feature gating check: if gym has enabled_features specified, verify item is enabled
-    if (gym?.enabled_features && item.key) {
-      const featureKey = item.key === 'pt' ? 'pt_collections' : item.key;
-      if (!gym.enabled_features.includes(featureKey as any)) {
-        return false;
+      if (collapsed && mode === 'rail') {
+        // Collapsed rail: show parent as a tooltip with child links
+        const content = (
+          <div className="flex flex-col gap-0.5">
+            {IconComponent && (
+              <div className="h-8 w-full flex items-center justify-center">
+                <IconComponent className="h-4 w-4 text-ink-3" />
+              </div>
+            )}
+          </div>
+        );
+        return (
+          <TooltipProvider key={node.key} delayDuration={300}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="cursor-default">{content}</div>
+              </TooltipTrigger>
+              <TooltipContent side="right" className="text-xs flex flex-col gap-1">
+                <p className="font-semibold">{node.label}</p>
+                {visibleChildren.map((child) => (
+                  <a key={child.key} href={child.href} className="hover:text-foreground">
+                    {child.label}
+                  </a>
+                ))}
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        );
       }
+
+      // Expanded: show group label + child items
+      return (
+        <div key={node.key} className="flex flex-col gap-0.5">
+          {(!collapsed || mode === 'drawer') && (
+            <div className="gt-nav-section">{node.label}</div>
+          )}
+          {visibleChildren.map((child) => renderNode(child, mode))}
+        </div>
+      );
     }
-    return true;
-  };
 
-  const isActive = (href: string) => location.pathname === href;
+    // Leaf node (no children) — skip if no href
+    if (!node.href) return null;
 
-  const renderItem = (item: NavItem, mode: 'rail' | 'drawer') => {
-    if (!isAllowed(item)) return null;
-    const active = isActive(item.href);
+    const IconComponent = resolveIcon(node.icon);
+    const active = isActive(node.href);
     const content = (
       <a
-        href={item.href}
+        href={node.href}
         className={cn(
           'gt-nav-link',
           mode === 'rail' ? 'justify-center' : '',
@@ -134,55 +158,40 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         )}
         data-active={active}
       >
-        <item.icon
-          className={cn(
-            'h-4 w-4 shrink-0',
-            active ? 'text-ink' : 'text-ink-3'
-          )}
-        />
+        {IconComponent ? (
+          <IconComponent
+            className={cn('h-4 w-4 shrink-0', active ? 'text-ink' : 'text-ink-3')}
+          />
+        ) : (
+          <div className="h-4 w-4 shrink-0" />
+        )}
         {(!collapsed || mode === 'drawer') && (
-          <span className="flex-1 truncate">{item.label}</span>
+          <span className="flex-1 truncate">{node.label}</span>
         )}
-        {(!collapsed || mode === 'drawer') && item.shortcut && (
+        {(!collapsed || mode === 'drawer') && node.shortcut && (
           <kbd className="hidden lg:inline-block text-[10px] font-mono text-ink-3 bg-(--surface-2) border border-(--line) rounded px-1.5 h-4.5 leading-4">
-            {item.shortcut}
+            {node.shortcut}
           </kbd>
-        )}
-        {(!collapsed || mode === 'drawer') && item.badge && (
-          <span className="gt-chip gt-chip-iron h-4.5 text-[10px]">{item.badge}</span>
         )}
       </a>
     );
 
     if (collapsed && mode === 'rail') {
       return (
-        <TooltipProvider key={item.key} delayDuration={300}>
+        <TooltipProvider key={node.key} delayDuration={300}>
           <Tooltip>
             <TooltipTrigger asChild>{content}</TooltipTrigger>
             <TooltipContent side="right" className="text-xs">
-              <p>{item.label}</p>
-              {item.shortcut && (
-                <p className="text-[10px] text-muted-foreground mt-0.5">⌘{item.shortcut}</p>
+              <p>{node.label}</p>
+              {node.shortcut && (
+                <p className="text-[10px] text-muted-foreground mt-0.5">⌘{node.shortcut}</p>
               )}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
       );
     }
-    return <React.Fragment key={item.key}>{content}</React.Fragment>;
-  };
-
-  const renderGroup = (group: NavGroup, mode: 'rail' | 'drawer') => {
-    const visible = group.items.filter((i) => isAllowed(i));
-    if (visible.length === 0) return null;
-    return (
-      <div className="flex flex-col gap-0.5">
-        {group.label && (!collapsed || mode === 'drawer') && (
-          <div className="gt-nav-section">{group.label}</div>
-        )}
-        {visible.map((i) => renderItem(i, mode))}
-      </div>
-    );
+    return <React.Fragment key={node.key}>{content}</React.Fragment>;
   };
 
   const userInitial = (user?.name?.[0] || 'U').toUpperCase();
@@ -197,7 +206,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         collapsed ? 'justify-center px-1' : 'px-4 gap-2.5'
       )}>
         <a href="/dashboard" className="flex items-center group/logo">
-          <Logo size="sm" showText={!collapsed || mobileOpen} />
+          <Logo size="md" showText={!collapsed || mobileOpen} />
         </a>
         {mobileOpen && (
           <button
@@ -229,9 +238,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-4">
-        {navGroups.map((g, i) => (
-          <React.Fragment key={i}>{renderGroup(g, mobileOpen ? 'drawer' : 'rail')}</React.Fragment>
-        ))}
+        {filteredTree.map((node) =>
+          renderNode(node, mobileOpen ? 'drawer' : 'rail'),
+        )}
 
         {/* Recent routes */}
         {(!collapsed || mobileOpen) && recent.length > 0 && (

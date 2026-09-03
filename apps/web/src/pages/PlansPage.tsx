@@ -99,7 +99,7 @@ export const PlansPage: React.FC = () => {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {plans.map((p: any) => {
-            const monthly = (p.price_paise / 100) / Math.max(1, p.duration_months);
+            const monthly = (p.pricePaise / 100) / Math.max(1, p.durationMonths);
             return (
               <article
                 key={p.id}
@@ -110,23 +110,23 @@ export const PlansPage: React.FC = () => {
                     <p className="text-eyebrow">Plan</p>
                     <h3 className="text-h2 text-ink mt-1 truncate">{p.name}</h3>
                   </div>
-                  <span className={p.is_active ? 'gt-chip gt-chip-ok' : 'gt-chip gt-chip-muted'}>
-                    {p.is_active ? 'Active' : 'Inactive'}
+                  <span className={p.isActive ? 'gt-chip gt-chip-ok' : 'gt-chip gt-chip-muted'}>
+                    {p.isActive ? 'Active' : 'Inactive'}
                   </span>
                 </div>
 
                 <div>
                   <p className="text-stat-xl num text-ink">
-                    {formatCurrency(p.price_paise)}
+                    {formatCurrency(p.pricePaise)}
                   </p>
                   <p className="text-[11px] text-ink-3 mt-1">
-                    per {p.duration_months}-month term
+                    per {p.durationMonths}-month term
                     {' · '}
                     <span className="num">{formatCurrency(Math.round(monthly * 100))}</span>/mo effective
                   </p>
-                  {p.admission_fee_paise > 0 && (
+                  {p.admissionFeePaise > 0 && (
                     <p className="text-[11px] text-ink-3 mt-1">
-                      + {formatCurrency(p.admission_fee_paise)} one-time admission
+                      + {formatCurrency(p.admissionFeePaise)} one-time admission
                     </p>
                   )}
                 </div>
@@ -137,7 +137,7 @@ export const PlansPage: React.FC = () => {
 
                 <div className="mt-auto pt-3 border-t border-line-2 flex items-center justify-between text-[11px] text-ink-3">
                   <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> {p.duration_months} mo
+                    <Clock className="h-3 w-3" /> {p.durationMonths} mo
                   </span>
                   <span className="font-mono">ID {p.id}</span>
                 </div>

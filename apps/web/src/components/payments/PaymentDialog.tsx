@@ -136,8 +136,8 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
                 <SelectContent>
                   {members.map((m: any) => (
                     <SelectItem key={m.id} value={m.id.toString()}>
-                      {m.first_name} {m.last_name || ''} ({m.member_code})
-                      {m.membership_due_amount_paise > 0 ? ` — Due: ${formatCurrency(m.membership_due_amount_paise)}` : ''}
+                      {m.firstName} {m.lastName || ''} ({m.memberCode})
+                      {m.membershipDueAmountPaise > 0 ? ` — Due: ${formatCurrency(m.membershipDueAmountPaise)}` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>

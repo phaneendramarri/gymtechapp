@@ -69,6 +69,7 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
       gymId: 1,
       isOwner: true,
       permissions: ['*'],
+      roleId: null,
     };
 
     it('creates and verifies a valid session token', async () => {
@@ -129,7 +130,7 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
         exp: 1800000000,
       };
 
-      const sessionUser = payloadToSessionUser(payload);
+      const sessionUser = payloadToSessionUser(payload as any);
       expect(sessionUser).toEqual({
         id: 7,
         email: 'staff@gym.in',

@@ -55,8 +55,8 @@ export const StaffPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Permissions available for grant — based on gym's enabled features
-  const availablePerms = (gym?.enabled_features?.length ?? 0) > 0
-    ? (gym!.enabled_features as readonly string[])
+  const availablePerms = (gym?.enabledFeatures?.length ?? 0) > 0
+    ? (gym!.enabledFeatures as readonly string[])
     : ALL_PERMISSION_KEYS;
 
   const togglePerm = (key: string) => {
@@ -75,6 +75,7 @@ export const StaffPage: React.FC = () => {
         email,
         phone,
         password,
+        role: 'STAFF',
         permissions: selectedPerms,
       });
       setDialogOpen(false);
@@ -135,7 +136,7 @@ export const StaffPage: React.FC = () => {
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <p className="text-sm font-medium text-ink truncate">{s.name}</p>
-                  {s.is_owner === 1 && (
+                  {s.isOwner === 1 && (
                     <span className="gt-chip gt-chip-iron text-[10px]">Owner</span>
                   )}
                 </div>

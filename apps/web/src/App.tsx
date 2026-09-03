@@ -39,6 +39,10 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m 
 const MemberPortalPage = lazy(() => import('./pages/MemberPortalPage').then(m => ({ default: m.MemberPortalPage })));
 const PtCollectionsPage = lazy(() => import('./pages/PtCollectionsPage').then(m => ({ default: m.PtCollectionsPage })));
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
+const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const ContactPage = lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
+const TermsPage = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 
 // Minimal route-loading skeleton — avoids layout shift vs a full-page spinner.
 const RouteSkeleton: React.FC = () => (
@@ -228,6 +232,40 @@ export const App: React.FC = () => {
                         <ProtectedRoute allowMember={true}>
                           <MemberPortalPage />
                         </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+
+                  {/* Static Pages */}
+                  <Route
+                    path="/about"
+                    element={
+                      <PageTransition>
+                        <AboutPage />
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/contact"
+                    element={
+                      <PageTransition>
+                        <ContactPage />
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/terms"
+                    element={
+                      <PageTransition>
+                        <TermsPage />
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/privacy"
+                    element={
+                      <PageTransition>
+                        <PrivacyPage />
                       </PageTransition>
                     }
                   />

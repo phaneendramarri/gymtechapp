@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { SessionUser, Gym, LoginRequest } from '@gymtech/shared';
+import { SessionUser, Gym, LoginRequest, MenuNode } from '@gymtech/shared';
 import { api } from './api';
 
 interface AuthContextType {
@@ -13,6 +13,8 @@ interface AuthContextType {
    * actual token value.
    */
   token: string | null;
+  /** DB-driven menu tree, filtered by the user's role permissions. */
+  menu: MenuNode[];
   isLoading: boolean;
   login: (credentials: LoginRequest) => Promise<void>;
   logout: () => Promise<void>;
@@ -27,18 +29,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // /api/auth/me on mount. localStorage is no longer the source of truth.
   const [user, setUser] = useState<SessionUser | null>(null);
   const [gym, setGym] = useState<Gym | null>(null);
+  const [menu, setMenu] = useState<MenuNode[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const data = await api.getMe();
-        setUser(data.user);
-        if (data.gym) setGym(data.gym);
+        const [meData, menuData] = await Promise.all([api.getMe(), api.getMenu()]);
+        setUser(meData.user);
+        if (meData.gym) setGym(meData.gym);
+        setMenu(menuData.menu ?? []);
       } catch (err) {
         // No valid session — cookie expired or absent. Stay logged out.
         setUser(null);
         setGym(null);
+        setMenu([]);
       } finally {
         setIsLoading(false);
       }
@@ -52,6 +57,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const res = await api.login(credentials);
     setUser(res.user);
     setGym(res.gym || null);
+    // Fetch menu after login — server returns pre-filtered menu per role
+    const menuData = await api.getMenu();
+    setMenu(menuData.menu ?? []);
     // The server has set the httpOnly session cookie + CSRF cookie in
     // the response. JS doesn't need to (and can't) read the session JWT.
   };
@@ -65,12 +73,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     queryClient.clear();
     setUser(null);
     setGym(null);
+    setMenu([]);
     window.location.hash = '/login';
   };
 
   return (
     <AuthContext.Provider
-      value={{ user, gym, token: user ? 'cookie' : null, isLoading, login, logout }}
+      value={{ user, gym, menu, token: user ? 'cookie' : null, isLoading, login, logout }}
     >
       {children}
     </AuthContext.Provider>

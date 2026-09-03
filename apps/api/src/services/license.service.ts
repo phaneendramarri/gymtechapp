@@ -37,7 +37,7 @@ export class LicenseService {
     }
 
     if (license.status !== 'ACTIVE') {
-      return { allowed: false, current: 0, max: license.max_members, reason: `Gym license is ${license.status}.` };
+      return { allowed: false, current: 0, max: license.maxMembers, reason: `Gym license is ${license.status}.` };
     }
 
     const countRes = await this.db
@@ -46,21 +46,21 @@ export class LicenseService {
       .first<{ count: number }>();
     const current = countRes?.count || 0;
 
-    if (license.max_members !== -1 && current >= license.max_members) {
+    if (license.maxMembers !== -1 && current >= license.maxMembers) {
       return {
         allowed: false,
         current,
-        max: license.max_members,
-        reason: `Member limit reached (${current}/${license.max_members}). Please upgrade your commercial plan.`,
+        max: license.maxMembers,
+        reason: `Member limit reached (${current}/${license.maxMembers}). Please upgrade your commercial plan.`,
       };
     }
 
-    return { allowed: true, current, max: license.max_members };
+    return { allowed: true, current, max: license.maxMembers };
   }
 
   /**
    * Verify if the gym can add another manager.
-   * Count all non-owner gym users (anyone with is_owner = 0).
+   * Counts users with role = 'MANAGER' who are not deleted.
    */
   async checkManagerLimit(): Promise<LimitCheckResult> {
     const license = await this.getLicense();
@@ -69,26 +69,26 @@ export class LicenseService {
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND is_owner = 0 AND deleted_at IS NULL AND status = 'ACTIVE'`)
+      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND role = 'MANAGER' AND deleted_at IS NULL AND status = 'ACTIVE'`)
       .bind(this.gymId)
       .first<{ count: number }>();
     const current = countRes?.count || 0;
 
-    if (license.max_managers !== -1 && current >= license.max_managers) {
+    if (license.maxManagers !== -1 && current >= license.maxManagers) {
       return {
         allowed: false,
         current,
-        max: license.max_managers,
-        reason: `User limit reached (${current}/${license.max_managers}).`,
+        max: license.maxManagers,
+        reason: `Manager limit reached (${current}/${license.maxManagers}). Please upgrade your commercial plan.`,
       };
     }
 
-    return { allowed: true, current, max: license.max_managers };
+    return { allowed: true, current, max: license.maxManagers };
   }
 
   /**
    * Verify if the gym can add another staff/trainer.
-   * Count all non-owner gym users (anyone with is_owner = 0).
+   * Counts all non-owner users (role in STAFF, TRAINER) who are not deleted.
    */
   async checkStaffLimit(): Promise<LimitCheckResult> {
     const license = await this.getLicense();
@@ -97,21 +97,21 @@ export class LicenseService {
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND is_owner = 0 AND deleted_at IS NULL AND status = 'ACTIVE'`)
+      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND is_owner = 0 AND role IN ('STAFF', 'TRAINER') AND deleted_at IS NULL AND status = 'ACTIVE'`)
       .bind(this.gymId)
       .first<{ count: number }>();
     const current = countRes?.count || 0;
 
-    if (license.max_staff_total !== -1 && current >= license.max_staff_total) {
+    if (license.maxStaffTotal !== -1 && current >= license.maxStaffTotal) {
       return {
         allowed: false,
         current,
-        max: license.max_staff_total,
-        reason: `User limit reached (${current}/${license.max_staff_total}).`,
+        max: license.maxStaffTotal,
+        reason: `Staff limit reached (${current}/${license.maxStaffTotal}). Please upgrade your commercial plan.`,
       };
     }
 
-    return { allowed: true, current, max: license.max_staff_total };
+    return { allowed: true, current, max: license.maxStaffTotal };
   }
 
   /**

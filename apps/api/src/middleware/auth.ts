@@ -1,5 +1,6 @@
 // filepath: apps/api/src/middleware/auth.ts
 import type { MiddlewareHandler, Context } from 'hono';
+import type { D1Database } from '@cloudflare/workers-types';
 import type { AppEnv } from '../app';
 import { verifySessionToken, payloadToSessionUser } from '../lib/session';
 import { readCookie, COOKIE_NAMES } from '../lib/cookies';
@@ -104,6 +105,29 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
     return jsonError('User is not assigned to a gym tenant', 403);
   }
 
+  // Load role permissions for all gym users (owners + non-owners, excluding platform-admins).
+  // Platform admins bypass all checks and have permissions: ['*'] hardcoded.
+  // Owners have no universal bypass — they only see what their roleId (or individual grants) give them.
+  // roleId is embedded in the JWT's session.user.roleId field (added during token minting).
+  const user = ctx.user!;
+  if (user.role !== 'PLATFORM_ADMIN' && (user as any).roleId) {
+    const roleId = (user as any).roleId as number;
+    const roleRow = await c.env.DB
+      .prepare(`SELECT permissions FROM roles WHERE id = ? AND deleted_at IS NULL`)
+      .bind(roleId)
+      .first<{ permissions: string }>();
+    if (roleRow) {
+      try {
+        const rolePerms = JSON.parse(roleRow.permissions) as string[];
+        // Merge role permissions with user-specific overrides (dedup via Set)
+        const permSet = new Set([...rolePerms, ...user.permissions]);
+        user.permissions = [...permSet];
+      } catch {
+        // Ignore parse errors — use existing permissions
+      }
+    }
+  }
+
   const gym = await c.env.DB
     .prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`)
     .bind(ctx.gymId)
@@ -126,7 +150,7 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   if (license.status !== 'ACTIVE') {
     return jsonError(`Gym license is ${license.status}.`, 403);
   }
-  if (license.expires_at < Math.floor(Date.now() / 1000)) {
+  if (license.expiresAt < Math.floor(Date.now() / 1000)) {
     return jsonError('Gym license has expired.', 403);
   }
 
@@ -139,7 +163,7 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
       ? (featureRows.results.map((r) => r.feature_key as GymFeatureKey))
       : [...GYM_FEATURES];
 
-  const tenant: TenantResolution = { gym: { ...gym, enabled_features: enabledFeatures }, license, enabledFeatures };
+  const tenant: TenantResolution = { gym: { ...gym, enabledFeatures: enabledFeatures }, license, enabledFeatures };
   c.set('tenant', tenant);
   return next();
 };
@@ -153,11 +177,27 @@ export function requireRole(...allowed: UserRole[]) {
 }
 
 /**
+ * Shared helper: load enabled gym features from D1.
+ * Used by requireGym and by routes that need features but use only requireAuth.
+ */
+export async function getGymFeatures(
+  db: D1Database,
+  gymId: number,
+): Promise<GymFeatureKey[]> {
+  const rows = await db
+    .prepare(`SELECT feature_key FROM gym_features WHERE gym_id = ? AND is_enabled = 1`)
+    .bind(gymId)
+    .all<{ feature_key: string }>();
+  return rows.results?.length
+    ? (rows.results.map((r) => r.feature_key as GymFeatureKey))
+    : [...GYM_FEATURES];
+}
+
+/**
  * Permission-based access control.
  *
  * A user passes the check when ALL of these are true:
  *   - The user has every permission key listed (AND logic)
- *   - OR the user is the gym owner (is_owner = true) — owners have all permissions
  *   - OR the user is PLATFORM_ADMIN — bypasses all permission checks
  *
  * @example
@@ -176,9 +216,6 @@ export function requirePermission(...required: string[]) {
 
     // PLATFORM_ADMIN bypasses all permission checks
     if (user.role === 'PLATFORM_ADMIN') return next();
-
-    // Gym owners have all permissions by definition
-    if (user.isOwner) return next();
 
     // Check: does the user have ALL required permission keys?
     const hasAll = required.every((key) => user.permissions?.includes(key));

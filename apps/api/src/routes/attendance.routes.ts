@@ -1,7 +1,7 @@
 // filepath: apps/api/src/routes/attendance.routes.ts
 import { Hono } from 'hono';
 import { CheckInRequestSchema } from '@gymtech/shared';
-import { requireGym, requireFeature } from '../middleware/auth';
+import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
 import { AttendanceRepository } from '../repositories/attendance.repository';
@@ -12,7 +12,7 @@ import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 export const attendanceRoutes = new Hono();
 
 // List today's attendance
-attendanceRoutes.get('/', requireGym, safeHandler(async (c) => {
+attendanceRoutes.get('/', requireGym, requirePermission('attendance'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const attendanceRepo = new AttendanceRepository(ctx.env.DB, ctx.gymId!);
   return jsonOk({ logs: await attendanceRepo.listToday() });
@@ -33,7 +33,7 @@ attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), saf
     (await memberRepo.findByIdentifier(ident));
   if (!member) return jsonErr('No matching member found with this code or phone', 404);
 
-  if (member.deleted_at !== null || member.status === 'INACTIVE' || member.status === 'BLOCKED') {
+  if (member.deletedAt !== null || member.status === 'INACTIVE' || member.status === 'BLOCKED') {
     return jsonErr('Cannot check in an inactive, blocked, or archived member', 403);
   }
 
@@ -51,13 +51,13 @@ attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), saf
     return jsonOk({
       success: false, code: 'MEMBERSHIP_EXPIRED',
       error: `ACCESS DENIED: Membership expired on ${expiryDateStr}. Account is frozen until renewed.`,
-      member: { id: member.id, name: `${member.first_name} ${member.last_name || ''}`.trim(), memberCode: member.member_code, phone: member.phone, status: 'EXPIRED', expiryDate: expiryDateStr },
+      member: { id: member.id, name: `${member.firstName} ${member.lastName || ''}`.trim(), memberCode: member.memberCode, phone: member.phone, status: 'EXPIRED', expiryDate: expiryDateStr },
     }, 403);
   }
 
   const attendanceRepo = new AttendanceRepository(ctx.env.DB, ctx.gymId!);
   const res = await attendanceRepo.checkIn({
-    member_id: member.id, method: parsed.data.method, recorded_by_user_id: ctx.user!.id,
+    memberId: member.id, method: parsed.data.method, recordedByUserId: ctx.user!.id,
   });
 
   await auditGymFromCtx(
@@ -71,6 +71,6 @@ attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), saf
   return jsonOk({
     success: true,
     alreadyCheckedIn: res.alreadyCheckedIn,
-    member: { id: member.id, name: `${member.first_name} ${member.last_name || ''}`.trim(), memberCode: member.member_code, phone: member.phone, status: member.status },
+    member: { id: member.id, name: `${member.firstName} ${member.lastName || ''}`.trim(), memberCode: member.memberCode, phone: member.phone, status: member.status },
   });
 }));

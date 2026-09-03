@@ -1,9 +1,15 @@
 name: Deploy to GitHub Pages
 
+# DISABLED — GymTech API runs on Cloudflare Workers, not GitHub Pages.
+# GitHub Pages cannot serve the Hono API routes (/api/*). The SPA's
+# client-side routing (/dashboard/*, /members/*) also requires a server
+# that handles history-api fallbacks — not available on static hosting.
+#
+# To re-enable: change to `push: branches: [main]` and set
+# VITE_API_BASE_URL as a Pages environment variable (it should point
+# to your Cloudflare Workers endpoint, e.g. https://api.gymtech.app).
 on:
-  push:
-    branches:
-      - main
+  workflow_dispatch:
 
 permissions:
   contents: read

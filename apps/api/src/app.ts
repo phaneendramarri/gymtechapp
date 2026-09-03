@@ -19,15 +19,21 @@ import { attendanceRoutes } from './routes/attendance.routes';
 import { paymentRoutes } from './routes/payments.routes';
 import { planRoutes } from './routes/plans.routes';
 import { staffRoutes } from './routes/staff.routes';
+import { roleRoutes } from './routes/roles.routes';
 import { settingsRoutes } from './routes/settings.routes';
 import { ptRoutes } from './routes/pt.routes';
 import { reportRoutes } from './routes/reports.routes';
 import { mediaRoutes } from './routes/media.routes';
 import { adminRoutes } from './routes/admin.routes';
 import { auditRoutes } from './routes/audit.routes';
+import { menuRoutes } from './routes/menu.routes';
+
+import type { Database } from './db/client';
 
 export interface AppEnv {
   DB: D1Database;
+  /** Cached Drizzle client — lazily created by context middleware. */
+  drizzle?: Database;
   ASSETS?: Fetcher;
   JWT_SECRET: string;
   APP_ENV?: string;
@@ -103,12 +109,14 @@ app.route('/api/attendance', attendanceRoutes);
 app.route('/api/payments', paymentRoutes);
 app.route('/api/plans', planRoutes);
 app.route('/api/staff', staffRoutes);
+app.route('/api/roles', roleRoutes);
 app.route('/api/settings', settingsRoutes);
 app.route('/api/pt', ptRoutes);
 app.route('/api/reports', reportRoutes);
 app.route('/api/v1/media', mediaRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/audit-logs', auditRoutes);
+app.route('/api/menu', menuRoutes);
 
 // SPA catch-all — fetch and serve index.html from Workers Static Assets (ASSETS)
 // so that BrowserRouter clean URLs (e.g. /login, /dashboard) work correctly.

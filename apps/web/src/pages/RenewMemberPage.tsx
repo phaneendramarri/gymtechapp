@@ -51,7 +51,7 @@ export const RenewMemberPage: React.FC = () => {
   React.useEffect(() => {
     if (plans.length > 0 && planId === undefined) {
       setPlanId(plans[0].id);
-      setPaymentAmount(plans[0].price_paise / 100);
+      setPaymentAmount(plans[0].pricePaise / 100);
     }
   }, [plans, planId]);
 
@@ -60,7 +60,7 @@ export const RenewMemberPage: React.FC = () => {
     setPlanId(numericId);
     const selected = plans.find((p) => p.id === numericId);
     if (selected) {
-      setPaymentAmount(selected.price_paise / 100);
+      setPaymentAmount(selected.pricePaise / 100);
     }
   };
 
@@ -93,14 +93,14 @@ export const RenewMemberPage: React.FC = () => {
   };
 
   return (
-    <AppShell title={`Renew Plan — ${member?.first_name || 'Member'}`} breadcrumb="Members">
+    <AppShell title={`Renew Plan — ${member?.firstName || 'Member'}`} breadcrumb="Members">
       <div className="max-w-xl mx-auto w-full flex flex-col gap-6">
         <div>
           <a
             href={`/members/${id}`}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
           >
-            <ArrowLeft className="size-3.5" /> Back to {member?.first_name || 'Member'}'s Profile
+            <ArrowLeft className="size-3.5" /> Back to {member?.firstName || 'Member'}'s Profile
           </a>
           <h2 className="mt-1 font-display text-2xl font-bold tracking-tight text-foreground">
             Renew / Extend Membership
@@ -127,7 +127,7 @@ export const RenewMemberPage: React.FC = () => {
                 Membership Successfully Renewed
               </h3>
               <p className="text-xs text-muted-foreground mt-1">
-                The membership for {member?.first_name} has been extended.
+                The membership for {member?.firstName} has been extended.
               </p>
               {result.receiptNumber && (
                 <p className="text-xs font-mono text-muted-foreground mt-0.5">
@@ -155,7 +155,7 @@ export const RenewMemberPage: React.FC = () => {
               <CardHeader className="pb-3 border-b border-border">
                 <CardTitle className="text-sm font-semibold">Renewal Package &amp; Payment</CardTitle>
                 <CardDescription className="text-xs">
-                  {member?.first_name} {member?.last_name || ''} ({member?.member_code})
+                  {member?.firstName} {member?.lastName || ''} ({member?.memberCode})
                 </CardDescription>
               </CardHeader>
               <CardContent className="pt-4 flex flex-col gap-4">
@@ -168,7 +168,7 @@ export const RenewMemberPage: React.FC = () => {
                     <SelectContent>
                       {plans.map((p) => (
                         <SelectItem key={p.id} value={p.id.toString()}>
-                          {p.name} ({p.duration_months} mo) — ₹{(p.price_paise / 100).toLocaleString('en-IN')}
+                          {p.name} ({p.durationMonths} mo) — ₹{(p.pricePaise / 100).toLocaleString('en-IN')}
                         </SelectItem>
                       ))}
                     </SelectContent>

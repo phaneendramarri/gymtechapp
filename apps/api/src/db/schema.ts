@@ -24,6 +24,8 @@ export const platformAdmins = sqliteTable('platform_admins', {
   passwordHash: text('password_hash').notNull(),
   name: text('name').notNull(),
   status: text('status', { enum: ['ACTIVE', 'DISABLED'] }).notNull().default('ACTIVE'),
+  failedLoginCount: integer('failed_login_count').notNull().default(0),
+  lockedUntil: integer('locked_until'),
   lastLoginAt: integer('last_login_at'),
   passwordAlgo: text('password_algo', { enum: ['sha256', 'argon2id'] }).notNull().default('sha256'),
   createdAt: integer('created_at').notNull(),
@@ -84,7 +86,36 @@ export const licenses = sqliteTable('licenses', {
 });
 
 // ============================================================
-// 4. users
+// 4. roles (owner-defined, per-gym)
+// ============================================================
+export const roles = sqliteTable('roles', {
+  id: integer('id').primaryKey(),
+  gymId: integer('gym_id').notNull(),
+  name: text('name').notNull(),
+  permissions: text('permissions').notNull().default('[]'), // JSON array of permission keys
+  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+  deletedAt: integer('deleted_at'),
+}, (t) => ({
+  gymNameUq: uniqueIndex('roles_gym_name_unique').on(t.gymId, t.name),
+  gymIdx: index('idx_roles_gym').on(t.gymId),
+}));
+
+// ============================================================
+// 5. user_permissions (per-user permission overrides, in addition to role)
+// ============================================================
+export const userPermissions = sqliteTable('user_permissions', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  permissionKey: text('permission_key').notNull(),
+  grantedBy: integer('granted_by').notNull(),
+  grantedAt: integer('granted_at').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.permissionKey] }),
+}));
+
+// ============================================================
+// 6. users
 // ============================================================
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey(),
@@ -93,7 +124,10 @@ export const users = sqliteTable('users', {
   email: text('email').notNull(),
   phone: text('phone'),
   passwordHash: text('password_hash').notNull(),
-  role: text('role', { enum: ['OWNER', 'MEMBER'] }).notNull(),
+  // roleId: FK to gym's custom role. Null for platform admins.
+  roleId: integer('role_id').references(() => roles.id, { onDelete: 'set null' }),
+  // Legacy role column kept for display/rollback compat only — app reads roleId + isOwner
+  role: text('role').notNull().default('STAFF'),
   status: text('status', { enum: ['ACTIVE', 'DISABLED'] }).notNull().default('ACTIVE'),
   permissions: text('permissions').notNull().default('{}'),
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
@@ -108,18 +142,7 @@ export const users = sqliteTable('users', {
   gymEmailUq: uniqueIndex('users_gym_email_unique').on(t.gymId, t.email),
   gymOwnerIdx: index('idx_users_gym_owner').on(t.gymId, t.isOwner),
   gymStatusIdx: index('idx_users_gym_status').on(t.gymId, t.status, t.deletedAt),
-}));
-
-// ============================================================
-// 5. user_permissions
-// ============================================================
-export const userPermissions = sqliteTable('user_permissions', {
-  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  permissionKey: text('permission_key').notNull(),
-  grantedBy: integer('granted_by').notNull(),
-  grantedAt: integer('granted_at').notNull(),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.userId, t.permissionKey] }),
+  gymRoleIdx: index('idx_users_gym_role').on(t.gymId, t.roleId),
 }));
 
 // ============================================================
@@ -178,7 +201,7 @@ export const members = sqliteTable('members', {
   emergencyContactName: text('emergency_contact_name'),
   emergencyContactPhone: text('emergency_contact_phone'),
   healthNotes: text('health_notes'),
-  status: text('status', { enum: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'EXPIRED', 'FROZEN'] }).notNull().default('ACTIVE'),
+  status: text('status', { enum: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'EXPIRED', 'FROZEN', 'CANCELLED'] }).notNull().default('ACTIVE'),
   joinedDate: integer('joined_date').notNull(),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
@@ -415,10 +438,47 @@ export const communicationLogs = sqliteTable('communication_logs', {
 }));
 
 // ============================================================
+// 19. menu_groups  (platform-wide, not gym-scoped)
+// ============================================================
+export const menuGroups = sqliteTable('menu_groups', {
+  id: integer('id').primaryKey(),
+  key: text('key').notNull().unique(),        // e.g. 'members', 'payments', 'platform'
+  label: text('label').notNull(),              // e.g. 'Members', 'Payments'
+  icon: text('icon').notNull(),               // lucide icon name, e.g. 'Users'
+  order: integer('order').notNull().default(0), // sidebar sort order
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+});
+
+// ============================================================
+// 20. menu_items  (platform-wide, not gym-scoped)
+// ============================================================
+export const menuItems = sqliteTable('menu_items', {
+  id: integer('id').primaryKey(),
+  groupKey: text('group_key').notNull().references(() => menuGroups.key, { onDelete: 'cascade' }),
+  key: text('key').notNull().unique(),              // e.g. 'members_list', 'payments_add'
+  label: text('label').notNull(),                    // e.g. 'All Members'
+  href: text('href'),                                // URL path, null for context actions
+  icon: text('icon'),                                // lucide icon name
+  order: integer('order').notNull().default(0),     // sort within group
+  permissions: text('permissions').notNull().default('[]'), // JSON array, e.g. ['members','add']
+  featureKey: text('feature_key'),                  // optional feature gate
+  adminOnly: integer('admin_only', { mode: 'boolean' }).notNull().default(false),
+  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('created_at').notNull(),
+  updatedAt: integer('updated_at').notNull(),
+}, (t) => ({
+  groupOrderIdx: index('idx_menu_items_group_order').on(t.groupKey, t.order),
+  activeIdx: index('idx_menu_items_active').on(t.isActive),
+}));
+
+// ============================================================
 // Inferred row types (use throughout the codebase for type safety)
 // ============================================================
 export type Gym = typeof gyms.$inferSelect;
 export type License = typeof licenses.$inferSelect;
+export type Role = typeof roles.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type GymMembershipPlan = typeof membershipPlans.$inferSelect;
 export type Member = typeof members.$inferSelect;

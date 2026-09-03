@@ -39,7 +39,7 @@ ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), safeH
 
 ptRoutes.get('/summary', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  if (!ctx.user!.isOwner && !ctx.user!.permissions?.includes('reports')) {
+  if (!ctx.user!.permissions?.includes('*') && !ctx.user!.permissions?.includes('reports')) {
     return jsonOk({ totalCollected: 0, totalCommissionPending: 0, totalCommissionPaid: 0, byTrainer: [] });
   }
   const isTrainer = !ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff');
@@ -88,7 +88,7 @@ ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safe
   const member = await memberRepo.findById(parsed.data.memberId);
   if (!member) return jsonErr('Member not found', 404);
 
-  const trainerId = (!ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff')) ? ctx.user!.id : parsed.data.trainerId;
+  const trainerId = (!ctx.user!.permissions?.includes('*') && !ctx.user!.permissions?.includes('staff')) ? ctx.user!.id : parsed.data.trainerId;
   const trainer: any = await ctx.env.DB.prepare(
     `SELECT id, name FROM users WHERE id = ? AND gym_id = ? AND deleted_at IS NULL LIMIT 1`
   ).bind(trainerId, ctx.gymId!).first();

@@ -8,9 +8,12 @@
 import type { Context, MiddlewareHandler } from 'hono';
 import type { SessionUser } from '@gymtech/shared';
 import type { AppEnv } from '../app';
+import type { Database } from '../db/client';
 
 export interface RequestContext {
   env: AppEnv;
+  /** Lazily-created Drizzle client backed by ctx.env.DB. Cached per request. */
+  get db(): Database;
   user?: SessionUser;
   gymId?: number;
   params: Record<string, string>;
@@ -28,13 +31,22 @@ export const contextMiddleware: MiddlewareHandler<{
   Bindings: AppEnv;
   Variables: { requestId: string; ctx: RequestContext };
 }> = async (c, next) => {
-  const ctx: RequestContext = {
-    env: c.env,
-    params: c.req.param() as Record<string, string>,
-    query: c.req.queries() ? new URL(c.req.url).searchParams : new URLSearchParams(),
-    url: new URL(c.req.url),
-    requestId: c.get('requestId'),
-  };
+  // Lazy Drizzle client cached on env so it is created once per request.
+  if (!c.env.drizzle) {
+    const { createDatabase } = await import('../db/client');
+    c.env.drizzle = createDatabase(c.env.DB);
+  }
+
+  // Use Object.create to satisfy the getter without a visible property
+  const ctx = Object.create(Object.prototype, {
+    env: { value: c.env, enumerable: true },
+    params: { value: c.req.param() as Record<string, string>, enumerable: true },
+    query: { value: c.req.queries() ? new URL(c.req.url).searchParams : new URLSearchParams(), enumerable: true },
+    url: { value: new URL(c.req.url), enumerable: true },
+    requestId: { value: c.get('requestId'), enumerable: true },
+    db: { get() { return c.env.drizzle!; }, enumerable: true },
+  }) as RequestContext;
+
   c.set('ctx', ctx);
   await next();
 };

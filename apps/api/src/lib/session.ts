@@ -23,6 +23,8 @@ export interface UserSessionPayload {
   isOwner: boolean;
   /** Menu permission keys granted to this user */
   permissions: string[];
+  /** FK to the gym's custom role (set at token minting time) */
+  roleId: number | null;
   exp: number;
   iss?: string;
   aud?: string;
@@ -166,6 +168,7 @@ export function payloadToSessionUser(p: UserSessionPayload): SessionUser {
     gymId: p.gymId,
     isOwner: p.isOwner ?? false,
     permissions: p.permissions ?? [],
+    roleId: p.roleId ?? null,
     jti: p.jti,
   };
 }

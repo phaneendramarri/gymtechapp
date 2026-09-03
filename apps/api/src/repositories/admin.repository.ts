@@ -1,71 +1,74 @@
+/**
+ * Platform-admin repository — cross-tenant operations.
+ *
+ * Uses raw SQL via db.prepare for multi-tenant JOINs that span
+ * multiple tables (gyms + licenses + members) since Drizzle's query
+ * builder doesn't cleanly express this pattern.
+ */
+import { sql } from 'drizzle-orm';
+import type { Database, D1Database } from '../db/client';
+import { createDatabase } from '../db/client';
 import { hashPassword } from '../lib/session';
 import { LicenseRepository } from './license.repository';
-import type { Gym, License } from '@gymtech/shared';
+import { licenses, gyms, users, members, membershipPlans, gymFeatures } from '../db/schema';
 
-/**
- * Platform-admin repository. All cross-tenant operations live here.
- * Never instantiates with a gymId — operates on the whole platform.
- */
 export class AdminRepository {
   private licenseRepo: LicenseRepository;
+  private db: Database;
 
-  constructor(private db: D1Database) {
-    this.licenseRepo = new LicenseRepository(db, 0);
+  constructor(db: Database | D1Database) {
+    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+    // gymId doesn't matter for license repo since all license ops are by gymId param
+    this.licenseRepo = new LicenseRepository(this.db, 0);
   }
 
   async listGyms(): Promise<any[]> {
-    const { results } = await this.db
-      .prepare(
-        `SELECT g.*,
-                l.name as license_name,
-                l.price_paise as license_price_paise,
-                l.status as license_status,
-                l.expires_at as license_expires_at,
-                l.max_members as license_max_members,
-                l.max_sms as license_max_sms,
-                l.sms_used as license_sms_used,
-                l.max_whatsapp as license_max_whatsapp,
-                l.whatsapp_used as license_whatsapp_used,
-                (SELECT COUNT(*) FROM members WHERE gym_id = g.id AND deleted_at IS NULL) as member_count
-         FROM gyms g
-         LEFT JOIN licenses l ON l.gym_id = g.id
-         WHERE g.deleted_at IS NULL
-         ORDER BY g.created_at DESC`
-      )
-      .all<any>();
+    const { results } = await (this.db as any).prepare(`
+      SELECT g.*,
+             l.name as license_name,
+             l.price_paise as license_price_paise,
+             l.status as license_status,
+             l.expires_at as license_expires_at,
+             l.max_members as license_max_members,
+             l.max_sms as license_max_sms,
+             l.sms_used as license_sms_used,
+             l.max_whatsapp as license_max_whatsapp,
+             l.whatsapp_used as license_whatsapp_used,
+             (SELECT COUNT(*) FROM members WHERE gym_id = g.id AND deleted_at IS NULL) as member_count
+      FROM gyms g
+      LEFT JOIN licenses l ON l.gym_id = g.id
+      WHERE g.deleted_at IS NULL
+      ORDER BY g.created_at DESC
+    `).all();
     return results || [];
   }
 
   async getPlatformMetrics() {
-    const gymsRes = await this.db
-      .prepare(
-        `SELECT COUNT(*) as total_gyms,
-                SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_gyms,
-                SUM(CASE WHEN status = 'SUSPENDED' THEN 1 ELSE 0 END) as suspended_gyms
-         FROM gyms WHERE deleted_at IS NULL`
-      )
-      .first<any>();
+    const { results: gymsResults } = await (this.db as any).prepare(`
+      SELECT
+        COUNT(*) as total_gyms,
+        SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_gyms,
+        SUM(CASE WHEN status = 'SUSPENDED' THEN 1 ELSE 0 END) as suspended_gyms
+      FROM gyms WHERE deleted_at IS NULL
+    `).all();
 
-    const membersRes = await this.db
-      .prepare(`SELECT COUNT(*) as total_members FROM members WHERE deleted_at IS NULL`)
-      .first<any>();
+    const { results: membersResults } = await (this.db as any).prepare(`
+      SELECT COUNT(*) as total_members FROM members WHERE deleted_at IS NULL
+    `).all();
 
-    const revRes = await this.db
-      .prepare(`SELECT SUM(amount_paise) as platform_revenue FROM payments WHERE status = 'COMPLETED'`)
-      .first<any>();
+    const { results: revResults } = await (this.db as any).prepare(`
+      SELECT SUM(amount_paise) as platform_revenue FROM payments WHERE status = 'COMPLETED'
+    `).all();
 
     return {
-      totalGyms: gymsRes?.total_gyms || 0,
-      activeGyms: gymsRes?.active_gyms || 0,
-      suspendedGyms: gymsRes?.suspended_gyms || 0,
-      totalMembers: membersRes?.total_members || 0,
-      platformRevenue: revRes?.platform_revenue || 0,
+      totalGyms: gymsResults?.[0]?.total_gyms || 0,
+      activeGyms: gymsResults?.[0]?.active_gyms || 0,
+      suspendedGyms: gymsResults?.[0]?.suspended_gyms || 0,
+      totalMembers: membersResults?.[0]?.total_members || 0,
+      platformRevenue: revResults?.[0]?.platform_revenue || 0,
     };
   }
 
-  /**
-   * Atomic gym creation. Returns the new gym + owner ids.
-   */
   async createGymWithOwner(data: {
     gymName: string;
     slug: string;
@@ -91,243 +94,207 @@ export class AdminRepository {
     const expiry = now + data.durationDays * 86400;
 
     // 1. Gym
-    const gymRes = await this.db
-      .prepare(
-        `INSERT INTO gyms (name, slug, phone, city, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)`
-      )
-      .bind(data.gymName.trim(), data.slug.trim(), data.gymPhone.trim(), data.city?.trim() ?? null, now, now)
-      .run();
-    const gymId = Number(gymRes.meta?.last_row_id ?? 0);
+    const gymRow = await this.db.insert(gyms).values({
+      name: data.gymName.trim(),
+      slug: data.slug.trim(),
+      phone: data.gymPhone.trim(),
+      city: data.city?.trim() ?? null,
+      status: 'ACTIVE',
+      createdAt: now,
+      updatedAt: now,
+    }).returning({ id: gyms.id });
+    const gymId = gymRow[0]!.id;
 
     // 2. Owner user
-    const userRes = await this.db
-      .prepare(
-        `INSERT INTO users (
-          gym_id, name, email, phone, password_hash, password_algo, role, status, permissions, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, 'argon2id', 'OWNER', 'ACTIVE', '{}', ?, ?)`
-      )
-      .bind(gymId, data.ownerName.trim(), data.ownerEmail.toLowerCase().trim(), data.ownerPhone.trim(), passwordHash, now, now)
-      .run();
-    const userId = Number(userRes.meta?.last_row_id ?? 0);
+    const userRow = await this.db.insert(users).values({
+      gymId,
+      name: data.ownerName.trim(),
+      email: data.ownerEmail.toLowerCase().trim(),
+      phone: data.ownerPhone.trim(),
+      passwordHash,
+      passwordAlgo: 'argon2id',
+      role: 'OWNER',
+      status: 'ACTIVE',
+      permissions: '{}',
+      isOwner: true,
+      createdAt: now,
+      updatedAt: now,
+    }).returning({ id: users.id });
+    const userId = userRow[0]!.id;
 
     // 3. License
-    await this.db
-      .prepare(
-        `INSERT INTO licenses (
-          gym_id, name, code, price_paise, billing_period,
-          max_members, max_owners, max_managers, max_staff_total,
-          max_sms, max_whatsapp, max_email, features,
-          started_at, expires_at, status, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, ?, ?, ?, 'ACTIVE', ?, ?)`
-      )
-      .bind(
-        gymId, data.licenseName, data.licenseCode, data.pricePaise, data.billingPeriod,
-        data.maxMembers, data.maxOwners, data.maxManagers, data.maxStaffTotal,
-        data.features, now, expiry, now, now
-      )
-      .run();
+    await this.db.insert(licenses).values({
+      gymId,
+      name: data.licenseName,
+      code: data.licenseCode,
+      pricePaise: data.pricePaise,
+      billingPeriod: data.billingPeriod,
+      maxMembers: data.maxMembers,
+      maxOwners: data.maxOwners,
+      maxManagers: data.maxManagers,
+      maxStaffTotal: data.maxStaffTotal,
+      maxSms: 0,
+      maxWhatsapp: 0,
+      maxEmail: 0,
+      features: data.features,
+      startedAt: now,
+      expiresAt: expiry,
+      status: 'ACTIVE',
+      createdAt: now,
+      updatedAt: now,
+    });
 
-    // 4. Seed default starter membership plans for the new gym
+    // 4. Seed starter membership plans
     const starterPlans = [
-      { name: 'Monthly General', duration_months: 1, price_paise: 150000, admission_fee_paise: 0, tax_percentage: 0, is_active: 1 as const },
-      { name: 'Quarterly Fitness', duration_months: 3, price_paise: 400000, admission_fee_paise: 0, tax_percentage: 0, is_active: 1 as const },
-      { name: 'Annual VIP Pass', duration_months: 12, price_paise: 1200000, admission_fee_paise: 0, tax_percentage: 0, is_active: 1 as const },
+      { name: 'Monthly General', durationMonths: 1, pricePaise: 150000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
+      { name: 'Quarterly Fitness', durationMonths: 3, pricePaise: 400000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
+      { name: 'Annual VIP Pass', durationMonths: 12, pricePaise: 1200000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
     ];
     for (const p of starterPlans) {
-      await this.db
-        .prepare(
-          `INSERT INTO membership_plans (
-            gym_id, name, duration_months, price_paise, admission_fee_paise,
-            tax_percentage, is_active, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .bind(gymId, p.name, p.duration_months, p.price_paise, p.admission_fee_paise, p.tax_percentage, p.is_active, now, now)
-        .run();
+      await this.db.insert(membershipPlans).values({
+        gymId,
+        name: p.name,
+        durationMonths: p.durationMonths,
+        pricePaise: p.pricePaise,
+        admissionFeePaise: p.admissionFeePaise,
+        taxPercentage: p.taxPercentage,
+        isActive: p.isActive,
+        createdAt: now,
+        updatedAt: now,
+      });
     }
 
-    // 5. Seed default features for the new gym
+    // 5. Seed default features
     const defaultFeatures = [
-      'dashboard',
-      'members',
-      'attendance',
-      'payments',
-      'pt_collections',
-      'plans',
-      'staff',
-      'reports',
-      'settings',
+      'dashboard', 'members', 'attendance', 'payments',
+      'pt_collections', 'plans', 'staff', 'reports', 'settings',
     ];
-    for (const f of defaultFeatures) {
-      await this.db
-        .prepare(
-          `INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at)
-           VALUES (?, ?, 1, unixepoch())`
-        )
-        .bind(gymId, f)
-        .run();
+    for (const featureKey of defaultFeatures) {
+      await this.db.insert(gymFeatures).values({
+        gymId,
+        featureKey,
+        isEnabled: 1,
+        updatedAt: now,
+      }).onConflictDoUpdate({
+        target: [gymFeatures.gymId, gymFeatures.featureKey],
+        set: { isEnabled: 1, updatedAt: now },
+      });
     }
 
     return { gymId, userId };
   }
 
-  async toggleGymStatus(gymId: number, status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED') {
+  async toggleGymStatus(gymId: number, status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'): Promise<void> {
     await this.db
-      .prepare(`UPDATE gyms SET status = ?, updated_at = unixepoch() WHERE id = ?`)
-      .bind(status, gymId)
-      .run();
+      .update(gyms)
+      .set({ status, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(sql`id = ${gymId} AND deleted_at IS NULL`);
   }
 
   async getGymFeatures(gymId: number): Promise<Record<string, boolean>> {
-    const { results } = await this.db
-      .prepare(`SELECT feature_key, is_enabled FROM gym_features WHERE gym_id = ?`)
-      .bind(gymId)
-      .all<{ feature_key: string; is_enabled: number }>();
+    const rows = await this.db
+      .select({ featureKey: gymFeatures.featureKey, isEnabled: gymFeatures.isEnabled })
+      .from(gymFeatures)
+      .where(sql`${gymFeatures.gymId} = ${gymId}`);
 
     const out: Record<string, boolean> = {
-      dashboard: true,
-      members: true,
-      attendance: true,
-      payments: true,
-      pt_collections: true,
-      plans: true,
-      staff: true,
-      reports: true,
-      settings: true,
+      dashboard: true, members: true, attendance: true, payments: true,
+      pt_collections: true, plans: true, staff: true, reports: true, settings: true,
     };
-
-    if (results) {
-      for (const r of results) {
-        out[r.feature_key] = r.is_enabled === 1;
-      }
+    for (const r of rows) {
+      out[r.featureKey] = r.isEnabled === 1;
     }
     return out;
   }
 
   async updateGymFeatures(gymId: number, features: Record<string, boolean>): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
     for (const [key, enabled] of Object.entries(features)) {
       await this.db
-        .prepare(
-          `INSERT INTO gym_features (gym_id, feature_key, is_enabled, updated_at)
-           VALUES (?, ?, ?, unixepoch())
-           ON CONFLICT (gym_id, feature_key)
-           DO UPDATE SET is_enabled = excluded.is_enabled, updated_at = unixepoch()`
-        )
-        .bind(gymId, key, enabled ? 1 : 0)
-        .run();
+        .insert(gymFeatures)
+        .values({ gymId, featureKey: key, isEnabled: enabled ? 1 : 0, updatedAt: now })
+        .onConflictDoUpdate({
+          target: [gymFeatures.gymId, gymFeatures.featureKey],
+          set: { isEnabled: enabled ? 1 : 0, updatedAt: now },
+        });
     }
   }
 
   async listGymUsers(gymId: number): Promise<any[]> {
-    const { results } = await this.db
-      .prepare(
-        `SELECT id, gym_id, name, email, phone, role, status, created_at, updated_at
-         FROM users
-         WHERE gym_id = ? AND deleted_at IS NULL
-         ORDER BY created_at ASC`
-      )
-      .bind(gymId)
-      .all<any>();
-    return results || [];
+    const rows = await this.db
+      .select({
+        id: users.id,
+        gymId: users.gymId,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+        role: users.role,
+        status: users.status,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(sql`${users.gymId} = ${gymId} AND ${users.deletedAt} IS NULL`)
+      .orderBy(users.createdAt);
+    return rows;
   }
 
-  async updateGymUser(userId: number, patch: {
-    name?: string;
-    email?: string;
-    phone?: string;
-    role?: string;
-    status?: string;
-    passwordPlain?: string;
-  }): Promise<void> {
-    const fields: string[] = [];
-    const bindings: any[] = [];
-
-    if (patch.name !== undefined) {
-      fields.push('name = ?');
-      bindings.push(patch.name.trim());
+  async updateGymUser(
+    userId: number,
+    patch: {
+      name?: string;
+      email?: string;
+      phone?: string;
+      role?: string;
+      status?: string;
+      passwordPlain?: string;
     }
-    if (patch.email !== undefined) {
-      fields.push('email = ?');
-      bindings.push(patch.email.toLowerCase().trim());
-    }
-    if (patch.phone !== undefined) {
-      fields.push('phone = ?');
-      bindings.push(patch.phone.trim());
-    }
-    if (patch.role !== undefined) {
-      fields.push('role = ?');
-      bindings.push(patch.role);
-    }
-    if (patch.status !== undefined) {
-      fields.push('status = ?');
-      bindings.push(patch.status);
-    }
+  ): Promise<void> {
+    const sets: Record<string, unknown> = {};
+    if (patch.name !== undefined) sets.name = patch.name.trim();
+    if (patch.email !== undefined) sets.email = patch.email.toLowerCase().trim();
+    if (patch.phone !== undefined) sets.phone = patch.phone.trim();
+    if (patch.role !== undefined) sets.role = patch.role;
+    if (patch.status !== undefined) sets.status = patch.status;
     if (patch.passwordPlain) {
-      const hash = await hashPassword(patch.passwordPlain);
-      fields.push('password_hash = ?');
-      fields.push('password_algo = ?');
-      bindings.push(hash);
-      bindings.push('argon2id');
+      sets.passwordHash = await hashPassword(patch.passwordPlain);
+      sets.passwordAlgo = 'argon2id';
     }
-
-    if (fields.length === 0) return;
-    fields.push('updated_at = unixepoch()');
-    bindings.push(userId);
+    if (Object.keys(sets).length === 0) return;
+    sets.updatedAt = Math.floor(Date.now() / 1000);
 
     await this.db
-      .prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ? AND deleted_at IS NULL`)
-      .bind(...bindings)
-      .run();
+      .update(users)
+      .set(sets as Partial<typeof users.$inferInsert>)
+      .where(sql`${users.id} = ${userId} AND ${users.deletedAt} IS NULL`);
   }
 
-  async updateLicenseLimits(gymId: number, patch: {
-    maxMembers?: number;
-    maxOwners?: number;
-    maxManagers?: number;
-    maxStaffTotal?: number;
-    expiresAt?: number;
-    pricePaise?: number;
-    billingPeriod?: 'MONTHLY' | 'YEARLY';
-  }): Promise<void> {
-    const fields: string[] = [];
-    const bindings: any[] = [];
-
-    if (patch.maxMembers !== undefined) {
-      fields.push('max_members = ?');
-      bindings.push(patch.maxMembers);
+  async updateLicenseLimits(
+    gymId: number,
+    patch: {
+      maxMembers?: number;
+      maxOwners?: number;
+      maxManagers?: number;
+      maxStaffTotal?: number;
+      expiresAt?: number;
+      pricePaise?: number;
+      billingPeriod?: 'MONTHLY' | 'YEARLY';
     }
-    if (patch.maxOwners !== undefined) {
-      fields.push('max_owners = ?');
-      bindings.push(patch.maxOwners);
-    }
-    if (patch.maxManagers !== undefined) {
-      fields.push('max_managers = ?');
-      bindings.push(patch.maxManagers);
-    }
-    if (patch.maxStaffTotal !== undefined) {
-      fields.push('max_staff_total = ?');
-      bindings.push(patch.maxStaffTotal);
-    }
-    if (patch.expiresAt !== undefined) {
-      fields.push('expires_at = ?');
-      bindings.push(patch.expiresAt);
-    }
-    if (patch.pricePaise !== undefined) {
-      fields.push('price_paise = ?');
-      bindings.push(patch.pricePaise);
-    }
-    if (patch.billingPeriod !== undefined) {
-      fields.push('billing_period = ?');
-      bindings.push(patch.billingPeriod);
-    }
-
-    if (fields.length === 0) return;
-    fields.push('updated_at = unixepoch()');
-    bindings.push(gymId);
+  ): Promise<void> {
+    const sets: Record<string, unknown> = {};
+    if (patch.maxMembers !== undefined) sets.maxMembers = patch.maxMembers;
+    if (patch.maxOwners !== undefined) sets.maxOwners = patch.maxOwners;
+    if (patch.maxManagers !== undefined) sets.maxManagers = patch.maxManagers;
+    if (patch.maxStaffTotal !== undefined) sets.maxStaffTotal = patch.maxStaffTotal;
+    if (patch.expiresAt !== undefined) sets.expiresAt = patch.expiresAt;
+    if (patch.pricePaise !== undefined) sets.pricePaise = patch.pricePaise;
+    if (patch.billingPeriod !== undefined) sets.billingPeriod = patch.billingPeriod;
+    if (Object.keys(sets).length === 0) return;
+    sets.updatedAt = Math.floor(Date.now() / 1000);
 
     await this.db
-      .prepare(`UPDATE licenses SET ${fields.join(', ')} WHERE gym_id = ?`)
-      .bind(...bindings)
-      .run();
+      .update(licenses)
+      .set(sets as Partial<typeof licenses.$inferInsert>)
+      .where(sql`${licenses.gymId} = ${gymId}`);
   }
 }

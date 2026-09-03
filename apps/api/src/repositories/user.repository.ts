@@ -1,297 +1,298 @@
-import type { User, UserRole } from '@gymtech/shared';
-
 /**
- * Shape returned by listGymStaff — adds permissions as string[] (from join)
- * on top of the base User columns.
+ * User repository — Drizzle ORM query builder.
+ *
+ * Raw SQL (this.db.prepare(...)) is replaced with Drizzle's type-safe
+ * query builder. Complex dynamic WHERE clauses use the sql`` template tag
+ * to keep parameterized queries while preserving readability.
+ *
+ * NOTE: We use Drizzle as a query builder only — migrations are hand-written
+ * SQL under migrations/. The schema.ts file provides full type inference.
  */
-export type StaffListItem = Omit<User, 'permissions'> & {
-  permissions: string[];  // resolved from user_permissions join (not the raw JSON string)
+import { eq, and, isNull, inArray, sql } from 'drizzle-orm';
+import type { Database, D1Database } from '../db/client';
+import { createDatabase } from '../db/client';
+import type { User } from '@gymtech/shared';
+import { users, userPermissions, platformAdmins } from '../db/schema';
+import type { PlatformAdmin } from '../db/schema';
+
+export type StaffListItem = {
+  id: number;
+  gymId: number;
+  name: string;
+  email: string;
+  phone: string | null;
+  roleId: number | null;
+  role: string;
+  status: 'ACTIVE' | 'DISABLED';
+  isOwner: boolean;
+  lastLoginAt: number | null;
+  createdAt: number;
+  updatedAt: number;
+  permissions: string[];
 };
 
 export class UserRepository {
-  constructor(private db: D1Database) {}
+  private db: Database;
+
+  constructor(db: Database | D1Database) {
+    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+  }
 
   async findByEmail(email: string): Promise<User | null> {
-    return await this.db
-      .prepare(`SELECT * FROM users WHERE email = ? AND deleted_at IS NULL LIMIT 1`)
-      .bind(email.toLowerCase().trim())
-      .first<User>();
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(and(eq(users.email, email.toLowerCase().trim()), isNull(users.deletedAt)))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   async findById(id: number): Promise<User | null> {
-    return await this.db
-      .prepare(`SELECT * FROM users WHERE id = ? AND deleted_at IS NULL`)
-      .bind(id)
-      .first<User>();
+    const rows = await this.db
+      .select()
+      .from(users)
+      .where(and(eq(users.id, id), isNull(users.deletedAt)))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
-  async findPlatformAdminByEmail(email: string): Promise<any | null> {
-    return await this.db
-      .prepare(`SELECT * FROM platform_admins WHERE email = ? AND deleted_at IS NULL LIMIT 1`)
-      .bind(email.toLowerCase().trim())
-      .first<any>();
+  async findPlatformAdminByEmail(email: string): Promise<(typeof platformAdmins.$inferSelect) | null> {
+    const rows = await this.db
+      .select()
+      .from(platformAdmins)
+      .where(and(eq(platformAdmins.email, email.toLowerCase().trim()), isNull(platformAdmins.deletedAt)))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   async listGymStaff(gymId: number): Promise<StaffListItem[]> {
-    const { results } = await this.db
-      .prepare(
-        `SELECT id, gym_id, name, email, phone, role, status, is_owner,
-                last_login_at, created_at, updated_at
-         FROM users
-         WHERE gym_id = ? AND deleted_at IS NULL
-         ORDER BY created_at ASC`
-      )
-      .bind(gymId)
-      .all<StaffListItem>();
+    const staffRows = await this.db
+      .select({
+        id: users.id,
+        gymId: users.gymId,
+        name: users.name,
+        email: users.email,
+        phone: users.phone,
+        roleId: users.roleId,
+        role: users.role,
+        status: users.status,
+        isOwner: users.isOwner,
+        lastLoginAt: users.lastLoginAt,
+        createdAt: users.createdAt,
+        updatedAt: users.updatedAt,
+      })
+      .from(users)
+      .where(and(eq(users.gymId, gymId), isNull(users.deletedAt)))
+      .orderBy(users.createdAt);
 
-    if (!results || results.length === 0) return [];
+    if (staffRows.length === 0) return [];
 
-    // Batch-fetch all permissions for these users
-    const userIds = results.map((u) => u.id);
-    const { results: permRows } = await this.db
-      .prepare(`SELECT user_id, permission_key FROM user_permissions WHERE user_id IN (${userIds.map(() => '?').join(',')})`)
-      .bind(...userIds)
-      .all<{ user_id: number; permission_key: string }>();
+    const ids = staffRows.map((u) => u.id);
+    const permRows = await this.db
+      .select({ userId: userPermissions.userId, permissionKey: userPermissions.permissionKey })
+      .from(userPermissions)
+      .where(inArray(userPermissions.userId, ids));
 
     const permMap: Record<number, string[]> = {};
-    for (const row of permRows || []) {
-      if (!permMap[row.user_id]) permMap[row.user_id] = [];
-      permMap[row.user_id].push(row.permission_key);
+    for (const row of permRows) {
+      if (!permMap[row.userId]) permMap[row.userId] = [];
+      permMap[row.userId].push(row.permissionKey);
     }
 
-    return results.map((u) => ({ ...u, permissions: permMap[u.id] ?? [] }));
+    return staffRows.map((u) => ({ ...u, permissions: permMap[u.id] ?? [] }));
   }
 
-  /**
-   * Returns all permission keys for a given user.
-   * Returns all GYM_FEATURES keys for the gym owner (is_owner = 1).
-   */
   async getPermissionsForUser(userId: number): Promise<string[]> {
-    const { results } = await this.db
-      .prepare(`SELECT permission_key FROM user_permissions WHERE user_id = ?`)
-      .bind(userId)
-      .all<{ permission_key: string }>();
-    return (results || []).map((r) => r.permission_key);
+    const rows = await this.db
+      .select({ permissionKey: userPermissions.permissionKey })
+      .from(userPermissions)
+      .where(eq(userPermissions.userId, userId));
+    return rows.map((r) => r.permissionKey);
   }
 
-  async listPlatformAdmins(): Promise<any[]> {
-    const { results } = await this.db
-      .prepare(`SELECT id, email, name, status, created_at FROM platform_admins WHERE deleted_at IS NULL`)
-      .all<any>();
-    return results || [];
+  async listPlatformAdmins(): Promise<Pick<PlatformAdmin, 'id' | 'email' | 'name' | 'status' | 'createdAt'>[]> {
+    return this.db
+      .select({
+        id: platformAdmins.id,
+        email: platformAdmins.email,
+        name: platformAdmins.name,
+        status: platformAdmins.status,
+        createdAt: platformAdmins.createdAt,
+      })
+      .from(platformAdmins)
+      .where(isNull(platformAdmins.deletedAt));
   }
 
   async updateLastLogin(id: number): Promise<void> {
     await this.db
-      .prepare(`UPDATE users SET last_login_at = unixepoch() WHERE id = ?`)
-      .bind(id)
-      .run();
+      .update(users)
+      .set({ lastLoginAt: Math.floor(Date.now() / 1000) })
+      .where(eq(users.id, id));
   }
 
-  /**
-   * Increment failed_login_count and return the new count. Resets the
-   * counter (instead of incrementing) if the account was previously
-   * locked but the lockout has expired — we don't punish the user for
-   * a stale lock.
-   */
   async incrementFailedLogin(id: number, gymId: number): Promise<number> {
-    const res = await this.db
-      .prepare(
-        `UPDATE users
-         SET failed_login_count = CASE
-             WHEN locked_until IS NOT NULL AND locked_until > unixepoch()
-               THEN failed_login_count + 1
-             ELSE 1
-           END,
-           updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ?
-         RETURNING failed_login_count`
-      )
-      .bind(id, gymId)
-      .first<{ failed_login_count: number }>();
-    return res?.failed_login_count ?? 0;
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .update(users)
+      .set({
+        failedLoginCount: sql`CASE
+          WHEN ${users.lockedUntil} IS NOT NULL AND ${users.lockedUntil} > ${now}
+          THEN ${users.failedLoginCount} + 1
+          ELSE 1
+        END`,
+        updatedAt: now,
+      })
+      .where(and(eq(users.id, id), eq(users.gymId, gymId)))
+      .returning({ failedLoginCount: users.failedLoginCount });
+    return row[0]?.failedLoginCount ?? 0;
   }
 
   async resetFailedLogin(id: number, gymId: number): Promise<void> {
     await this.db
-      .prepare(
-        `UPDATE users
-         SET failed_login_count = 0,
-             locked_until = NULL,
-             updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ?`
-      )
-      .bind(id, gymId)
-      .run();
+      .update(users)
+      .set({ failedLoginCount: 0, lockedUntil: null, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(and(eq(users.id, id), eq(users.gymId, gymId)));
   }
 
   async setLockUntil(id: number, gymId: number, untilUnix: number): Promise<void> {
     await this.db
-      .prepare(
-        `UPDATE users
-         SET locked_until = ?, updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ?`
-      )
-      .bind(untilUnix, id, gymId)
-      .run();
+      .update(users)
+      .set({ lockedUntil: untilUnix, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(and(eq(users.id, id), eq(users.gymId, gymId)));
   }
 
-  // --- platform_admins equivalents ---
-
   async incrementPlatformAdminFailedLogin(id: number): Promise<number> {
-    const res = await this.db
-      .prepare(
-        `UPDATE platform_admins
-         SET failed_login_count = CASE
-             WHEN locked_until IS NOT NULL AND locked_until > unixepoch()
-               THEN failed_login_count + 1
-             ELSE 1
-           END,
-           updated_at = unixepoch()
-         WHERE id = ?
-         RETURNING failed_login_count`
-      )
-      .bind(id)
-      .first<{ failed_login_count: number }>();
-    return res?.failed_login_count ?? 0;
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .update(platformAdmins)
+      .set({
+        failedLoginCount: sql`CASE
+          WHEN ${platformAdmins.lockedUntil} IS NOT NULL AND ${platformAdmins.lockedUntil} > ${now}
+          THEN ${platformAdmins.failedLoginCount} + 1
+          ELSE 1
+        END`,
+        updatedAt: now,
+      })
+      .where(eq(platformAdmins.id, id))
+      .returning({ failedLoginCount: platformAdmins.failedLoginCount });
+    return row[0]?.failedLoginCount ?? 0;
   }
 
   async resetPlatformAdminFailedLogin(id: number): Promise<void> {
     await this.db
-      .prepare(
-        `UPDATE platform_admins
-         SET failed_login_count = 0,
-             locked_until = NULL,
-             updated_at = unixepoch()
-         WHERE id = ?`
-      )
-      .bind(id)
-      .run();
+      .update(platformAdmins)
+      .set({ failedLoginCount: 0, lockedUntil: null, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(platformAdmins.id, id));
   }
 
   async setPlatformAdminLockUntil(id: number, untilUnix: number): Promise<void> {
     await this.db
-      .prepare(
-        `UPDATE platform_admins
-         SET locked_until = ?, updated_at = unixepoch()
-         WHERE id = ?`
-      )
-      .bind(untilUnix, id)
-      .run();
+      .update(platformAdmins)
+      .set({ lockedUntil: untilUnix, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(platformAdmins.id, id));
   }
 
-  /**
-   * Upgrade a user's password hash to a new algorithm. Used by the lazy
-   * rehash path in AuthService after a successful login against a legacy
-   * SHA-256 hash.
-   */
-  async upgradePasswordHash(id: number, gymId: number, newHash: string, algo: 'argon2id' | 'sha256'): Promise<void> {
+  async upgradePasswordHash(
+    id: number,
+    gymId: number,
+    newHash: string,
+    algo: 'argon2id' | 'sha256'
+  ): Promise<void> {
     await this.db
-      .prepare(`UPDATE users SET password_hash = ?, password_algo = ?, updated_at = unixepoch() WHERE id = ? AND gym_id = ?`)
-      .bind(newHash, algo, id, gymId)
-      .run();
+      .update(users)
+      .set({ passwordHash: newHash, passwordAlgo: algo, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(and(eq(users.id, id), eq(users.gymId, gymId)));
   }
 
-  async upgradePlatformAdminPasswordHash(id: number, newHash: string, algo: 'argon2id' | 'sha256'): Promise<void> {
+  async upgradePlatformAdminPasswordHash(
+    id: number,
+    newHash: string,
+    algo: 'argon2id' | 'sha256'
+  ): Promise<void> {
     await this.db
-      .prepare(`UPDATE platform_admins SET password_hash = ?, password_algo = ?, updated_at = unixepoch() WHERE id = ?`)
-      .bind(newHash, algo, id)
-      .run();
+      .update(platformAdmins)
+      .set({ passwordHash: newHash, passwordAlgo: algo, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(platformAdmins.id, id));
   }
 
-  async create(data: Omit<User, 'id' | 'created_at' | 'updated_at' | 'last_login_at' | 'failed_login_count' | 'locked_until' | 'deleted_at' | 'password_hash' | 'password_algo'> & { password_hash: string; password_algo?: 'sha256' | 'argon2id' }): Promise<number> {
+  async softDelete(id: number, gymId: number): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
-    const res = await this.db
-      .prepare(
-        `INSERT INTO users (
-          gym_id, name, email, phone, password_hash, password_algo, role, status, permissions, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)`
-      )
-      .bind(
-        data.gym_id,
-        data.name,
-        data.email.toLowerCase().trim(),
-        data.phone ?? null,
-        data.password_hash,
-        data.password_algo ?? 'argon2id',
-        data.role,
-        data.permissions ?? '{}',
-        now,
-        now
-      )
-      .run();
-    return Number(res.meta?.last_row_id ?? res.meta?.lastInsertRowid ?? 0);
-  }
-
-  async createPlatformAdmin(data: { email: string; password_hash: string; name: string; password_algo?: 'sha256' | 'argon2id' }): Promise<number> {
-    const now = Math.floor(Date.now() / 1000);
-    const res = await this.db
-      .prepare(
-        `INSERT INTO platform_admins (email, password_hash, password_algo, name, status, created_at, updated_at)
-         VALUES (?, ?, ?, ?, 'ACTIVE', ?, ?)`
-      )
-      .bind(data.email.toLowerCase().trim(), data.password_hash, data.password_algo ?? 'argon2id', data.name, now, now)
-      .run();
-    return Number(res.meta?.last_row_id ?? res.meta?.lastInsertRowid ?? 0);
-  }
-
-  async softDelete(id: number, gymId: number): Promise<boolean> {
-    const res = await this.db
-      .prepare(
-        `UPDATE users
-         SET deleted_at = unixepoch(), status = 'DISABLED', updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`
-      )
-      .bind(id, gymId)
-      .run();
-    return (res.meta?.changes ?? 0) > 0;
+    await this.db
+      .update(users)
+      .set({ deletedAt: now, status: 'DISABLED' as any, updatedAt: now })
+      .where(and(eq(users.id, id), eq(users.gymId, gymId)));
   }
 
   async restore(id: number, gymId: number): Promise<boolean> {
-    const res = await this.db
-      .prepare(
-        `UPDATE users
-         SET deleted_at = NULL, status = 'ACTIVE', updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ? AND deleted_at IS NOT NULL`
-      )
-      .bind(id, gymId)
-      .run();
-    return (res.meta?.changes ?? 0) > 0;
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .update(users)
+      .set({ deletedAt: null, status: 'ACTIVE' as any, updatedAt: now })
+      .where(and(eq(users.id, id), eq(users.gymId, gymId), sql`${users.deletedAt} IS NOT NULL`))
+      .returning({ id: users.id });
+    return (row[0]?.id ?? null) !== null;
   }
 
-  async update(id: number, gymId: number, patch: Partial<User>): Promise<boolean> {
-    const fields: string[] = [];
-    const bindings: any[] = [];
-    if (patch.name !== undefined) {
-      fields.push('name = ?');
-      bindings.push(patch.name);
+  async create(
+    data: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'lastLoginAt' | 'failedLoginCount' | 'lockedUntil' | 'deletedAt' | 'passwordHash' | 'passwordAlgo'> & {
+      passwordHash: string;
+      passwordAlgo?: 'sha256' | 'argon2id';
     }
-    if (patch.phone !== undefined) {
-      fields.push('phone = ?');
-      bindings.push(patch.phone);
-    }
-    if (patch.role !== undefined) {
-      fields.push('role = ?');
-      bindings.push(patch.role);
-    }
-    if (patch.status !== undefined) {
-      fields.push('status = ?');
-      bindings.push(patch.status);
-    }
-    if (patch.password_hash !== undefined) {
-      fields.push('password_hash = ?');
-      fields.push('password_algo = ?');
-      bindings.push(patch.password_hash);
-      bindings.push(patch.password_algo ?? 'argon2id');
-    }
-    if (fields.length === 0) return false;
-    fields.push('updated_at = unixepoch()');
-    bindings.push(id, gymId);
+  ): Promise<number> {
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .insert(users)
+      .values({
+        gymId: data.gymId,
+        name: data.name,
+        email: data.email.toLowerCase().trim(),
+        phone: data.phone ?? null,
+        passwordHash: data.passwordHash,
+        passwordAlgo: data.passwordAlgo ?? 'argon2id',
+        roleId: (data as any).roleId ?? null,
+        role: data.role as string,
+        status: 'ACTIVE',
+        permissions: data.permissions ?? '{}',
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: users.id });
+    return row[0]!.id;
+  }
 
-    const res = await this.db
-      .prepare(`UPDATE users SET ${fields.join(', ')} WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`)
-      .bind(...bindings)
-      .run();
-    return (res.meta?.changes ?? 0) > 0;
+  /**
+   * Grant a permission key to a user (idempotent — upsert on composite PK).
+   */
+  async grantPermission(userId: number, permissionKey: string, grantedBy: number): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .insert(userPermissions)
+      .values({ userId, permissionKey, grantedBy, grantedAt: now })
+      .onConflictDoUpdate({
+        target: [userPermissions.userId, userPermissions.permissionKey],
+        set: { grantedBy, grantedAt: now },
+      });
+  }
+
+  /**
+   * Revoke a specific permission from a user.
+   */
+  async revokePermission(userId: number, permissionKey: string): Promise<void> {
+    await this.db
+      .delete(userPermissions)
+      .where(and(eq(userPermissions.userId, userId), eq(userPermissions.permissionKey, permissionKey)));
+  }
+
+  /**
+   * Sync all permissions for a user (replaces existing grant set).
+   */
+  async setPermissions(userId: number, permissionKeys: string[], grantedBy: number): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await this.db.delete(userPermissions).where(eq(userPermissions.userId, userId));
+    if (permissionKeys.length > 0) {
+      await this.db.insert(userPermissions).values(
+        permissionKeys.map((key) => ({ userId, permissionKey: key, grantedBy, grantedAt: now }))
+      );
+    }
   }
 }

@@ -43,9 +43,9 @@ export const MemberPortalPage: React.FC = () => {
   const gym = data?.gym;
 
   const nowSec = Math.floor(Date.now() / 1000);
-  const isExpired = activeMembership ? activeMembership.end_date < nowSec : true;
+  const isExpired = activeMembership ? activeMembership.endDate < nowSec : true;
   const daysRemaining = activeMembership
-    ? Math.max(0, Math.ceil((activeMembership.end_date - nowSec) / 86400))
+    ? Math.max(0, Math.ceil((activeMembership.endDate - nowSec) / 86400))
     : 0;
 
   const formatDate = (timestamp?: number | null) => {
@@ -87,7 +87,7 @@ export const MemberPortalPage: React.FC = () => {
     );
   }
 
-  const initials = `${member.first_name?.[0] || 'M'}${member.last_name?.[0] || ''}`.toUpperCase();
+  const initials = `${member.firstName?.[0] || 'M'}${member.lastName?.[0] || ''}`.toUpperCase();
 
   return (
     <div className="min-h-screen bg-background text-foreground flex flex-col selection:bg-primary/20">
@@ -129,7 +129,7 @@ export const MemberPortalPage: React.FC = () => {
               <div>
                 <p className="font-bold text-xs">Membership Inactive / Expired</p>
                 <p className="text-[11px] text-destructive/90 mt-0.5">
-                  Your membership ended on {formatDate(activeMembership?.end_date)}. Check-in is frozen. Please renew at the front desk.
+                  Your membership ended on {formatDate(activeMembership?.endDate)}. Check-in is frozen. Please renew at the front desk.
                 </p>
               </div>
             </div>
@@ -164,8 +164,8 @@ export const MemberPortalPage: React.FC = () => {
               {/* Card Body / Member Info */}
               <div className="flex items-center gap-4 my-4 z-10">
                 <div className="size-16 rounded-lg bg-primary/10 text-primary border border-primary/30 flex items-center justify-center font-display text-xl font-bold shrink-0 overflow-hidden shadow-xs">
-                  {member.photo_url ? (
-                    <img src={member.photo_url} alt={member.first_name} className="size-full object-cover" />
+                  {member.photoUrl ? (
+                    <img src={member.photoUrl} alt={member.firstName} className="size-full object-cover" />
                   ) : (
                     initials
                   )}
@@ -173,10 +173,10 @@ export const MemberPortalPage: React.FC = () => {
 
                 <div className="flex flex-col min-w-0">
                   <h2 className="font-display text-lg font-bold text-foreground truncate">
-                    {member.first_name} {member.last_name || ''}
+                    {member.firstName} {member.lastName || ''}
                   </h2>
                   <span className="font-mono text-xs font-semibold text-primary">
-                    {member.member_code}
+                    {member.memberCode}
                   </span>
                   <span className="font-mono text-[11px] text-muted-foreground">
                     {member.phone}
@@ -188,12 +188,12 @@ export const MemberPortalPage: React.FC = () => {
               <div className="flex items-center justify-between border-t border-border/80 pt-3 z-10 text-[10px] font-mono text-muted-foreground">
                 <div>
                   <span className="block text-[9px] uppercase">Plan</span>
-                  <span className="font-semibold text-foreground">{activeMembership?.plan_name || 'No Active Plan'}</span>
+                  <span className="font-semibold text-foreground">{activeMembership?.planName || 'No Active Plan'}</span>
                 </div>
                 <div className="text-right">
                   <span className="block text-[9px] uppercase">Valid Until</span>
                   <span className={`font-semibold ${isExpired ? 'text-destructive font-bold' : 'text-foreground'}`}>
-                    {formatDate(activeMembership?.end_date)}
+                    {formatDate(activeMembership?.endDate)}
                   </span>
                 </div>
               </div>
@@ -213,11 +213,11 @@ export const MemberPortalPage: React.FC = () => {
 
               <Card className="p-3 border-border bg-card shadow-xs">
                 <span className="text-[10px] font-mono uppercase text-muted-foreground">Outstanding Dues</span>
-                <p className={`font-display text-xl font-bold mt-0.5 ${activeMembership?.due_amount_paise > 0 ? 'text-destructive' : 'text-foreground'}`}>
-                  {formatCurrency(activeMembership?.due_amount_paise || 0)}
+                <p className={`font-display text-xl font-bold mt-0.5 ${activeMembership?.dueAmountPaise > 0 ? 'text-destructive' : 'text-foreground'}`}>
+                  {formatCurrency(activeMembership?.dueAmountPaise || 0)}
                 </p>
                 <span className="text-[10px] text-muted-foreground font-mono">
-                  {activeMembership?.due_amount_paise > 0 ? 'Payment pending' : 'Zero balance'}
+                  {activeMembership?.dueAmountPaise > 0 ? 'Payment pending' : 'Zero balance'}
                 </span>
               </Card>
             </div>
@@ -235,8 +235,8 @@ export const MemberPortalPage: React.FC = () => {
               </p>
 
               <MemberQrCode
-                value={member.member_code}
-                memberCode={member.member_code}
+                value={member.memberCode}
+                memberCode={member.memberCode}
                 size={175}
               />
 
@@ -278,10 +278,10 @@ export const MemberPortalPage: React.FC = () => {
                     attendance.map((a: any) => (
                       <TableRow key={a.id}>
                         <TableCell className="text-xs font-mono font-semibold text-foreground">
-                          {a.date_key}
-                        </TableCell>
-                        <TableCell className="text-xs font-mono text-muted-foreground">
-                          {new Date(a.check_in_time * 1000).toLocaleTimeString('en-IN', {
+                        {a.dateKey}
+                      </TableCell>
+                      <TableCell className="text-xs font-mono text-muted-foreground">
+                        {new Date(a.checkInTime * 1000).toLocaleTimeString('en-IN', {
                             hour: '2-digit',
                             minute: '2-digit',
                           })}
@@ -323,14 +323,14 @@ export const MemberPortalPage: React.FC = () => {
                     payments.map((p: any) => (
                       <TableRow key={p.id}>
                         <TableCell className="font-mono font-bold text-xs text-foreground">
-                          {p.receipt_number}
+                          {p.receiptNumber}
                         </TableCell>
                         <TableCell className="text-xs font-mono text-muted-foreground">
-                          {formatDate(p.payment_date)}
+                          {formatDate(p.paymentDate)}
                         </TableCell>
-                        <TableCell className="text-xs font-mono">{p.payment_mode}</TableCell>
+                        <TableCell className="text-xs font-mono">{p.paymentMode}</TableCell>
                         <TableCell className="text-right text-xs font-mono font-bold text-foreground">
-                          {formatCurrency(p.amount_paise)}
+                          {formatCurrency(p.amountPaise)}
                         </TableCell>
                         <TableCell className="text-right">
                           <span className="inline-flex px-2 py-0.5 rounded text-[10px] font-mono font-semibold bg-ok/10 text-ok">
@@ -351,7 +351,7 @@ export const MemberPortalPage: React.FC = () => {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div>
                   <span className="text-[10px] font-mono uppercase text-muted-foreground">Full Name</span>
-                  <p className="text-sm font-semibold text-foreground mt-0.5">{member.first_name} {member.last_name || ''}</p>
+                  <p className="text-sm font-semibold text-foreground mt-0.5">{member.firstName} {member.lastName || ''}</p>
                 </div>
 
                 <div>
@@ -366,7 +366,7 @@ export const MemberPortalPage: React.FC = () => {
 
                 <div>
                   <span className="text-[10px] font-mono uppercase text-muted-foreground">Joined Date</span>
-                  <p className="text-sm font-mono text-foreground mt-0.5">{formatDate(member.joined_date)}</p>
+                  <p className="text-sm font-mono text-foreground mt-0.5">{formatDate(member.joinedDate)}</p>
                 </div>
 
                 <div>
@@ -377,7 +377,7 @@ export const MemberPortalPage: React.FC = () => {
                 <div>
                   <span className="text-[10px] font-mono uppercase text-muted-foreground">Emergency Contact</span>
                   <p className="text-xs text-foreground mt-0.5">
-                    {member.emergency_contact_name || '—'} {member.emergency_contact_phone ? `(${member.emergency_contact_phone})` : ''}
+                    {member.emergencyContactName || '—'} {member.emergencyContactPhone ? `(${member.emergencyContactPhone})` : ''}
                   </p>
                 </div>
               </div>

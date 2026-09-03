@@ -50,14 +50,19 @@ adminRoutes.patch('/licenses', safeHandler(async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = UpdateLicenseRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid license payload');
+
+  // Verify the gym exists before updating its license
+  const gymRow = await ctx.env.DB.prepare(`SELECT id FROM gyms WHERE id = ?`).bind(parsed.data.gymId).first();
+  if (!gymRow) return jsonErr(`Gym with ID ${parsed.data.gymId} not found`, 404);
+
   const licenseRepo = new LicenseRepository(ctx.env.DB, 0);
   const before = await licenseRepo.findByGymId(parsed.data.gymId);
   await licenseRepo.updateByGym(parsed.data.gymId, {
-    name: parsed.data.name, price_paise: parsed.data.pricePaise,
-    max_members: parsed.data.maxMembers, max_owners: parsed.data.maxOwners,
-    max_managers: parsed.data.maxManagers, max_staff_total: parsed.data.maxStaffTotal,
-    max_sms: parsed.data.maxSms, max_whatsapp: parsed.data.maxWhatsapp, max_email: parsed.data.maxEmail,
-    features: parsed.data.features, expires_at: parsed.data.expiresAt, status: parsed.data.status,
+    name: parsed.data.name, pricePaise: parsed.data.pricePaise,
+    maxMembers: parsed.data.maxMembers, maxOwners: parsed.data.maxOwners,
+    maxManagers: parsed.data.maxManagers, maxStaffTotal: parsed.data.maxStaffTotal,
+    maxSms: parsed.data.maxSms, maxWhatsapp: parsed.data.maxWhatsapp, maxEmail: parsed.data.maxEmail,
+    features: parsed.data.features, expiresAt: parsed.data.expiresAt, status: parsed.data.status,
   });
   const after = await licenseRepo.findByGymId(parsed.data.gymId);
   await auditSaas(ctx, 'license.update', parsed.data.gymId, 'license', after?.id ?? null, { before, after });

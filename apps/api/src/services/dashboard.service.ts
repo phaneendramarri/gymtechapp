@@ -50,13 +50,13 @@ export class DashboardService {
 
     const expiringSoon: ExpiringMember[] = expiringRaw.map((m: any) => ({
       id: m.id,
-      first_name: m.first_name,
-      last_name: m.last_name,
+      firstName: m.first_name,
+      lastName: m.last_name,
       phone: m.phone,
-      plan_name: m.plan_name,
-      end_date: m.end_date,
-      due_amount_paise: isManager ? 0 : m.due_amount_paise,
-      whatsapp_url: this.notif.generateWhatsAppUrl({
+      planName: m.plan_name,
+      endDate: m.end_date,
+      dueAmountPaise: isManager ? 0 : m.due_amount_paise,
+      whatsappUrl: this.notif.generateWhatsAppUrl({
         recipientPhone: m.phone,
         recipientName: `${m.first_name} ${m.last_name || ''}`.trim(),
         type: 'EXPIRY_REMINDER',

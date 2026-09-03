@@ -24,7 +24,7 @@ paymentRoutes.get('/', requireGym, requireFeature('payments'), safeHandler(async
   const [payments, total, summary] = await Promise.all([
     paymentRepo.list({ limit, offset, memberId: memberIdNum }),
     paymentRepo.count({ memberId: memberIdNum }),
-    (!ctx.user?.isOwner && !ctx.user?.permissions?.includes('payments'))
+    (!ctx.user?.permissions?.includes('*') && !ctx.user?.permissions?.includes('payments'))
       ? Promise.resolve({ monthlyRevenue: 0, pendingDues: 0 })
       : paymentRepo.getSummaryMetrics(),
   ]);
@@ -42,7 +42,7 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), safeHandler(asyn
   const paymentRepo = new PaymentRepository(ctx.env.DB, ctx.gymId!);
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
   const member = await memberRepo.findById(parsed.data.memberId);
-  if (!member || member.deleted_at !== null || member.status === 'BLOCKED') {
+  if (!member || member.deletedAt !== null || member.status === 'BLOCKED') {
     return jsonErr('Cannot record payment for an inactive, archived, or blocked member', 400);
   }
 
@@ -50,11 +50,11 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), safeHandler(asyn
   const paymentDate = parsed.data.paymentDate ? Math.floor(new Date(parsed.data.paymentDate).getTime() / 1000) : Math.floor(Date.now() / 1000);
 
   const paymentId = await paymentRepo.record({
-    member_id: parsed.data.memberId, membership_id: parsed.data.membershipId ?? null,
-    receipt_number: receiptNumber, amount_paise: parsed.data.amountPaise,
-    payment_date: paymentDate, payment_mode: parsed.data.paymentMode,
-    reference_id: parsed.data.referenceId ?? null, recorded_by_user_id: ctx.user!.id,
-    notes: parsed.data.notes ?? null, payment_type: 'GYM',
+    memberId: parsed.data.memberId, membershipId: parsed.data.membershipId ?? null,
+    receiptNumber: receiptNumber, amountPaise: parsed.data.amountPaise,
+    paymentDate: paymentDate, paymentMode: parsed.data.paymentMode,
+    referenceId: parsed.data.referenceId ?? null, recordedByUserId: ctx.user!.id,
+    notes: parsed.data.notes ?? null, paymentType: 'GYM',
   });
 
   if (parsed.data.membershipId) {
@@ -64,7 +64,7 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), safeHandler(asyn
 
   const notif = new NotificationService(tenant.gym.name);
   const whatsappUrl = notif.generateWhatsAppUrl({
-    recipientPhone: member.phone, recipientName: `${member.first_name} ${member.last_name || ''}`.trim(),
+    recipientPhone: member.phone, recipientName: `${member.firstName} ${member.lastName || ''}`.trim(),
     type: 'PAYMENT_RECEIPT',
     params: { amount: parsed.data.amountPaise / 100, paymentMode: parsed.data.paymentMode, receiptNumber },
   });

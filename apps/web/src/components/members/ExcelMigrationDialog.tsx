@@ -352,7 +352,7 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
                     <option value="">Auto-match plan name or use standard default</option>
                     {plans.map((p) => (
                       <option key={p.id} value={p.id}>
-                        {p.name} (₹{((p.price_paise + p.admission_fee_paise) / 100).toLocaleString('en-IN')})
+                        {p.name} (₹{((p.pricePaise + p.admissionFeePaise) / 100).toLocaleString('en-IN')})
                       </option>
                     ))}
                   </select>
@@ -381,10 +381,10 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
                           {row.firstName} {row.lastName}
                         </TableCell>
                         <TableCell className="font-mono text-foreground">{row.phone}</TableCell>
-                        <TableCell className="font-mono text-muted-foreground text-[11px] truncate max-w-[150px]">
+                        <TableCell className="font-mono text-muted-foreground text-[11px] truncate max-w-37.5">
                           {row.email || '—'}
                         </TableCell>
-                        <TableCell className="text-muted-foreground truncate max-w-[140px]">
+                        <TableCell className="text-muted-foreground truncate max-w-35">
                           {row.planName || 'Default Active Plan'}
                         </TableCell>
                         <TableCell className="text-right font-mono font-bold text-foreground">

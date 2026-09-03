@@ -46,24 +46,24 @@ export type {
 };
 
 export interface GymFeature {
-  gym_id: number;
-  feature_key: GymFeatureKey;
-  is_enabled: number;
-  updated_at: number;
+  gymId: number;
+  featureKey: GymFeatureKey;
+  isEnabled: number;
+  updatedAt: number;
 }
 
 export interface CommunicationLog {
   id: number;
-  gym_id: number;
+  gymId: number;
   channel: 'SMS' | 'WHATSAPP' | 'EMAIL';
-  recipient_phone: string | null;
-  recipient_name: string | null;
-  message_type: string;
-  credits_deducted: number;
-  remaining_balance: number;
-  dispatched_by_id: number | null;
+  recipientPhone: string | null;
+  recipientName: string | null;
+  messageType: string;
+  creditsDeducted: number;
+  remainingBalance: number;
+  dispatchedById: number | null;
   ip: string | null;
-  created_at: number;
+  createdAt: number;
 }
 
 // =====================================================
@@ -73,16 +73,16 @@ export interface CommunicationLog {
 export interface PlatformAdmin {
   id: number
   email: string
-  password_hash: string
-  password_algo: 'sha256' | 'argon2id'
+  passwordHash: string
+  passwordAlgo: 'sha256' | 'argon2id'
   name: string
   status: 'ACTIVE' | 'DISABLED'
-  last_login_at: number | null
-  failed_login_count: number
-  locked_until: number | null
-  created_at: number
-  updated_at: number
-  deleted_at: number | null
+  lastLoginAt: number | null
+  failedLoginCount: number
+  lockedUntil: number | null
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
 }
 
 export interface Gym {
@@ -95,15 +95,15 @@ export interface Gym {
   city: string | null
   state: string | null
   pincode: string | null
-  gst_number: string | null
+  gstNumber: string | null
   currency: string
-  logo_url: string | null
+  logoUrl: string | null
   status: GymStatus
-  notification_settings_json: string | null
-  enabled_features?: GymFeatureKey[]
-  created_at: number
-  updated_at: number
-  deleted_at: number | null
+  notificationSettingsJson: string | null
+  enabledFeatures?: GymFeatureKey[]
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
 }
 
 /**
@@ -112,225 +112,264 @@ export interface Gym {
  */
 export interface License {
   id: number
-  gym_id: number
-  name: string              // "Professional"
-  code: string              // "PRO"
-  price_paise: number       // what this gym pays
-  billing_period: BillingPeriod
-  max_members: number       // -1 = unlimited
-  max_owners: number
-  max_managers: number
-  max_staff_total: number
-  max_sms: number
-  max_whatsapp: number
-  max_email: number
-  sms_used: number
-  whatsapp_used: number
-  email_used: number
-  features: string          // JSON
-  started_at: number
-  expires_at: number
+  gymId: number
+  name: string
+  code: string
+  pricePaise: number
+  billingPeriod: BillingPeriod
+  maxMembers: number
+  maxOwners: number
+  maxManagers: number
+  maxStaffTotal: number
+  maxSms: number
+  maxWhatsapp: number
+  maxEmail: number
+  smsUsed: number
+  whatsappUsed: number
+  emailUsed: number
+  features: string
+  startedAt: number
+  expiresAt: number
   status: LicenseStatus
-  created_by_admin_id: number | null
-  created_at: number
-  updated_at: number
+  createdByAdminId: number | null
+  createdAt: number
+  updatedAt: number
 }
 
 export interface User {
   id: number
-  gym_id: number
+  gymId: number
   name: string
   email: string
   phone: string | null
-  password_hash: string
-  password_algo: 'sha256' | 'argon2id'
-  role: UserRole
+  passwordHash: string
+  passwordAlgo: 'sha256' | 'argon2id'
+  roleId: number | null
+  role: string // legacy display string (e.g. 'STAFF', 'OWNER'); use roleId for permissions
   status: 'ACTIVE' | 'DISABLED'
-  permissions: string       // JSON
-  last_login_at: number | null
-  failed_login_count: number
-  locked_until: number | null
-  created_at: number
-  updated_at: number
-  deleted_at: number | null
+  permissions: string
+  isOwner: boolean
+  lastLoginAt: number | null
+  failedLoginCount: number
+  lockedUntil: number | null
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
 }
 
 export interface GymSettings {
-  gym_id: number
-  settings: string          // JSON
-  updated_by_user_id: number | null
-  updated_at: number
+  gymId: number
+  settings: string
+  updatedByUserId: number | null
+  updatedAt: number
+}
+
+export interface Role {
+  id: number
+  gymId: number
+  name: string
+  permissions: string // JSON array of permission keys
+  isDefault: boolean
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
+}
+
+/**
+ * Hierarchical menu tree — drives the sidebar navigation.
+ * Each node may have children (sub-menu items grouped under a parent).
+ * PLATFORM_ADMIN sees all items regardless of permissions.
+ * Owners (isOwner) see all items regardless of role permissions.
+ */
+export interface MenuNode {
+  /** Unique key for the menu item (used as React key + for permission checks). */
+  key: string
+  /** Display label shown in the sidebar. */
+  label: string
+  /** Route path. Leave empty for separator/group nodes (non-link parents). */
+  href?: string
+  /** Lucide icon component name (string). Resolved in the sidebar renderer. */
+  icon?: string
+  /** Permission keys the user must have ALL of to see this item. */
+  permissions: string[]
+  /** Child items — renders as a collapsible sub-menu. */
+  children?: MenuNode[]
+  /** Shortcut keyboard hint (e.g. '1', '2'). */
+  shortcut?: string
+  /** Gym feature key required (e.g. 'pt_collections'). If set, gym must have it enabled. */
+  featureKey?: GymFeatureKey
+  /** Admin-only item — hidden for regular gym users. */
+  adminOnly?: boolean
 }
 
 export interface GymMembershipPlan {
   id: number
-  gym_id: number
+  gymId: number
   name: string
   description: string | null
-  duration_months: number
-  price_paise: number
-  admission_fee_paise: number
-  tax_percentage: number
-  is_active: 1 | 0
-  created_at: number
-  updated_at: number
-  deleted_at: number | null
+  durationMonths: number
+  pricePaise: number
+  admissionFeePaise: number
+  taxPercentage: number
+  isActive: 1 | 0
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
 }
 
 export interface Member {
   id: number
-  gym_id: number
-  member_code: string
-  first_name: string
-  last_name: string | null
+  gymId: number
+  memberCode: string
+  firstName: string
+  lastName: string | null
   email: string | null
   phone: string
   gender: Gender
-  date_of_birth: number | null
-  photo_url: string | null
-  face_embedding: string | null
+  dateOfBirth: number | null
+  photoUrl: string | null
+  faceEmbedding: string | null
   address: string | null
   city: string | null
   pincode: string | null
-  emergency_contact_name: string | null
-  emergency_contact_phone: string | null
-  health_notes: string | null
+  emergencyContactName: string | null
+  emergencyContactPhone: string | null
+  healthNotes: string | null
   status: MemberStatus
-  joined_date: number
-  created_at: number
-  updated_at: number
-  deleted_at: number | null
-  // Phase 4.1: Biometric consent
-  biometric_consent_given?: number // 0 or 1
-  biometric_consent_at?: number | null
-  biometric_consent_version?: string | null
+  joinedDate: number
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
+  biometricConsentGiven?: number
+  biometricConsentAt?: number | null
+  biometricConsentVersion?: string | null
 }
 
 export interface Membership {
   id: number
-  gym_id: number
-  member_id: number
-  membership_plan_id: number
-  start_date: number
-  end_date: number
-  total_amount_paise: number
-  discount_paise: number
-  final_amount_paise: number
-  paid_amount_paise: number
-  due_amount_paise: number
+  gymId: number
+  memberId: number
+  membershipPlanId: number
+  startDate: number
+  endDate: number
+  totalAmountPaise: number
+  discountPaise: number
+  finalAmountPaise: number
+  paidAmountPaise: number
+  dueAmountPaise: number
   status: MembershipStatus
-  frozen_at: number | null
+  frozenAt: number | null
   notes: string | null
-  created_by_user_id: number | null
-  created_at: number
-  updated_at: number
-  deleted_at: number | null
+  createdByUserId: number | null
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
 }
 
 export interface Payment {
   id: number
-  gym_id: number
-  member_id: number
-  membership_id: number | null
-  payment_type: PaymentType
-  receipt_number: string
-  amount_paise: number
-  payment_date: number
-  payment_mode: PaymentMode
-  reference_id: string | null
+  gymId: number
+  memberId: number
+  membershipId: number | null
+  paymentType: PaymentType
+  receiptNumber: string
+  amountPaise: number
+  paymentDate: number
+  paymentMode: PaymentMode
+  referenceId: string | null
   status: PaymentStatus
-  recorded_by_user_id: number | null
+  recordedByUserId: number | null
   notes: string | null
-  created_at: number
-  updated_at: number
-  deleted_at: number | null
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
 }
 
 export interface PtCollection {
   id: number
-  gym_id: number
-  member_id: number
-  trainer_id: number
+  gymId: number
+  memberId: number
+  trainerId: number
   sessions: number
-  amount_paise: number
-  commission_percentage: number
-  commission_paise: number
-  commission_status: CommissionStatus
-  payment_mode: PaymentMode
-  payment_date: number
-  receipt_number: string | null
+  amountPaise: number
+  commissionPercentage: number
+  commissionPaise: number
+  commissionStatus: CommissionStatus
+  paymentMode: PaymentMode
+  paymentDate: number
+  receiptNumber: string | null
   notes: string | null
-  recorded_by_user_id: number | null
-  created_at: number
-  updated_at: number
-  deleted_at: number | null
+  recordedByUserId: number | null
+  createdAt: number
+  updatedAt: number
+  deletedAt: number | null
 }
 
 export interface Attendance {
   id: number
-  gym_id: number
-  member_id: number
-  check_in_time: number
-  check_out_time: number | null
-  attendance_date: number    // YYYYMMDD
+  gymId: number
+  memberId: number
+  checkInTime: number
+  checkOutTime: number | null
+  attendanceDate: number
   method: AttendanceMethod
-  recorded_by_user_id: number | null
-  device_info: string | null
-  created_at: number
+  recordedByUserId: number | null
+  deviceInfo: string | null
+  createdAt: number
 }
 
 export interface UserSession {
   id: number
-  gym_id: number
-  user_id: number
-  token_hash: string
+  gymId: number
+  userId: number
+  tokenHash: string
   ip: string | null
-  user_agent: string | null
-  issued_at: number
-  expires_at: number
-  revoked_at: number | null
+  userAgent: string | null
+  issuedAt: number
+  expiresAt: number
+  revokedAt: number | null
 }
 
 export interface UserPasswordReset {
   id: number
-  gym_id: number
-  user_id: number
-  token_hash: string
-  expires_at: number
-  used_at: number | null
-  created_at: number
+  gymId: number
+  userId: number
+  tokenHash: string
+  expiresAt: number
+  usedAt: number | null
+  createdAt: number
 }
 
 export interface AuditEvent {
   id: number
-  gym_id: number
-  actor_user_id: number | null
-  actor_role: UserRole | null
+  gymId: number
+  actorUserId: number | null
+  actorRole: UserRole | null
   action: string
-  entity_type: string
-  entity_id: number | null
-  before_state: string | null
-  after_state: string | null
+  entityType: string
+  entityId: number | null
+  beforeState: string | null
+  afterState: string | null
   ip: string | null
-  user_agent: string | null
-  device_info: string | null
+  userAgent: string | null
+  deviceInfo: string | null
   metadata: string | null
-  created_at: number
+  createdAt: number
 }
 
 export interface SaasAuditEvent {
   id: number
-  actor_admin_id: number
-  affected_gym_id: number | null
+  actorAdminId: number
+  affectedGymId: number | null
   action: string
-  entity_type: string | null
-  entity_id: number | null
-  before_state: string | null
-  after_state: string | null
+  entityType: string | null
+  entityId: number | null
+  beforeState: string | null
+  afterState: string | null
   ip: string | null
-  user_agent: string | null
+  userAgent: string | null
   metadata: string | null
-  created_at: number
+  createdAt: number
 }
 
 // =====================================================
@@ -347,6 +386,8 @@ export interface SessionUser {
   isOwner: boolean
   /** Menu permission keys granted to this user (e.g. dashboard, members, attendance …) */
   permissions: string[]
+  /** FK to the gym's custom role */
+  roleId: number | null
   /** jti of the current access token — used for server-side session revocation */
   jti?: string
 }
@@ -365,30 +406,30 @@ export interface MemberListItem extends Member {
 }
 
 export interface PaymentWithDetails extends Payment {
-  first_name: string
-  last_name: string | null
-  member_code: string
+  firstName: string
+  lastName: string | null
+  memberCode: string
   phone: string
-  recorded_by_name: string | null
+  recordedByName: string | null
 }
 
 export interface AttendanceListItem extends Attendance {
-  first_name: string
-  last_name: string | null
-  member_code: string
+  firstName: string
+  lastName: string | null
+  memberCode: string
   phone: string
-  photo_url: string | null
+  photoUrl: string | null
 }
 
 export interface ExpiringMember {
   id: number
-  first_name: string
-  last_name: string | null
+  firstName: string
+  lastName: string | null
   phone: string
-  plan_name: string | null
-  end_date: number
-  due_amount_paise: number
-  whatsapp_url?: string
+  planName: string | null
+  endDate: number
+  dueAmountPaise: number
+  whatsappUrl?: string
 }
 
 export interface DashboardMetrics {
@@ -418,9 +459,9 @@ export interface DashboardMetrics {
 // =====================================================
 
 export interface PtCollectionRow extends PtCollection {
-  member_name: string
-  member_code: string
-  trainer_name: string | null
+  memberName: string
+  memberCode: string
+  trainerName: string | null
 }
 
 export interface PtSummary {
@@ -428,12 +469,12 @@ export interface PtSummary {
   totalCommissionPending: number
   totalCommissionPaid: number
   byTrainer: Array<{
-    trainer_id: number
-    trainer_name: string
+    trainerId: number
+    trainerName: string
     collections: number
     collected: number
-    commission_pending: number
-    commission_paid: number
+    commissionPending: number
+    commissionPaid: number
   }>
 }
 

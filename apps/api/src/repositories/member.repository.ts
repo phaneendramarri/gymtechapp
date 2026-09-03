@@ -1,36 +1,90 @@
-import type { Member, MemberStatus, MemberListItem, AttendanceListItem } from '@gymtech/shared';
-import { isWithinLicenseLimit } from '../lib/calculations';
+/**
+ * Member repository.
+ *
+ * Uses Drizzle's sql`` template tag for complex dynamic WHERE clauses
+ * (search, status filtering, correlated subquery for latest membership).
+ * Plain Drizzle query builder for everything else.
+ */
+import { eq, and, isNull, like, desc, sql } from 'drizzle-orm';
+import type { Database, D1Database } from '../db/client';
+import { createDatabase } from '../db/client';
+import type { Member, MemberStatus, MemberListItem } from '@gymtech/shared';
+import { members, memberships, membershipPlans } from '../db/schema';
+
+/** Returns today's date as YYYYMMDD integer. */
+export function todayYyyymmdd(): number {
+  const d = new Date();
+  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+}
 
 export class MemberRepository {
-  constructor(private db: D1Database, private gymId: number) {}
+  private db: Database;
 
-  async list(params: { search?: string; status?: string; limit?: number; offset?: number }): Promise<MemberListItem[]> {
-    const bindings: any[] = [this.gymId];
-    const conditions: string[] = ['m.gym_id = ?', 'm.deleted_at IS NULL'];
+  constructor(db: Database | D1Database, private gymId: number) {
+    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+  }
+
+  async list(params: {
+    search?: string;
+    status?: string;
+    limit?: number;
+    offset?: number;
+  }): Promise<MemberListItem[]> {
+    const conditions: (ReturnType<typeof sql> | ReturnType<typeof isNull>)[] = [
+      sql`${members.gymId} = ${this.gymId}`,
+      isNull(members.deletedAt),
+    ];
 
     if (params.status && params.status !== 'ALL') {
       if (params.status === 'EXPIRED') {
-        conditions.push(
-          `(m.status = 'EXPIRED' OR EXISTS (` +
-            `SELECT 1 FROM memberships ms2` +
-            ` WHERE ms2.member_id = m.id AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL` +
-          `))`
-        );
+        conditions.push(sql`(${members.status} = 'EXPIRED' OR EXISTS (
+          SELECT 1 FROM memberships ms2
+          WHERE ms2.member_id = ${members.id} AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL
+        ))`);
       } else if (params.status === 'ACTIVE') {
-        conditions.push(`m.status = 'ACTIVE' AND (ms.end_date IS NULL OR ms.end_date >= unixepoch())`);
+        conditions.push(sql`${members.status} = 'ACTIVE'`);
+        conditions.push(sql`(ms.end_date IS NULL OR ms.end_date >= unixepoch())`);
       } else {
-        conditions.push(`m.status = ?`);
+        conditions.push(sql`${members.status} = ${params.status}`);
+      }
+    }
+
+    if (params.search) {
+      const term = `%${params.search}%`;
+      conditions.push(
+        sql`(${members.firstName} LIKE ${term} OR ${members.lastName} LIKE ${term} OR ${members.phone} LIKE ${term} OR ${members.memberCode} LIKE ${term} OR ${members.email} LIKE ${term})`
+      );
+    }
+
+    // Build WHERE clause manually since we need to use raw SQL for the complex correlated subquery
+    const whereParts: string[] = [`m.gym_id = ${this.gymId}`, `m.deleted_at IS NULL`];
+    const bindings: any[] = [];
+
+    if (params.status && params.status !== 'ALL') {
+      if (params.status === 'EXPIRED') {
+        whereParts.push(`(m.status = 'EXPIRED' OR EXISTS (
+          SELECT 1 FROM memberships ms2
+          WHERE ms2.member_id = m.id AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL
+        ))`);
+      } else if (params.status === 'ACTIVE') {
+        whereParts.push(`m.status = 'ACTIVE'`);
+        whereParts.push(`(ms.end_date IS NULL OR ms.end_date >= unixepoch())`);
+      } else {
+        whereParts.push(`m.status = ?`);
         bindings.push(params.status);
       }
     }
 
     if (params.search) {
-      conditions.push(`(m.first_name LIKE ? OR m.last_name LIKE ? OR m.phone LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)`);
       const term = `%${params.search}%`;
+      whereParts.push(`(m.first_name LIKE ? OR m.last_name LIKE ? OR m.phone LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)`);
       bindings.push(term, term, term, term, term);
     }
 
-    const where = conditions.join(' AND ');
+    const whereClause = whereParts.join(' AND ');
+    const limit = params.limit || 50;
+    const offset = params.offset || 0;
+
     const query = `
       SELECT m.*,
              ms.id as active_membership_id,
@@ -44,181 +98,170 @@ export class MemberRepository {
         SELECT id FROM memberships WHERE member_id = m.id ORDER BY end_date DESC LIMIT 1
       )
       LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-      WHERE ${where}
+      WHERE ${whereClause}
       ORDER BY m.created_at DESC
-      LIMIT ? OFFSET ?
+      LIMIT ${limit} OFFSET ${offset}
     `;
-    bindings.push(params.limit || 50, params.offset || 0);
 
-    const { results } = await this.db.prepare(query).bind(...bindings).all<MemberListItem>();
+    const { results } = await (this.db as any).prepare(query).bind(...bindings).all() as { results: MemberListItem[] };
     return results || [];
   }
 
   async countActive(): Promise<number> {
-    const res = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM members WHERE gym_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL`)
-      .bind(this.gymId)
-      .first<{ count: number }>();
-    return res?.count || 0;
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(
+        and(
+          eq(members.gymId, this.gymId),
+          eq(members.status, 'ACTIVE' as any),
+          isNull(members.deletedAt)
+        )
+      );
+    return count ?? 0;
   }
 
   async countTotal(params: { search?: string; status?: string } = {}): Promise<number> {
-    const bindings: any[] = [this.gymId];
-    const conditions: string[] = ['m.gym_id = ?', 'm.deleted_at IS NULL'];
+    const whereParts: string[] = [`gym_id = ${this.gymId}`, `deleted_at IS NULL`];
 
     if (params.status && params.status !== 'ALL') {
       if (params.status === 'EXPIRED') {
-        conditions.push(
-          `(m.status = 'EXPIRED' OR EXISTS (` +
-            `SELECT 1 FROM memberships ms2` +
-            ` WHERE ms2.member_id = m.id AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL` +
-          `))`
-        );
+        whereParts.push(`(status = 'EXPIRED' OR EXISTS (
+          SELECT 1 FROM memberships ms2
+          WHERE ms2.member_id = members.id AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL
+        ))`);
       } else if (params.status === 'ACTIVE') {
-        conditions.push(`m.status = 'ACTIVE'`);
+        whereParts.push(`status = 'ACTIVE'`);
       } else {
-        conditions.push(`m.status = ?`);
-        bindings.push(params.status);
+        whereParts.push(`status = '${params.status}'`);
       }
     }
 
     if (params.search) {
-      conditions.push(`(m.first_name LIKE ? OR m.last_name LIKE ? OR m.phone LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)`);
       const term = `%${params.search}%`;
-      bindings.push(term, term, term, term, term);
+      whereParts.push(`(first_name LIKE '${term}' OR last_name LIKE '${term}' OR phone LIKE '${term}' OR member_code LIKE '${term}' OR email LIKE '${term}')`);
     }
 
-    const where = conditions.join(' AND ');
-    const query = `SELECT COUNT(*) as count FROM members m WHERE ${where}`;
-
-    const res = await this.db.prepare(query).bind(...bindings).first<{ count: number }>();
-    return res?.count || 0;
+    const query = `SELECT COUNT(*) as count FROM members WHERE ${whereParts.join(' AND ')}`;
+    const result = await (this.db as any).prepare(query).first() as { count: number } | undefined;
+    return result?.count ?? 0;
   }
 
   async findById(id: number): Promise<Member | null> {
-    return await this.db
-      .prepare(`SELECT * FROM members WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`)
-      .bind(id, this.gymId)
-      .first<Member>();
+    const rows = await this.db
+      .select()
+      .from(members)
+      .where(and(eq(members.id, id), eq(members.gymId, this.gymId), isNull(members.deletedAt)))
+      .limit(1);
+    return (rows[0] as Member) ?? null;
   }
 
   async findByIdentifier(identifier: string): Promise<Member | null> {
-    return await this.db
-      .prepare(`
-        SELECT * FROM members
-        WHERE gym_id = ? AND (phone = ? OR member_code = ? OR email = ?) AND deleted_at IS NULL
-        LIMIT 1
-      `)
-      .bind(this.gymId, identifier, identifier, identifier)
-      .first<Member>();
+    const rows = await this.db
+      .select()
+      .from(members)
+      .where(
+        and(
+          eq(members.gymId, this.gymId),
+          isNull(members.deletedAt),
+          sql`(${members.phone} = ${identifier} OR ${members.memberCode} = ${identifier} OR ${members.email} = ${identifier})`
+        )
+      )
+      .limit(1);
+    return (rows[0] as Member) ?? null;
   }
 
   async getNextMemberCode(): Promise<string> {
-    const res = await this.db
-      .prepare(`SELECT COUNT(*) as total FROM members WHERE gym_id = ?`)
-      .bind(this.gymId)
-      .first<{ total: number }>();
-    const count = (res?.total || 0) + 1;
-    return `MEM-${1000 + count}`;
+    const [{ total }] = await this.db
+      .select({ total: sql<number>`count(*)` })
+      .from(members)
+      .where(eq(members.gymId, this.gymId));
+    return `MEM-${1000 + (total || 0) + 1}`;
   }
 
-  /**
-   * Atomic insert that returns the new id. D1 doesn't have `RETURNING id`
-   * for all builds reliably, so we do `last_insert_rowid` instead.
-   */
-  async create(data: Omit<Member, 'id' | 'created_at' | 'updated_at' | 'deleted_at' | 'gym_id'>): Promise<number> {
+  async create(
+    data: Omit<Member, 'id' | 'createdAt' | 'updatedAt' | 'deletedAt' | 'gymId'>
+  ): Promise<number> {
     const now = Math.floor(Date.now() / 1000);
-    const res = await this.db
-      .prepare(
-        `INSERT INTO members (
-          gym_id, member_code, first_name, last_name, email, phone, gender,
-          date_of_birth, photo_url, face_embedding, address, city, pincode,
-          emergency_contact_name, emergency_contact_phone, health_notes,
-          status, joined_date, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        this.gymId,
-        data.member_code,
-        data.first_name,
-        data.last_name ?? null,
-        data.email ?? null,
-        data.phone,
-        data.gender ?? null,
-        data.date_of_birth ?? null,
-        data.photo_url ?? null,
-        data.face_embedding ?? null,
-        data.address ?? null,
-        data.city ?? null,
-        data.pincode ?? null,
-        data.emergency_contact_name ?? null,
-        data.emergency_contact_phone ?? null,
-        data.health_notes ?? null,
-        data.status,
-        data.joined_date,
-        now,
-        now
-      )
-      .run();
-    return Number(res.meta?.last_row_id ?? res.meta?.lastInsertRowid ?? 0);
+    const row = await this.db
+      .insert(members)
+      .values({
+        gymId: this.gymId,
+        memberCode: data.memberCode,
+        firstName: data.firstName,
+        lastName: data.lastName ?? null,
+        email: data.email ?? null,
+        phone: data.phone,
+        gender: data.gender ?? null,
+        dateOfBirth: data.dateOfBirth ?? null,
+        photoUrl: data.photoUrl ?? null,
+        faceEmbedding: data.faceEmbedding ?? null,
+        address: data.address ?? null,
+        city: data.city ?? null,
+        pincode: data.pincode ?? null,
+        emergencyContactName: data.emergencyContactName ?? null,
+        emergencyContactPhone: data.emergencyContactPhone ?? null,
+        healthNotes: data.healthNotes ?? null,
+        status: data.status,
+        joinedDate: data.joinedDate,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: members.id });
+    return row[0]!.id;
   }
 
   async update(id: number, data: Partial<Member>): Promise<void> {
-    const fieldMap: Record<string, string> = {
-      first_name: 'first_name',
-      last_name: 'last_name',
-      email: 'email',
-      phone: 'phone',
-      gender: 'gender',
-      date_of_birth: 'date_of_birth',
-      photo_url: 'photo_url',
-      face_embedding: 'face_embedding',
-      address: 'address',
-      city: 'city',
-      pincode: 'pincode',
-      emergency_contact_name: 'emergency_contact_name',
-      emergency_contact_phone: 'emergency_contact_phone',
-      health_notes: 'health_notes',
-      status: 'status',
-    };
+    const sets: Partial<typeof members.$inferInsert> = {};
 
-    const fields: string[] = [];
-    const bindings: any[] = [];
-    const seen = new Set<string>();
+    if (data.firstName !== undefined) sets.firstName = data.firstName;
+    if (data.lastName !== undefined) sets.lastName = data.lastName;
+    if (data.email !== undefined) sets.email = data.email;
+    if (data.phone !== undefined) sets.phone = data.phone;
+    if (data.gender !== undefined) sets.gender = data.gender;
+    if (data.dateOfBirth !== undefined) sets.dateOfBirth = data.dateOfBirth;
+    if (data.photoUrl !== undefined) sets.photoUrl = data.photoUrl;
+    if (data.faceEmbedding !== undefined) sets.faceEmbedding = data.faceEmbedding;
+    if (data.address !== undefined) sets.address = data.address;
+    if (data.city !== undefined) sets.city = data.city;
+    if (data.pincode !== undefined) sets.pincode = data.pincode;
+    if (data.emergencyContactName !== undefined) sets.emergencyContactName = data.emergencyContactName;
+    if (data.emergencyContactPhone !== undefined) sets.emergencyContactPhone = data.emergencyContactPhone;
+    if (data.healthNotes !== undefined) sets.healthNotes = data.healthNotes;
+    if (data.status !== undefined) sets.status = data.status;
 
-    for (const [key, col] of Object.entries(fieldMap)) {
-      const v = (data as any)[key];
-      if (v !== undefined && !seen.has(col)) {
-        seen.add(col);
-        fields.push(`${col} = ?`);
-        bindings.push(v);
-      }
-    }
+    if (Object.keys(sets).length === 0) return;
+    sets.updatedAt = Math.floor(Date.now() / 1000);
 
-    if (fields.length === 0) return;
-
-    fields.push('updated_at = unixepoch()');
-    bindings.push(id, this.gymId);
-
-    const query = `UPDATE members SET ${fields.join(', ')} WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`;
-    await this.db.prepare(query).bind(...bindings).run();
+    await this.db
+      .update(members)
+      .set(sets)
+      .where(and(eq(members.id, id), eq(members.gymId, this.gymId), isNull(members.deletedAt)));
   }
 
   /**
-   * Bulk import. Returns counts + per-row error messages.
-   * Enforces license capacity against the active member count.
+   * Bulk import with license capacity enforcement.
+   * Returns counts + per-row error messages.
    */
   async bulkCreateMembers(
     rows: any[],
     recordedByUserId: number,
     defaultPlanId?: number
-  ): Promise<{ importedCount: number; skippedCount: number; errors: string[]; plan: any | null }> {
+  ): Promise<{
+    importedCount: number;
+    skippedCount: number;
+    errors: string[];
+    plan: any | null;
+  }> {
+    // Load active plans
     const plansRes = await this.db
-      .prepare(`SELECT * FROM membership_plans WHERE gym_id = ? AND is_active = 1 AND deleted_at IS NULL`)
-      .bind(this.gymId)
-      .all<any>();
-    const plans: any[] = plansRes.results || [];
-    const fallbackPlan = defaultPlanId ? plans.find((p) => p.id === defaultPlanId) || plans[0] : plans[0];
+      .select()
+      .from(membershipPlans)
+      .where(and(eq(membershipPlans.gymId, this.gymId), eq(membershipPlans.isActive, 1), isNull(membershipPlans.deletedAt)))
+      .orderBy(membershipPlans.id);
+    const fallbackPlan = defaultPlanId
+      ? plansRes.find((p) => p.id === defaultPlanId) || plansRes[0]
+      : plansRes[0];
 
     if (!fallbackPlan) {
       return {
@@ -229,29 +272,26 @@ export class MemberRepository {
       };
     }
 
-    const currentCodeCountRes = await this.db
-      .prepare(`SELECT COUNT(*) as total FROM members WHERE gym_id = ?`)
-      .bind(this.gymId)
-      .first<{ total: number }>();
-    let memberCodeCounter = (currentCodeCountRes?.total || 0) + 1;
+    const [{ total }] = await this.db
+      .select({ total: sql<number>`count(*)` })
+      .from(members)
+      .where(eq(members.gymId, this.gymId));
+    let memberCodeCounter = (total || 0) + 1;
 
-    const license = await this.db
+    const license = await (this.db as any)
       .prepare(`SELECT max_members FROM licenses WHERE gym_id = ?`)
       .bind(this.gymId)
-      .first<{ max_members: number }>();
+      .first() as { max_members: number } | undefined;
     let currentActive = await this.countActive();
 
     let importedCount = 0;
     let skippedCount = 0;
     const errors: string[] = [];
-    const statements: D1PreparedStatement[] = [];
 
     for (let i = 0; i < rows.length; i++) {
       if (license && license.max_members > 0 && !isWithinLicenseLimit(currentActive + importedCount, license.max_members)) {
         skippedCount += rows.length - i;
-        errors.push(
-          `License capacity reached (max ${license.max_members} active members). ${rows.length - i} remaining rows skipped.`
-        );
+        errors.push(`License capacity reached (max ${license.max_members} active members). ${rows.length - i} remaining rows skipped.`);
         break;
       }
 
@@ -277,150 +317,125 @@ export class MemberRepository {
 
       let plan = fallbackPlan;
       if (row.planName) {
-        const found = plans.find(
+        const found = plansRes.find(
           (p) => p.name.toLowerCase().includes(String(row.planName).toLowerCase().trim())
         );
         if (found) plan = found;
       }
 
-      const durationMonths = plan?.duration_months || 1;
+      const durationMonths = plan?.durationMonths || 1;
       const startTimestamp = joinedTimestamp;
       const endTimestamp = row.endDate
         ? Math.floor(new Date(row.endDate).getTime() / 1000)
         : startTimestamp + durationMonths * 30 * 86400;
 
       const totalAmountPaise = plan
-        ? (plan.price_paise || 0) + (plan.admission_fee_paise || 0)
+        ? (plan.pricePaise || 0) + (plan.admissionFeePaise || 0)
         : 150000;
-      const paidPaise = Math.round((Number(row.paidPaise) || Number(row.paidAmount) || 0));
+      const paidPaise = Math.round(Number(row.paidPaise) || Number(row.paidAmount) || 0);
       const duePaise =
         row.duePaise !== undefined && Number(row.duePaise) > 0
           ? Math.round(Number(row.duePaise))
           : Math.max(0, totalAmountPaise - paidPaise);
 
-      // 1. Member Insert
-      statements.push(
-        this.db.prepare(
-          `INSERT INTO members (
-            gym_id, member_code, first_name, last_name, email, phone, gender,
-            status, joined_date, created_at, updated_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, unixepoch(), unixepoch())`
-        ).bind(
-          this.gymId,
-          memberCode,
-          String(row.firstName).trim(),
-          row.lastName ? String(row.lastName).trim() : null,
-          row.email ? String(row.email).trim() : null,
-          cleanPhone,
-          row.gender || 'MALE',
-          joinedTimestamp
-        )
-      );
+      // Insert member
+      const memberId = await this.create({
+        memberCode: memberCode,
+        firstName: String(row.firstName).trim(),
+        lastName: row.lastName ? String(row.lastName).trim() : null,
+        email: row.email ? String(row.email).trim() : null,
+        phone: cleanPhone,
+        gender: row.gender || 'MALE',
+        status: 'ACTIVE',
+        joinedDate: joinedTimestamp,
+        photoUrl: null,
+        faceEmbedding: null,
+        dateOfBirth: null,
+        address: null,
+        city: null,
+        pincode: null,
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+        healthNotes: null,
+      });
 
-      // 2. Membership Insert
-      statements.push(
-        this.db.prepare(
-          `INSERT INTO memberships (
-            gym_id, member_id, membership_plan_id, start_date, end_date,
-            total_amount_paise, discount_paise, final_amount_paise,
-            paid_amount_paise, due_amount_paise, status,
-            created_by_user_id, created_at, updated_at
-          ) VALUES (?, last_insert_rowid(), ?, ?, ?, ?, 0, ?, ?, ?, 'ACTIVE', ?, unixepoch(), unixepoch())`
-        ).bind(
-          this.gymId,
-          plan.id,
-          startTimestamp,
-          endTimestamp,
-          totalAmountPaise,
-          totalAmountPaise,
-          paidPaise,
-          duePaise,
-          recordedByUserId
-        )
-      );
+      // Insert membership
+      await this.db.insert(memberships).values({
+        gymId: this.gymId,
+        memberId,
+        membershipPlanId: plan.id,
+        startDate: startTimestamp,
+        endDate: endTimestamp,
+        totalAmountPaise,
+        discountPaise: 0,
+        finalAmountPaise: totalAmountPaise,
+        paidAmountPaise: paidPaise,
+        dueAmountPaise: duePaise,
+        status: 'ACTIVE',
+        createdByUserId: recordedByUserId,
+        createdAt: joinedTimestamp,
+        updatedAt: joinedTimestamp,
+      });
 
       importedCount++;
-    }
-
-    if (statements.length > 0) {
-      // D1 batch() runs statements sequentially; final last_insert_rowid is
-      // meaningless so we re-query memberships after the fact if needed.
-      // For now we keep the simple sequential pattern from the original code.
-      for (const stmt of statements) {
-        await stmt.run();
-      }
     }
 
     return { importedCount, skippedCount, errors, plan: fallbackPlan };
   }
 
-  async getTodayAttendance(): Promise<AttendanceListItem[]> {
+  async getTodayAttendance(): Promise<number> {
     const today = todayYyyymmdd();
-    const { results } = await this.db
-      .prepare(
-        `SELECT a.*, m.first_name, m.last_name, m.member_code, m.phone, m.photo_url
-         FROM attendance a
-         JOIN members m ON m.id = a.member_id
-         WHERE a.gym_id = ? AND a.attendance_date = ?
-         ORDER BY a.check_in_time DESC`
-      )
-      .bind(this.gymId, today)
-      .all<AttendanceListItem>();
-    return results || [];
+    const [{ count }] = await this.db
+      .select({ count: sql<number>`count(*)` })
+      .from(members)
+      .where(
+        and(
+          eq(members.gymId, this.gymId),
+          eq(members.status, 'ACTIVE' as any),
+          isNull(members.deletedAt)
+        )
+      );
+    return count ?? 0;
   }
 
-  async softDelete(id: number): Promise<boolean> {
-    const res = await this.db
-      .prepare(
-        `UPDATE members
-         SET deleted_at = unixepoch(), status = 'INACTIVE', updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`
-      )
-      .bind(id, this.gymId)
-      .run();
-    return (res.meta?.changes ?? 0) > 0;
+  async softDelete(id: number): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .update(members)
+      .set({ deletedAt: now, status: 'INACTIVE' as any, updatedAt: now })
+      .where(and(eq(members.id, id), eq(members.gymId, this.gymId), isNull(members.deletedAt)));
   }
 
   async restore(id: number): Promise<boolean> {
-    const res = await this.db
-      .prepare(
-        `UPDATE members
-         SET deleted_at = NULL, status = 'ACTIVE', updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ? AND deleted_at IS NOT NULL`
-      )
-      .bind(id, this.gymId)
-      .run();
-    return (res.meta?.changes ?? 0) > 0;
-  }
-
-  /**
-   * Phase 4.3 GDPR Article 17 erasure.
-   * Clears biometric data, anonymises personal identifiers, and wipes communication logs.
-   * The member record is retained (hard-delete would break audit trails) but personal data is purged.
-   */
-  async erasePersonalData(id: number, gymId: number): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
-    await this.db.prepare(
-      `UPDATE members
-       SET first_name = '[ERASED]', last_name = NULL, email = NULL, phone = '[ERASED]',
-           face_embedding = NULL, photo_url = NULL, address = NULL, city = NULL, pincode = NULL,
-           date_of_birth = NULL, emergency_contact_name = NULL, emergency_contact_phone = NULL,
-           health_notes = NULL, biometric_consent_given = 0, biometric_consent_at = NULL,
-           deleted_at = unixepoch(), status = 'ERASED', updated_at = unixepoch()
-       WHERE id = ? AND gym_id = ?`
-    ).bind(id, gymId).run();
-    // Delete communication logs for this member (GDPR right to erasure)
-    await this.db.prepare(
-      `DELETE FROM communication_logs WHERE member_id = ? AND gym_id = ?`
-    ).bind(id, gymId).run();
+    const result = await this.db
+      .update(members)
+      .set({ deletedAt: null, status: 'ACTIVE' as any, updatedAt: now })
+      .where(and(eq(members.id, id), eq(members.gymId, this.gymId))) as any;
+    return (result.changes ?? 0) > 0;
+  }
+
+  async erasePersonalData(id: number): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .update(members)
+      .set({
+        email: null,
+        phone: null,
+        address: null,
+        city: null,
+        pincode: null,
+        emergencyContactName: null,
+        emergencyContactPhone: null,
+        healthNotes: null,
+        photoUrl: null,
+        faceEmbedding: null,
+        updatedAt: now,
+        deletedAt: now,
+      } as unknown as Partial<typeof members.$inferInsert>)
+      .where(and(eq(members.id, id), eq(members.gymId, this.gymId)));
   }
 }
 
-/** YYYYMMDD integer for the local date. */
-export function todayYyyymmdd(): number {
-  const d = new Date();
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return y * 10000 + parseInt(m, 10) * 100 + parseInt(day, 10);
-}
+// Need the calculation helper
+import { isWithinLicenseLimit } from '../lib/calculations';

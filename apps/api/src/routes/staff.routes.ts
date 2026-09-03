@@ -14,9 +14,9 @@ export const staffRoutes = new Hono();
 
 const auditGym = auditGymFromCtx;
 
-staffRoutes.get('/', requireGym, requireFeature('staff'), safeHandler(async (c) => {
+staffRoutes.get('/', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const userRepo = new UserRepository(ctx.env.DB);
+  const userRepo = new UserRepository(ctx.db);
   return jsonOk({ staff: await userRepo.listGymStaff(ctx.gymId!) });
 }));
 
@@ -26,15 +26,23 @@ staffRoutes.post('/', requireGym, requireFeature('staff'), requirePermission('st
   const parsed = CreateStaffRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid staff payload');
 
-  const userRepo = new UserRepository(ctx.env.DB);
+  const userRepo = new UserRepository(ctx.db);
   const existing = await userRepo.findByEmail(parsed.data.email);
   if (existing) return jsonErr('A user with this email already exists', 409);
 
+  // Enforce staff limit before creating
+  const licenseService = new LicenseService(ctx.env.DB, ctx.gymId!);
+  const staffLimit = await licenseService.checkStaffLimit();
+  if (!staffLimit.allowed) return jsonErr(staffLimit.reason ?? 'Staff limit reached', 403);
+
   const passwordHash = await hashPassword(parsed.data.password);
   const id = await userRepo.create({
-    gym_id: ctx.gymId!, name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone,
-    password_hash: passwordHash, role: 'OWNER', // stored for rollback compat only; app reads is_owner + user_permissions
-    permissions: JSON.stringify(parsed.data.permissions ?? []), status: 'ACTIVE',
+    gymId: ctx.gymId!, name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone,
+    passwordHash, isOwner: false,
+    roleId: parsed.data.roleId ?? null,
+    role: parsed.data.role ?? 'STAFF',
+    status: 'ACTIVE',
+    permissions: JSON.stringify(parsed.data.permissions ?? []),
   });
 
   // Insert explicit permission rows for the new user
@@ -58,9 +66,9 @@ staffRoutes.delete('/:id', requireGym, requireFeature('staff'), requirePermissio
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   if (ctx.user?.id === id) return jsonErr('You cannot archive your own user account', 400);
-  const userRepo = new UserRepository(ctx.env.DB);
+  const userRepo = new UserRepository(ctx.db);
   const before = await userRepo.findById(id);
-  if (!before || before.gym_id !== ctx.gymId!) return jsonErr('Staff member not found in this gym', 404);
+  if (!before || before.gymId !== ctx.gymId!) return jsonErr('Staff member not found in this gym', 404);
   await userRepo.softDelete(id, ctx.gymId!);
   await auditGym(ctx, 'staff.soft_delete', 'user', id, { before });
   return jsonOk({ success: true, message: 'Staff member archived successfully.' });
@@ -69,7 +77,7 @@ staffRoutes.delete('/:id', requireGym, requireFeature('staff'), requirePermissio
 staffRoutes.post('/:id/restore', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
-  const userRepo = new UserRepository(ctx.env.DB);
+  const userRepo = new UserRepository(ctx.db);
   const success = await userRepo.restore(id, ctx.gymId!);
   if (!success) return jsonErr('Staff member not found in archive', 404);
   await auditGym(ctx, 'staff.restore', 'user', id, {});

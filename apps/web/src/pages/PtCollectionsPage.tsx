@@ -187,12 +187,12 @@ export const PtCollectionsPage: React.FC = () => {
               </TableHeader>
               <TableBody>
                 {summary!.byTrainer.map((t) => (
-                  <TableRow key={t.trainer_id}>
-                    <TableCell className="font-medium text-xs">{t.trainer_name}</TableCell>
+                  <TableRow key={t.trainerId}>
+                    <TableCell className="font-medium text-xs">{t.trainerName}</TableCell>
                     <TableCell className="text-right font-mono text-xs">{t.collections}</TableCell>
                     <TableCell className="text-right font-mono text-xs">{formatCurrency(t.collected)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-warn">{formatCurrency(t.commission_pending)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-ok">{formatCurrency(t.commission_paid)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-warn">{formatCurrency(t.commissionPending)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-ok">{formatCurrency(t.commissionPaid)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -240,24 +240,24 @@ export const PtCollectionsPage: React.FC = () => {
                 {collections.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="font-mono text-[11px] text-muted-foreground">
-                      {c.receipt_number || '—'}
+                      {c.receiptNumber || '—'}
                     </TableCell>
                     <TableCell>
-                      <p className="text-xs font-semibold text-foreground">{c.member_name?.trim()}</p>
-                      <p className="text-[10px] font-mono text-muted-foreground">{c.member_code}</p>
+                      <p className="text-xs font-semibold text-foreground">{c.memberName?.trim()}</p>
+                      <p className="text-[10px] font-mono text-muted-foreground">{c.memberCode}</p>
                     </TableCell>
-                    <TableCell className="text-xs">{c.trainer_name || '—'}</TableCell>
+                    <TableCell className="text-xs">{c.trainerName || '—'}</TableCell>
                     <TableCell className="text-right font-mono text-xs">{c.sessions}</TableCell>
                     <TableCell className="text-right font-mono text-xs font-semibold">
-                      {formatCurrency(c.amount_paise)}
+                      {formatCurrency(c.amountPaise)}
                     </TableCell>
                     <TableCell className="text-right font-mono text-xs">
-                      {formatCurrency(c.commission_paise)}
-                      <span className="block text-[10px] text-muted-foreground">{c.commission_percentage}%</span>
+                      {formatCurrency(c.commissionPaise)}
+                      <span className="block text-[10px] text-muted-foreground">{c.commissionPercentage}%</span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={c.commission_status === 'PAID' ? 'default' : 'outline'} className="text-[10px]">
-                        {c.commission_status}
+                      <Badge variant={c.commissionStatus === 'PAID' ? 'default' : 'outline'} className="text-[10px]">
+                        {c.commissionStatus}
                       </Badge>
                     </TableCell>
                     {canManage && (
@@ -270,11 +270,11 @@ export const PtCollectionsPage: React.FC = () => {
                           onClick={() =>
                             settleMutation.mutate({
                               id: c.id,
-                              status: c.commission_status === 'PAID' ? 'PENDING' : 'PAID',
+                              status: c.commissionStatus === 'PAID' ? 'PENDING' : 'PAID',
                             })
                           }
                         >
-                          {c.commission_status === 'PAID' ? 'Revert' : 'Mark Paid'}
+                          {c.commissionStatus === 'PAID' ? 'Revert' : 'Mark Paid'}
                         </Button>
                       </TableCell>
                     )}
@@ -306,7 +306,7 @@ export const PtCollectionsPage: React.FC = () => {
                 <SelectContent>
                   {(membersData?.members || []).map((m: any) => (
                     <SelectItem key={m.id} value={m.id}>
-                      {m.first_name} {m.last_name || ''} ({m.member_code})
+                      {m.firstName} {m.lastName || ''} ({m.memberCode})
                     </SelectItem>
                   ))}
                 </SelectContent>

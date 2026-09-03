@@ -1,117 +1,98 @@
+import { eq, and, isNull, asc } from 'drizzle-orm';
+import type { Database, D1Database } from '../db/client';
+import { createDatabase } from '../db/client';
 import type { GymMembershipPlan } from '@gymtech/shared';
+import { membershipPlans } from '../db/schema';
 
-/**
- * Gym-level membership plans (the "what we sell to members" catalog).
- * Distinct from `license.repository`, which manages the SaaS subscription
- * the gym buys from us.
- */
 export class PlanRepository {
-  constructor(private db: D1Database, private gymId: number) {}
+  private db: Database;
+
+  constructor(db: Database | D1Database, private gymId: number) {
+    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+  }
 
   async listActive(): Promise<GymMembershipPlan[]> {
-    const { results } = await this.db
-      .prepare(
-        `SELECT * FROM membership_plans
-         WHERE gym_id = ? AND is_active = 1 AND deleted_at IS NULL
-         ORDER BY duration_months ASC`
-      )
-      .bind(this.gymId)
-      .all<GymMembershipPlan>();
-    return results || [];
+    return this.db
+      .select()
+      .from(membershipPlans)
+      .where(and(eq(membershipPlans.gymId, this.gymId), eq(membershipPlans.isActive, 1), isNull(membershipPlans.deletedAt)))
+      .orderBy(asc(membershipPlans.durationMonths)) as unknown as GymMembershipPlan[];
   }
 
   async listAll(): Promise<GymMembershipPlan[]> {
-    const { results } = await this.db
-      .prepare(
-        `SELECT * FROM membership_plans
-         WHERE gym_id = ? AND deleted_at IS NULL
-         ORDER BY is_active DESC, duration_months ASC`
-      )
-      .bind(this.gymId)
-      .all<GymMembershipPlan>();
-    return results || [];
+    return this.db
+      .select()
+      .from(membershipPlans)
+      .where(and(eq(membershipPlans.gymId, this.gymId), isNull(membershipPlans.deletedAt)))
+      .orderBy(asc(membershipPlans.isActive), asc(membershipPlans.durationMonths)) as unknown as GymMembershipPlan[];
   }
 
   async findById(id: number): Promise<GymMembershipPlan | null> {
-    return await this.db
-      .prepare(`SELECT * FROM membership_plans WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`)
-      .bind(id, this.gymId)
-      .first<GymMembershipPlan>();
+    const rows = await this.db
+      .select()
+      .from(membershipPlans)
+      .where(and(eq(membershipPlans.id, id), eq(membershipPlans.gymId, this.gymId), isNull(membershipPlans.deletedAt)))
+      .limit(1);
+    return (rows[0] as GymMembershipPlan) ?? null;
   }
 
-  async create(data: Omit<GymMembershipPlan, 'id' | 'created_at' | 'updated_at' | 'gym_id'>): Promise<number> {
+  async create(
+    data: Omit<GymMembershipPlan, 'id' | 'createdAt' | 'updatedAt' | 'gymId'>
+  ): Promise<number> {
     const now = Math.floor(Date.now() / 1000);
-    const res = await this.db
-      .prepare(
-        `INSERT INTO membership_plans (
-          gym_id, name, description, duration_months, price_paise,
-          admission_fee_paise, tax_percentage, is_active, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        this.gymId,
-        data.name,
-        data.description ?? null,
-        data.duration_months,
-        data.price_paise,
-        data.admission_fee_paise ?? 0,
-        data.tax_percentage ?? 0,
-        data.is_active,
-        now,
-        now
-      )
-      .run();
-    return Number(res.meta?.last_row_id ?? res.meta?.lastInsertRowid ?? 0);
+    const row = await this.db
+      .insert(membershipPlans)
+      .values({
+        gymId: this.gymId,
+        name: data.name,
+        description: data.description ?? null,
+        durationMonths: data.durationMonths,
+        pricePaise: data.pricePaise,
+        admissionFeePaise: data.admissionFeePaise ?? 0,
+        taxPercentage: data.taxPercentage ?? 0,
+        isActive: data.isActive,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: membershipPlans.id });
+    return row[0]!.id;
   }
 
   async update(id: number, data: Partial<GymMembershipPlan>): Promise<void> {
-    const fields: string[] = [];
-    const bindings: any[] = [];
-    const allowed: (keyof GymMembershipPlan)[] = [
-      'name',
-      'description',
-      'duration_months',
-      'price_paise',
-      'admission_fee_paise',
-      'tax_percentage',
-      'is_active',
-    ];
-    for (const k of allowed) {
-      if (data[k] !== undefined) {
-        fields.push(`${String(k)} = ?`);
-        bindings.push(data[k]);
-      }
-    }
-    if (fields.length === 0) return;
-    fields.push('updated_at = unixepoch()');
-    bindings.push(id, this.gymId);
+    const sets: Partial<typeof membershipPlans.$inferInsert> = {};
+    if (data.name !== undefined) sets.name = data.name;
+    if (data.description !== undefined) sets.description = data.description;
+    if (data.durationMonths !== undefined) sets.durationMonths = data.durationMonths;
+    if (data.pricePaise !== undefined) sets.pricePaise = data.pricePaise;
+    if (data.admissionFeePaise !== undefined) sets.admissionFeePaise = data.admissionFeePaise;
+    if (data.taxPercentage !== undefined) sets.taxPercentage = data.taxPercentage;
+    if (data.isActive !== undefined) sets.isActive = data.isActive;
+    if (Object.keys(sets).length === 0) return;
+    sets.updatedAt = Math.floor(Date.now() / 1000);
+
     await this.db
-      .prepare(`UPDATE membership_plans SET ${fields.join(', ')} WHERE id = ? AND gym_id = ?`)
-      .bind(...bindings)
-      .run();
+      .update(membershipPlans)
+      .set(sets)
+      .where(and(eq(membershipPlans.id, id), eq(membershipPlans.gymId, this.gymId)));
   }
 
   async softDelete(id: number): Promise<boolean> {
-    const res = await this.db
-      .prepare(
-        `UPDATE membership_plans
-         SET deleted_at = unixepoch(), is_active = 0, updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`
-      )
-      .bind(id, this.gymId)
-      .run();
-    return (res.meta?.changes ?? 0) > 0;
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .update(membershipPlans)
+      .set({ deletedAt: now, isActive: 0, updatedAt: now })
+      .where(and(eq(membershipPlans.id, id), eq(membershipPlans.gymId, this.gymId), isNull(membershipPlans.deletedAt)))
+      .returning({ id: membershipPlans.id });
+    return row.length > 0;
   }
 
   async restore(id: number): Promise<boolean> {
-    const res = await this.db
-      .prepare(
-        `UPDATE membership_plans
-         SET deleted_at = NULL, is_active = 1, updated_at = unixepoch()
-         WHERE id = ? AND gym_id = ? AND deleted_at IS NOT NULL`
-      )
-      .bind(id, this.gymId)
-      .run();
-    return (res.meta?.changes ?? 0) > 0;
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .update(membershipPlans)
+      .set({ deletedAt: null, isActive: 1, updatedAt: now })
+      .where(and(eq(membershipPlans.id, id), eq(membershipPlans.gymId, this.gymId)))
+      .returning({ id: membershipPlans.id });
+    return row.length > 0;
   }
 }

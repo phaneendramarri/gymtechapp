@@ -27,9 +27,9 @@ planRoutes.post('/', requireGym, requireFeature('plans'), requirePermission('pla
   const planRepo = new PlanRepository(ctx.env.DB, ctx.gymId!);
   const id = await planRepo.create({
     name: parsed.data.name, description: parsed.data.description ?? null,
-    duration_months: parsed.data.durationMonths, price_paise: parsed.data.pricePaise,
-    admission_fee_paise: parsed.data.admissionFeePaise, tax_percentage: parsed.data.taxPercentage,
-    is_active: 1, deleted_at: null,
+    durationMonths: parsed.data.durationMonths, pricePaise: parsed.data.pricePaise,
+    admissionFeePaise: parsed.data.admissionFeePaise, taxPercentage: parsed.data.taxPercentage,
+    isActive: 1, deletedAt: null,
   });
   const created = await planRepo.findById(id);
   await auditGym(ctx, 'plan.create', 'membership_plan', id, { after: created });

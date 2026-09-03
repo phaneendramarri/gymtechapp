@@ -95,7 +95,7 @@ export const LandingTestimonials: React.FC = () => {
           </h2>
         </div>
 
-        <div className="relative min-h-[220px]">
+        <div className="relative min-h-55">
           <AnimatePresence mode="wait">
             <motion.div
               key={t.name}

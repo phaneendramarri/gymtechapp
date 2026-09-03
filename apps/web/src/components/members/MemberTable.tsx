@@ -51,14 +51,14 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
     {
       id: 'name',
       header: 'Member',
-      sortAccessor: (m) => `${m.first_name} ${m.last_name || ''}`.toLowerCase(),
+      sortAccessor: (m) => `${m.firstName} ${m.lastName || ''}`.toLowerCase(),
       cell: (m) => {
-        const initials = `${m.first_name?.[0] || 'M'}${m.last_name?.[0] || ''}`.toUpperCase()
+        const initials = `${m.firstName?.[0] || 'M'}${m.lastName?.[0] || ''}`.toUpperCase()
         return (
           <div className="flex items-center gap-3 min-w-0">
             <div className="size-8.5 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-display text-xs font-bold shrink-0 overflow-hidden shadow-2xs">
-              {m.photo_url ? (
-                <img src={m.photo_url} alt={m.first_name} className="size-full object-cover" />
+              {m.photoUrl ? (
+                <img src={m.photoUrl} alt={m.firstName} className="size-full object-cover" />
               ) : (
                 initials
               )}
@@ -68,9 +68,9 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
                 href={`/members/${m.id}`}
                 className="font-semibold text-xs text-foreground hover:text-primary transition-colors truncate"
               >
-                {m.first_name} {m.last_name || ''}
+                {m.firstName} {m.lastName || ''}
               </a>
-              <span className="text-[10px] font-mono text-muted-foreground">{m.member_code}</span>
+              <span className="text-[10px] font-mono text-muted-foreground">{m.memberCode}</span>
             </div>
           </div>
         )
@@ -90,18 +90,18 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
     {
       id: 'plan',
       header: 'Current Plan',
-      sortAccessor: (m) => m.plan_name || '',
+      sortAccessor: (m) => m.planName || '',
       cell: (m) => {
-        if (!m.membership_end_date) {
-          return <span className="text-xs text-muted-foreground">{m.plan_name || 'No plan'}</span>
+        if (!m.membershipEndDate) {
+          return <span className="text-xs text-muted-foreground">{m.planName || 'No plan'}</span>
         }
-        const isExpired = m.membership_end_date < nowSec
-        const daysRemaining = Math.ceil((m.membership_end_date - nowSec) / 86400)
+        const isExpired = m.membershipEndDate < nowSec
+        const daysRemaining = Math.ceil((m.membershipEndDate - nowSec) / 86400)
         return (
           <div className="flex flex-col gap-1 text-xs">
-            <span className="font-semibold text-foreground">{m.plan_name || 'No Plan'}</span>
+            <span className="font-semibold text-foreground">{m.planName || 'No Plan'}</span>
             <span className="text-[10px] font-mono text-muted-foreground">
-              {m.membership_start_date ? new Date(m.membership_start_date * 1000).toLocaleDateString('en-IN') : '—'} → {new Date(m.membership_end_date * 1000).toLocaleDateString('en-IN')}
+              {m.membershipStartDate ? new Date(m.membershipStartDate * 1000).toLocaleDateString('en-IN') : '—'} → {new Date(m.membershipEndDate * 1000).toLocaleDateString('en-IN')}
             </span>
             {isExpired ? (
               <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-destructive/10 text-destructive border border-destructive/30 w-fit">
@@ -171,10 +171,10 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
           for (const m of rows) {
             const res = await api.dispatchNotification({
               recipientPhone: m.phone,
-              recipientName: m.first_name,
+              recipientName: m.firstName,
               channel: 'WHATSAPP',
               type: 'EXPIRY_REMINDER',
-              params: { memberCode: m.member_code, expiryDate: 'upcoming renewal' },
+              params: { memberCode: m.memberCode, expiryDate: 'upcoming renewal' },
             });
             sent++;
             lastRemaining = res.remainingCredits;
@@ -238,7 +238,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       <ConfirmDialog
         open={!!pendingDelete}
         onOpenChange={(o) => !o && setPendingDelete(null)}
-        title={`Archive ${pendingDelete?.first_name ?? 'member'}?`}
+        title={`Archive ${pendingDelete?.firstName ?? 'member'}?`}
         description="This deactivates the member and moves them to the archive. All past payments, invoices, attendance, and membership history will be permanently preserved."
         confirmLabel="Archive member"
         destructive
@@ -246,7 +246,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
           if (!pendingDelete?.id) return;
           try {
             await api.archiveMember(pendingDelete.id);
-            toast('success', 'Member archived', `${pendingDelete.first_name} was archived. Historical records preserved.`);
+            toast('success', 'Member archived', `${pendingDelete.firstName} was archived. Historical records preserved.`);
             window.location.reload();
           } catch (err: any) {
             toast('error', 'Archive failed', err.message);
@@ -257,7 +257,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       <ConfirmDialog
         open={!!pendingFreeze}
         onOpenChange={(o) => !o && setPendingFreeze(null)}
-        title={`Freeze ${pendingFreeze?.first_name ?? 'plan'}?`}
+        title={`Freeze ${pendingFreeze?.firstName ?? 'plan'}?`}
         description="The member's plan is paused until you unfreeze it. They will not be billed during the freeze period."
         confirmLabel="Freeze plan"
         onConfirm={() => {
