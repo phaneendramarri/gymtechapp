@@ -56,7 +56,7 @@ export const GymOSFlow: React.FC = () => {
                 </span>
 
                 <div className="flex items-center gap-3 mb-4">
-                  <span className="size-9 rounded-lg bg-(--iron-soft) text-(--iron) flex items-center justify-center shrink-0">
+                  <span className="size-9 rounded-lg bg-iron-soft text-iron flex items-center justify-center shrink-0">
                     <Icon className="size-4" strokeWidth={1.5} />
                   </span>
                 </div>

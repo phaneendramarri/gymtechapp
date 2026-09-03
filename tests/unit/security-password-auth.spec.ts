@@ -67,6 +67,8 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
       name: 'Vikram Rathore',
       role: 'OWNER' as const,
       gymId: 1,
+      isOwner: true,
+      permissions: ['*'],
     };
 
     it('creates and verifies a valid session token', async () => {
@@ -99,7 +101,7 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
       const [h, p, s] = token.split('.');
 
       // Alter payload by decoding, changing role to SUPER_ADMIN, and re-encoding
-      const decoded = JSON.parse(atob(p));
+      const decoded = JSON.parse(atob(p as string));
       decoded.role = 'SUPER_ADMIN';
       const tamperedPayload = btoa(JSON.stringify(decoded));
 
@@ -122,7 +124,7 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
         id: 7,
         email: 'staff@gym.in',
         name: 'Arjun Singh',
-        role: 'STAFF' as const,
+        role: 'OWNER' as const,
         gymId: 2,
         exp: 1800000000,
       };
@@ -132,7 +134,7 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
         id: 7,
         email: 'staff@gym.in',
         name: 'Arjun Singh',
-        role: 'STAFF',
+        role: 'OWNER',
         gymId: 2,
         isOwner: false,
         permissions: [],

@@ -276,7 +276,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </button>
             ) : (
               <button className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-surface-2 transition-colors">
-                <div className="h-8 w-8 rounded-full bg-(--iron) text-(--iron-ink) flex items-center justify-center text-xs font-semibold shrink-0">
+                <div className="h-8 w-8 rounded-full bg-iron text-iron-ink flex items-center justify-center text-xs font-semibold shrink-0">
                   {userInitial}
                 </div>
                 <div className="min-w-0 flex-1 text-left">

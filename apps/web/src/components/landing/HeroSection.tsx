@@ -26,7 +26,7 @@ export const HeroSection: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 relative">
         {/* Kicker */}
         <motion.div {...fadeUp(0)} className="flex items-center justify-center mb-6">
-          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-(--iron)/20 bg-(--iron-soft) text-[11px] font-semibold text-(--iron) tracking-wide">
+          <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-iron/20 bg-iron-soft text-[11px] font-semibold text-iron tracking-wide">
             <span className="size-1.5 rounded-full bg-(--iron) animate-pulse" />
             Built for gyms across India
           </span>
@@ -35,7 +35,7 @@ export const HeroSection: React.FC = () => {
         {/* Headline */}
         <motion.h1
           {...fadeUp(0.05)}
-          className="font-display text-center text-[40px] sm:text-6xl lg:text-7xl font-semibold tracking-[-0.025em] leading-[1.05] text-ink max-w-4xl mx-auto"
+          className="font-display text-center text-[40px] sm:text-6xl lg:text-7xl font-semibold tracking-tight leading-[1.05] text-ink max-w-4xl mx-auto"
         >
           The gym management software that{' '}
           <span className="relative inline-block">
@@ -60,7 +60,7 @@ export const HeroSection: React.FC = () => {
           <Button
             asChild
             size="lg"
-            className="bg-(--iron) hover:bg-(--iron-hover) text-white font-semibold h-11 px-6 gap-2 rounded-lg shadow-sm"
+            className="bg-iron hover:bg-iron-hover text-white font-semibold h-11 px-6 gap-2 rounded-lg shadow-sm"
           >
             <a href="/login">
               Start free trial

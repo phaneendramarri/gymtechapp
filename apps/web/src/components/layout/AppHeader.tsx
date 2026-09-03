@@ -112,7 +112,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
 
         {/* Gym badge (mobile only — desktop shows it in the rail) */}
         <div className="md:hidden flex items-center gap-2 ml-1">
-          <div className="h-6 w-6 rounded bg-(--iron) text-(--iron-ink) flex items-center justify-center text-[10px] font-semibold">
+          <div className="h-6 w-6 rounded bg-iron text-iron-ink flex items-center justify-center text-[10px] font-semibold">
             {gymName?.[0] || 'G'}
           </div>
           <span className="text-xs font-semibold text-ink truncate max-w-40">{gymName}</span>
@@ -200,7 +200,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
           <div className="max-h-[60vh] overflow-y-auto py-2">
             {filtered.length === 0 ? (
               <div className="px-6 py-12 text-center text-sm text-(--ink-3)">
-                No results for <span className="font-mono text-(--ink-2)">"{query}"</span>
+                No results for <span className="font-mono text-ink-2">"{query}"</span>
               </div>
             ) : (
               ['Navigate', 'Action'].map((group) => {
@@ -221,7 +221,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
                           className={cn(
                             'w-full flex items-center gap-3 px-3 h-10 rounded-lg text-sm text-(--ink) text-left transition-colors',
                             idx === highlight
-                              ? 'bg-(--iron-soft) text-(--iron)'
+                              ? 'bg-iron-soft text-iron'
                               : 'hover:bg-(--surface-2)'
                           )}
                         >

@@ -85,7 +85,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         <div className="flex-1 flex flex-col min-h-0">
           {/* Page header */}
           <header className="px-6 lg:px-10 pt-8 pb-6 border-b border-(--line)">
-            <div className="max-w-[1400px] mx-auto flex flex-col gap-4">
+            <div className="max-w-350 mx-auto flex flex-col gap-4">
               {crumbs.length > 0 && (
                 <nav className="flex items-center gap-1.5 text-meta">
                   {crumbs.map((c, i) => (
@@ -128,7 +128,7 @@ export const AppShell: React.FC<AppShellProps> = ({
           >
             <div
               className={cn(
-                'max-w-[1400px] mx-auto w-full',
+                'max-w-350 mx-auto w-full',
                 flush ? '' : 'px-6 lg:px-10 py-8'
               )}
             >

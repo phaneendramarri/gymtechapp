@@ -322,7 +322,7 @@ export const DashboardPage: React.FC = () => {
                   When a member scans in or the desk logs them, you'll see the live stream here.
                 </p>
                 <div className="mt-4">
-                  <Button asChild size="sm" className="bg-(--iron) text-(--iron-ink) hover:bg-(--iron-hover) border-(--iron)">
+                  <Button asChild size="sm" className="bg-iron text-iron-ink hover:bg-iron-hover border-iron">
                     <Link to="/attendance">
                       Open the desk
                     </Link>
@@ -410,7 +410,7 @@ export const DashboardPage: React.FC = () => {
                 {expiring.slice(0, 4).map((m: ExpiringMember) => {
                   const due = (m.due_amount_paise || 0) / 100;
                   return (
-                    <li key={m.id} className="group flex items-center gap-3 py-3 border-t border-(--line-2) first:border-t-0">
+                    <li key={m.id} className="group flex items-center gap-3 py-3 border-t border-line-2 first:border-t-0">
                       <span className="gt-avatar" data-size="md">
                         {initials(m.first_name, m.last_name)}
                       </span>

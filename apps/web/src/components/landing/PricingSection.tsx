@@ -160,7 +160,7 @@ export const PricingSection: React.FC = () => {
                 className={
                   'mt-6 h-10 gap-1.5 rounded-lg font-medium ' +
                   (p.highlight
-                    ? 'bg-(--iron) hover:bg-(--iron-hover) text-white border-transparent shadow-sm'
+                    ? 'bg-iron hover:bg-iron-hover text-white border-transparent shadow-sm'
                     : 'bg-(--surface) text-ink hover:bg-(--surface-2) border-(--line)')
                 }
               >
