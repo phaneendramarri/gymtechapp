@@ -1,6 +1,6 @@
 // filepath: apps/api/src/routes/reports.routes.ts
 import { Hono } from 'hono';
-import { requireGym, requireFeature, requireRole } from '../middleware/auth';
+import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
 import { DashboardService } from '../services/dashboard.service';
@@ -15,7 +15,7 @@ const csvEscape = (v: any) => {
 const toCsv = (headers: string[], rows: any[][]) =>
   [headers, ...rows].map((r) => r.map(csvEscape).join(',')).join('\n');
 
-reportRoutes.get('/', requireGym, requireFeature('reports'), requireRole('OWNER'), safeHandler(async (c) => {
+reportRoutes.get('/', requireGym, requireFeature('reports'), requirePermission('reports'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
 
@@ -54,7 +54,7 @@ reportRoutes.get('/', requireGym, requireFeature('reports'), requireRole('OWNER'
   });
 }));
 
-reportRoutes.get('/export', requireGym, requireFeature('reports'), requireRole('OWNER'), safeHandler(async (c) => {
+reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermission('reports'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const type = c.req.query('type') || 'payments';
   const filename = `${type}-report.csv`;

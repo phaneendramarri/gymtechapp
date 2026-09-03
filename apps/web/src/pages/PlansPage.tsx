@@ -20,7 +20,7 @@ import { AlertCircle } from 'lucide-react';
 export const PlansPage: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const canManage = user?.role === 'OWNER' || user?.role === 'MANAGER';
+  const canManage = user?.isOwner;
 
   const { data, isLoading } = useQuery({
     queryKey: ['plans'],
@@ -135,7 +135,7 @@ export const PlansPage: React.FC = () => {
                   <p className="text-meta text-ink-2 line-clamp-2">{p.description}</p>
                 )}
 
-                <div className="mt-auto pt-3 border-t border-(--line-2) flex items-center justify-between text-[11px] text-ink-3">
+                <div className="mt-auto pt-3 border-t border-line-2 flex items-center justify-between text-[11px] text-ink-3">
                   <span className="inline-flex items-center gap-1">
                     <Clock className="h-3 w-3" /> {p.duration_months} mo
                   </span>
@@ -206,7 +206,7 @@ export const PlansPage: React.FC = () => {
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="gt-input min-h-[72px] py-2"
+                className="gt-input min-h-18 py-2"
                 placeholder="What does this plan include?"
               />
             </Field>

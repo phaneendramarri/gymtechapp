@@ -22,7 +22,7 @@ export const PaymentsPage: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
   const canCollect =
-    user?.role === 'OWNER' || user?.role === 'MANAGER' || user?.role === 'STAFF';
+    user?.isOwner || user?.permissions?.includes('payments');
 
   const { data, isLoading } = useQuery({
     queryKey: ['payments'],

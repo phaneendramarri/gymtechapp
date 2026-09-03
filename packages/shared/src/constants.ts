@@ -12,29 +12,20 @@
 
 export const USER_ROLES = {
   PLATFORM_ADMIN: 'PLATFORM_ADMIN',
-  OWNER: 'OWNER',
-  MANAGER: 'MANAGER',
-  STAFF: 'STAFF',
-  TRAINER: 'TRAINER',
+  OWNER: 'OWNER', // kept in DB for rollback compat only; replaced by is_owner flag
   MEMBER: 'MEMBER',
 } as const;
 
 export const USER_ROLE_NUMERIC: Record<string, number> = {
   PLATFORM_ADMIN: 0,
-  OWNER: 1,
-  MANAGER: 2,
-  STAFF: 3,
-  TRAINER: 4,
-  MEMBER: 5,
+  OWNER: 1, // kept for rollback compat only
+  MEMBER: 2,
 };
 
 export const NUMERIC_USER_ROLE: Record<number, string> = {
   0: 'PLATFORM_ADMIN',
   1: 'OWNER',
-  2: 'MANAGER',
-  3: 'STAFF',
-  4: 'TRAINER',
-  5: 'MEMBER',
+  2: 'MEMBER',
 };
 
 export const GYM_STATUSES = {
@@ -290,6 +281,7 @@ export const GYM_FEATURES = [
   'staff',
   'reports',
   'settings',
+  'audit_logs',
 ] as const;
 
 export type GymFeatureKey = (typeof GYM_FEATURES)[number];
@@ -304,5 +296,6 @@ export const GYM_FEATURE_LABELS: Record<GymFeatureKey, { name: string; descripti
   staff: { name: 'Staff Management', description: 'Owner and Manager account provisioning' },
   reports: { name: 'Financial Reports', description: 'Revenue breakdowns, collection trends & analytics' },
   settings: { name: 'Notification Settings', description: 'WhatsApp & SMS triggers and message balances' },
+  audit_logs: { name: 'Audit Logs', description: 'Audit trail of all gym data changes' },
 };
 

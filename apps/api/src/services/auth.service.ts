@@ -72,7 +72,17 @@ export class AuthService {
 
     await this.userRepo.updateLastLogin(user.id);
 
-    const sessionUser: SessionUser = { id: user.id, email: user.email, name: user.name, role: user.role, gymId: user.gym_id };
+    // Load menu permissions for this user
+    const permissions = await this.userRepo.getPermissionsForUser(user.id);
+    const sessionUser: SessionUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      gymId: user.gym_id,
+      isOwner: Boolean((user as any).is_owner),
+      permissions,
+    };
     const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
     const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
     const now = Math.floor(Date.now() / 1000);
@@ -113,7 +123,15 @@ export class AuthService {
 
     await this.db.prepare(`UPDATE platform_admins SET last_login_at = unixepoch() WHERE id = ?`).bind(admin.id).run();
 
-    const sessionUser: SessionUser = { id: admin.id, email: admin.email, name: admin.name, role: 'PLATFORM_ADMIN' as UserRole, gymId: null };
+    const sessionUser: SessionUser = {
+      id: admin.id,
+      email: admin.email,
+      name: admin.name,
+      role: 'PLATFORM_ADMIN' as UserRole,
+      gymId: null,
+      isOwner: false,
+      permissions: ['*'], // PLATFORM_ADMIN bypasses all permission checks in middleware
+    };
     const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
     const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
     const now = Math.floor(Date.now() / 1000);
@@ -135,7 +153,16 @@ export class AuthService {
     const userRow = await this.userRepo.findById(session.userId as number);
     if (!userRow) return null;
 
-    const sessionUser: SessionUser = { id: userRow.id, email: userRow.email, name: userRow.name, role: userRow.role, gymId: userRow.gym_id };
+    const permissions = await this.userRepo.getPermissionsForUser(userRow.id);
+    const sessionUser: SessionUser = {
+      id: userRow.id,
+      email: userRow.email,
+      name: userRow.name,
+      role: userRow.role,
+      gymId: userRow.gym_id,
+      isOwner: Boolean((userRow as any).is_owner),
+      permissions,
+    };
 
     const { token, jti: newAccessJti } = await this._createAccessToken(sessionUser);
     const { token: newRefreshToken, jti: newRefreshJti } = await createRefreshToken(this.jwtSecret);
@@ -169,6 +196,8 @@ export class AuthService {
       name: member.name,
       role: 'MEMBER',
       gymId: member.gymId,
+      isOwner: false,
+      permissions: [], // Members have no dashboard permissions
     };
     const { token } = await this._createAccessToken(sessionUser);
     return token;

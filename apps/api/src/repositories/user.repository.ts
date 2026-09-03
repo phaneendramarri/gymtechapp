@@ -1,6 +1,12 @@
 import type { User, UserRole } from '@gymtech/shared';
 
-export type StaffListItem = Omit<User, 'password_hash'>;
+/**
+ * Shape returned by listGymStaff — adds permissions as string[] (from join)
+ * on top of the base User columns.
+ */
+export type StaffListItem = Omit<User, 'permissions'> & {
+  permissions: string[];  // resolved from user_permissions join (not the raw JSON string)
+};
 
 export class UserRepository {
   constructor(private db: D1Database) {}
@@ -29,15 +35,43 @@ export class UserRepository {
   async listGymStaff(gymId: number): Promise<StaffListItem[]> {
     const { results } = await this.db
       .prepare(
-        `SELECT id, gym_id, name, email, phone, role, status,
-                permissions, last_login_at, created_at, updated_at
+        `SELECT id, gym_id, name, email, phone, role, status, is_owner,
+                last_login_at, created_at, updated_at
          FROM users
          WHERE gym_id = ? AND deleted_at IS NULL
          ORDER BY created_at ASC`
       )
       .bind(gymId)
       .all<StaffListItem>();
-    return results || [];
+
+    if (!results || results.length === 0) return [];
+
+    // Batch-fetch all permissions for these users
+    const userIds = results.map((u) => u.id);
+    const { results: permRows } = await this.db
+      .prepare(`SELECT user_id, permission_key FROM user_permissions WHERE user_id IN (${userIds.map(() => '?').join(',')})`)
+      .bind(...userIds)
+      .all<{ user_id: number; permission_key: string }>();
+
+    const permMap: Record<number, string[]> = {};
+    for (const row of permRows || []) {
+      if (!permMap[row.user_id]) permMap[row.user_id] = [];
+      permMap[row.user_id].push(row.permission_key);
+    }
+
+    return results.map((u) => ({ ...u, permissions: permMap[u.id] ?? [] }));
+  }
+
+  /**
+   * Returns all permission keys for a given user.
+   * Returns all GYM_FEATURES keys for the gym owner (is_owner = 1).
+   */
+  async getPermissionsForUser(userId: number): Promise<string[]> {
+    const { results } = await this.db
+      .prepare(`SELECT permission_key FROM user_permissions WHERE user_id = ?`)
+      .bind(userId)
+      .all<{ permission_key: string }>();
+    return (results || []).map((r) => r.permission_key);
   }
 
   async listPlatformAdmins(): Promise<any[]> {

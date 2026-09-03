@@ -152,6 +152,47 @@ export function requireRole(...allowed: UserRole[]) {
   };
 }
 
+/**
+ * Permission-based access control.
+ *
+ * A user passes the check when ALL of these are true:
+ *   - The user has every permission key listed (AND logic)
+ *   - OR the user is the gym owner (is_owner = true) — owners have all permissions
+ *   - OR the user is PLATFORM_ADMIN — bypasses all permission checks
+ *
+ * @example
+ *   // Route accessible to any user with both 'members' AND 'attendance' permissions
+ *   router.delete('/', requirePermission('members', 'attendance'), deleteMemberHandler);
+ *
+ *   // Route accessible to any user with 'reports' permission (owner, manager, staff… all ok)
+ *   router.get('/reports', requirePermission('reports'), reportsHandler);
+ */
+export function requirePermission(...required: string[]) {
+  return async (c: AuthContext, next: () => Promise<void>) => {
+    const ctx = getCtx(c);
+    const { user } = ctx;
+
+    if (!user) return jsonError('Authentication required', 401);
+
+    // PLATFORM_ADMIN bypasses all permission checks
+    if (user.role === 'PLATFORM_ADMIN') return next();
+
+    // Gym owners have all permissions by definition
+    if (user.isOwner) return next();
+
+    // Check: does the user have ALL required permission keys?
+    const hasAll = required.every((key) => user.permissions?.includes(key));
+    if (!hasAll) {
+      return jsonError(
+        `Insufficient permissions. Required: [${required.join(', ')}].`,
+        403,
+      );
+    }
+
+    return next();
+  };
+}
+
 export function requireFeature(featureKey: GymFeatureKey) {
   return async (c: AuthContext, next: () => Promise<void>) => {
     const tenant = c.get('tenant');

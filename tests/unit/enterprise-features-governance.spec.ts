@@ -16,7 +16,7 @@ describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
       expect(GYM_FEATURES).toContain('staff');
       expect(GYM_FEATURES).toContain('reports');
       expect(GYM_FEATURES).toContain('settings');
-      expect(GYM_FEATURES.length).toBe(9);
+      expect(GYM_FEATURES.length).toBe(10);
     });
 
     it('has human-readable labels and descriptions for every feature key', () => {
@@ -265,7 +265,7 @@ describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
           bind: (...args: any[]) => ({
             first: async () => {
               if (query.includes('FROM licenses')) return mockLicense;
-              if (query.includes("role = 'MANAGER'")) return { count: 2 }; // Limit reached
+              if (query.includes('is_owner = 0')) return { count: 2 }; // Limit reached
               return null;
             },
           }),
@@ -276,7 +276,7 @@ describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
       const check = await licenseService.checkManagerLimit();
 
       expect(check.allowed).toBe(false);
-      expect(check.reason).toContain('Manager limit reached (2/2)');
+      expect(check.reason).toContain('User limit reached (2/2)');
     });
   });
 

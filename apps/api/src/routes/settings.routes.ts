@@ -6,7 +6,7 @@ import {
   ChannelBalance,
   NotificationSettingsResponse,
 } from '@gymtech/shared';
-import { requireGym, requireRole } from '../middleware/auth';
+import { requireGym, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
 import { extractClientInfo } from '../services/audit.service';
@@ -54,7 +54,7 @@ settingsRoutes.get('/notifications', requireGym, safeHandler(async (c) => {
   return jsonOk(res);
 }));
 
-settingsRoutes.put('/notifications', requireGym, requireRole('OWNER', 'MANAGER'), safeHandler(async (c) => {
+settingsRoutes.put('/notifications', requireGym, requirePermission('settings'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = NotificationSettingsRequestSchema.safeParse(body);
@@ -68,7 +68,7 @@ settingsRoutes.put('/notifications', requireGym, requireRole('OWNER', 'MANAGER')
   return jsonOk(parsed.data);
 }));
 
-settingsRoutes.post('/notifications/dispatch', requireGym, requireRole('OWNER', 'MANAGER', 'STAFF', 'TRAINER'), safeHandler(async (c) => {
+settingsRoutes.post('/notifications/dispatch', requireGym, requirePermission('settings'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const body = await c.req.json().catch(() => ({}));

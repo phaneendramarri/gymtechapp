@@ -79,7 +79,7 @@ export const ResetPasswordPage: React.FC = () => {
         </div>
 
         <Card className="glass-card shadow-2xl relative overflow-hidden border border-border rounded-sm">
-          <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-primary to-transparent opacity-90" />
+          <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-primary to-transparent opacity-90" />
 
           <CardHeader className="pb-3 pt-5">
             <CardTitle className="text-base font-semibold">Security Credential Update</CardTitle>

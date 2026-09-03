@@ -21,9 +21,9 @@ const STATUS_TABS: { key: string; label: string }[] = [
 
 export const MembersPage: React.FC = () => {
   const { user } = useAuth();
-  const canManage = user?.role === 'OWNER' || user?.role === 'MANAGER';
+  const canManage = user?.isOwner;
   const canAddMember =
-    user?.role === 'OWNER' || user?.role === 'MANAGER' || user?.role === 'STAFF';
+    user?.isOwner || user?.permissions?.includes('members');
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');

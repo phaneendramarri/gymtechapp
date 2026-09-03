@@ -1,7 +1,7 @@
 // filepath: apps/api/src/routes/pt.routes.ts
 import { Hono } from 'hono';
 import { RecordPtCollectionRequestSchema, SettlePtCommissionRequestSchema } from '@gymtech/shared';
-import { requireGym, requireFeature, requireRole } from '../middleware/auth';
+import { requireGym, requireFeature, requireRole, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { calculatePtCommission } from '../lib/calculations';
@@ -14,7 +14,7 @@ export const ptRoutes = new Hono();
 
 ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const isTrainer = ctx.user!.role === 'TRAINER';
+  const isTrainer = !ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff');
   const trainerId = isTrainer
     ? ctx.user!.id
     : (c.req.query('trainerId') ? parseInt(c.req.query('trainerId')!, 10) : null);
@@ -39,10 +39,10 @@ ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), safeH
 
 ptRoutes.get('/summary', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  if (ctx.user?.role === 'MANAGER') {
+  if (!ctx.user!.isOwner && !ctx.user!.permissions?.includes('reports')) {
     return jsonOk({ totalCollected: 0, totalCommissionPending: 0, totalCommissionPaid: 0, byTrainer: [] });
   }
-  const isTrainer = ctx.user!.role === 'TRAINER';
+  const isTrainer = !ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff');
   const totalsSql = isTrainer
     ? `SELECT
          COALESCE(SUM(amount_paise), 0) as total_collected,
@@ -88,9 +88,9 @@ ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safe
   const member = await memberRepo.findById(parsed.data.memberId);
   if (!member) return jsonErr('Member not found', 404);
 
-  const trainerId = ctx.user!.role === 'TRAINER' ? ctx.user!.id : parsed.data.trainerId;
+  const trainerId = (!ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff')) ? ctx.user!.id : parsed.data.trainerId;
   const trainer: any = await ctx.env.DB.prepare(
-    `SELECT id, name FROM users WHERE id = ? AND gym_id = ? AND role IN ('TRAINER', 'OWNER', 'MANAGER') AND deleted_at IS NULL`
+    `SELECT id, name FROM users WHERE id = ? AND gym_id = ? AND deleted_at IS NULL LIMIT 1`
   ).bind(trainerId, ctx.gymId!).first();
   if (!trainer) return jsonErr('Trainer not found in this gym', 404);
 
@@ -123,7 +123,7 @@ ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safe
   return jsonOk({ id: Number(res.meta?.last_row_id ?? 0), receiptNumber, commissionPaise }, 201);
 }));
 
-ptRoutes.post('/collections/:id/settle', requireGym, requireRole('OWNER', 'MANAGER'), safeHandler(async (c) => {
+ptRoutes.post('/collections/:id/settle', requireGym, requirePermission('pt_collections', 'settle'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));

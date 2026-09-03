@@ -36,9 +36,9 @@ export const MemberDetailPage: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const canManage = user?.role === 'OWNER' || user?.role === 'MANAGER';
+  const canManage = user?.isOwner;
   const canRecord =
-    user?.role === 'OWNER' || user?.role === 'MANAGER' || user?.role === 'STAFF';
+    user?.isOwner || user?.permissions?.includes('members');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['member', id],

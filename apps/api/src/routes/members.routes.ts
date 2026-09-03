@@ -7,7 +7,7 @@ import {
   RenewMembershipRequestSchema,
   FreezeMemberRequestSchema,
 } from '@gymtech/shared';
-import { requireGym, requireFeature, requireRole } from '../middleware/auth';
+import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { calculateFreezeExtension } from '../lib/calculations';
@@ -146,7 +146,7 @@ memberRoutes.put('/:id', requireGym, safeHandler(async (c) => {
 }));
 
 // ----- Soft delete -----
-memberRoutes.delete('/:id', requireGym, requireFeature('members'), requireRole('OWNER', 'MANAGER'), safeHandler(async (c) => {
+memberRoutes.delete('/:id', requireGym, requireFeature('members'), requirePermission('members', 'delete'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
@@ -161,7 +161,7 @@ memberRoutes.delete('/:id', requireGym, requireFeature('members'), requireRole('
 
 // ----- GDPR Article 17 erasure (right to be forgotten) -----
 // DELETE /members/:id/personal-data — OWNER only — wipes all personal data, deletes comms logs, clears biometric
-memberRoutes.delete('/:id/personal-data', requireGym, requireFeature('members'), requireRole('OWNER'), safeHandler(async (c) => {
+memberRoutes.delete('/:id/personal-data', requireGym, requireFeature('members'), requirePermission('members', 'erase'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
@@ -183,7 +183,7 @@ memberRoutes.delete('/:id/personal-data', requireGym, requireFeature('members'),
 
 // ----- Data portability export (GDPR Article 20) -----
 // GET /members/:id/export — returns all personal data for the member
-memberRoutes.get('/:id/export', requireGym, requireFeature('members'), requireRole('OWNER', 'MANAGER'), safeHandler(async (c) => {
+memberRoutes.get('/:id/export', requireGym, requireFeature('members'), requirePermission('members', 'export'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const id = paramId(c.req.param() as Record<string, string>);
@@ -209,7 +209,7 @@ memberRoutes.get('/:id/export', requireGym, requireFeature('members'), requireRo
 }));
 
 // ----- Restore -----
-memberRoutes.post('/:id/restore', requireGym, requireFeature('members'), requireRole('OWNER'), safeHandler(async (c) => {
+memberRoutes.post('/:id/restore', requireGym, requireFeature('members'), requirePermission('members', 'restore'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const licenseService = new LicenseService(ctx.env.DB, ctx.gymId!);
@@ -251,7 +251,7 @@ memberRoutes.post('/:id/renew', requireGym, requireFeature('members'), safeHandl
 }));
 
 // ----- Freeze -----
-memberRoutes.post('/:id/freeze', requireGym, requireRole('OWNER', 'MANAGER'), safeHandler(async (c) => {
+memberRoutes.post('/:id/freeze', requireGym, requirePermission('members', 'freeze'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -284,7 +284,7 @@ memberRoutes.post('/:id/freeze', requireGym, requireRole('OWNER', 'MANAGER'), sa
 }));
 
 // ----- Unfreeze -----
-memberRoutes.post('/:id/unfreeze', requireGym, requireRole('OWNER', 'MANAGER'), safeHandler(async (c) => {
+memberRoutes.post('/:id/unfreeze', requireGym, requirePermission('members', 'unfreeze'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const member: any = await ctx.env.DB.prepare(`SELECT * FROM members WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`).bind(id, ctx.gymId!).first();

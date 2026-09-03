@@ -293,9 +293,42 @@
 
   /* "Press" button micro-interaction. */
   .press {
-    transition: transform 80ms var(--ease-out-soft), background-color 120ms var(--ease-out-soft);
+    transition: transform 80ms var(--ease-out-soft), background-color 120ms var(--ease-out-soft), box-shadow 120ms var(--ease-out-soft);
   }
-  .press:active { transform: translateY(0.5px); }
+  .press:active { transform: scale(0.975); }
+
+  /* Card hover lift — subtle depth on interaction. */
+  .card-hover-lift {
+    transition: transform 200ms var(--ease-out-soft), box-shadow 200ms var(--ease-out-soft), border-color 200ms var(--ease-out-soft);
+  }
+  .card-hover-lift:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* Page enter — fade + slight upward slide. */
+  @keyframes gt-page-in {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .gt-page-enter { animation: gt-page-in 280ms var(--ease-out-soft) both; }
+
+  /* Skeleton shimmer — premium, slow, layered. */
+  .gt-skel {
+    background: linear-gradient(
+      90deg,
+      var(--surface-2) 0%,
+      var(--line-2) 40%,
+      var(--surface-2) 60%,
+      var(--surface-2) 100%
+    );
+    background-size: 200% 100%;
+    animation: gt-skel 2s var(--ease-in-out-soft) infinite;
+  }
+  @keyframes gt-skel {
+    0%   { background-position: 100% 0; }
+    100% { background-position: -100% 0; }
+  }
 }
 
 /* =========================================================================
@@ -380,6 +413,11 @@
     background-color: var(--surface);
     border: 1px solid var(--line);
     border-radius: 12px;
+    transition: box-shadow 180ms var(--ease-out-soft), border-color 180ms var(--ease-out-soft), transform 180ms var(--ease-out-soft);
+  }
+  .gt-card:hover {
+    box-shadow: var(--shadow-sm);
+    border-color: var(--line-2);
   }
 
   .gt-section-label {

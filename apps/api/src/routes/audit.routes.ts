@@ -1,6 +1,6 @@
 // filepath: apps/api/src/routes/audit.routes.ts
 import { Hono } from 'hono';
-import { requireGym, requireRole } from '../middleware/auth';
+import { requireGym, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
 import { AuditService } from '../services/audit.service';
@@ -8,7 +8,7 @@ import { jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './hel
 
 export const auditRoutes = new Hono();
 
-auditRoutes.get('/', requireGym, requireRole('OWNER'), safeHandler(async (c) => {
+auditRoutes.get('/', requireGym, requirePermission('audit_logs'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'audit');
   const action = c.req.query('action') || undefined;

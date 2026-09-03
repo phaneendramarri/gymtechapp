@@ -322,7 +322,7 @@ const TriggerRow: React.FC<{
   onToggle: (v: boolean) => void;
   footer?: React.ReactNode;
 }> = ({ title, desc, enabled, onToggle, footer }) => (
-  <li className="py-4 border-t border-(--line-2) first:border-t-0">
+  <li className="py-4 border-t border-line-2 first:border-t-0">
     <div className="flex items-start justify-between gap-4">
       <div className="min-w-0">
         <p className="text-sm text-ink font-medium">{title}</p>
@@ -340,7 +340,7 @@ const PreviewChat: React.FC<{ label: string; tone: 'ok' | 'info' | 'muted'; body
       className={cn(
         'text-[10px] uppercase tracking-wider font-semibold mb-2',
         tone === 'ok' && 'text-(--positive)',
-        tone === 'info' && 'text-(--info)',
+        tone === 'info' && 'text-info',
         tone === 'muted' && 'text-ink-3'
       )}
     >

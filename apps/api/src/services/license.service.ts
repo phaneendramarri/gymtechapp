@@ -60,6 +60,7 @@ export class LicenseService {
 
   /**
    * Verify if the gym can add another manager.
+   * Count all non-owner gym users (anyone with is_owner = 0).
    */
   async checkManagerLimit(): Promise<LimitCheckResult> {
     const license = await this.getLicense();
@@ -68,7 +69,7 @@ export class LicenseService {
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND role = 'MANAGER' AND deleted_at IS NULL AND status = 'ACTIVE'`)
+      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND is_owner = 0 AND deleted_at IS NULL AND status = 'ACTIVE'`)
       .bind(this.gymId)
       .first<{ count: number }>();
     const current = countRes?.count || 0;
@@ -78,7 +79,7 @@ export class LicenseService {
         allowed: false,
         current,
         max: license.max_managers,
-        reason: `Manager limit reached (${current}/${license.max_managers}).`,
+        reason: `User limit reached (${current}/${license.max_managers}).`,
       };
     }
 
@@ -87,6 +88,7 @@ export class LicenseService {
 
   /**
    * Verify if the gym can add another staff/trainer.
+   * Count all non-owner gym users (anyone with is_owner = 0).
    */
   async checkStaffLimit(): Promise<LimitCheckResult> {
     const license = await this.getLicense();
@@ -95,7 +97,7 @@ export class LicenseService {
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND role IN ('MANAGER','STAFF','TRAINER') AND deleted_at IS NULL AND status = 'ACTIVE'`)
+      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND is_owner = 0 AND deleted_at IS NULL AND status = 'ACTIVE'`)
       .bind(this.gymId)
       .first<{ count: number }>();
     const current = countRes?.count || 0;
@@ -105,7 +107,7 @@ export class LicenseService {
         allowed: false,
         current,
         max: license.max_staff_total,
-        reason: `Staff limit reached (${current}/${license.max_staff_total}).`,
+        reason: `User limit reached (${current}/${license.max_staff_total}).`,
       };
     }
 

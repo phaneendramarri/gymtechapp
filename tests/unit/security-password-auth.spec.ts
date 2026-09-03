@@ -134,6 +134,8 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
         name: 'Arjun Singh',
         role: 'STAFF',
         gymId: 2,
+        isOwner: false,
+        permissions: [],
       });
       expect((sessionUser as any).exp).toBeUndefined();
     });

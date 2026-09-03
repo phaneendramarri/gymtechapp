@@ -1,13 +1,13 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '@/lib/auth';
-import { UserRole } from '@gymtech/shared';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
   requireSuperAdmin?: boolean;
   allowMember?: boolean;
-  allowedRoles?: UserRole[];
+  /** Required permission keys — user must have ALL of them (AND logic). Owner bypasses all. */
+  requiredPermissions?: string[];
   requiredFeature?: string;
 }
 
@@ -15,7 +15,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   children,
   requireSuperAdmin = false,
   allowMember = false,
-  allowedRoles,
+  requiredPermissions,
   requiredFeature,
 }) => {
   const { user, gym, isLoading } = useAuth();
@@ -50,14 +50,19 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/admin" replace />;
   }
 
-  // Feature authorization guard
+  // Feature authorization guard — gates on gym plan features (e.g. PT disabled)
   if (requiredFeature && gym?.enabled_features && !gym.enabled_features.includes(requiredFeature as any)) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Role authorization guard
-  if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(user.role)) {
-    return <Navigate to="/dashboard" replace />;
+  // Permission guard — owner (isOwner) bypasses all; otherwise all requiredPermissions must be present
+  if (requiredPermissions && requiredPermissions.length > 0) {
+    if (!user.isOwner) {
+      const hasAll = requiredPermissions.every((perm) => user.permissions?.includes(perm));
+      if (!hasAll) {
+        return <Navigate to="/dashboard" replace />;
+      }
+    }
   }
 
   return <>{children}</>;

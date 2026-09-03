@@ -1,7 +1,7 @@
 // filepath: apps/api/src/routes/plans.routes.ts
 import { Hono } from 'hono';
 import { CreatePlanRequestSchema, UpdatePlanRequestSchema } from '@gymtech/shared';
-import { requireGym, requireFeature, requireRole } from '../middleware/auth';
+import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { PlanRepository } from '../repositories/plan.repository';
@@ -18,7 +18,7 @@ planRoutes.get('/', requireGym, requireFeature('plans'), safeHandler(async (c) =
   return jsonOk({ plans: await planRepo.listAll() });
 }));
 
-planRoutes.post('/', requireGym, requireFeature('plans'), requireRole('OWNER'), safeHandler(async (c) => {
+planRoutes.post('/', requireGym, requireFeature('plans'), requirePermission('plans'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreatePlanRequestSchema.safeParse(body);
@@ -36,7 +36,7 @@ planRoutes.post('/', requireGym, requireFeature('plans'), requireRole('OWNER'), 
   return jsonOk(created, 201);
 }));
 
-planRoutes.put('/:id', requireGym, requireFeature('plans'), requireRole('OWNER'), safeHandler(async (c) => {
+planRoutes.put('/:id', requireGym, requireFeature('plans'), requirePermission('plans'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -63,7 +63,7 @@ planRoutes.put('/:id', requireGym, requireFeature('plans'), requireRole('OWNER')
   return jsonOk(after);
 }));
 
-planRoutes.delete('/:id', requireGym, requireFeature('plans'), requireRole('OWNER'), safeHandler(async (c) => {
+planRoutes.delete('/:id', requireGym, requireFeature('plans'), requirePermission('plans'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const planRepo = new PlanRepository(ctx.env.DB, ctx.gymId!);
@@ -74,7 +74,7 @@ planRoutes.delete('/:id', requireGym, requireFeature('plans'), requireRole('OWNE
   return jsonOk({ success: true, message: 'Plan archived successfully.' });
 }));
 
-planRoutes.post('/:id/restore', requireGym, requireFeature('plans'), requireRole('OWNER'), safeHandler(async (c) => {
+planRoutes.post('/:id/restore', requireGym, requireFeature('plans'), requirePermission('plans'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const planRepo = new PlanRepository(ctx.env.DB, ctx.gymId!);

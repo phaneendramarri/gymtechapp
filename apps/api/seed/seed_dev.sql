@@ -45,23 +45,25 @@ INSERT OR IGNORE INTO licenses (
 -- SHA-256('admin123') = 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9
 -- Stored as legacy `sha256$<hex>`. AuthService lazily rehashes to Argon2id
 -- on the first successful login.
-INSERT OR IGNORE INTO users (id, gym_id, name, email, phone, password_hash, password_algo, role, status, permissions, created_at, updated_at)
+-- is_owner = 1 marks the primary gym owner (the only one with full permissions).
+INSERT OR IGNORE INTO users (id, gym_id, name, email, phone, password_hash, password_algo, role, status, permissions, is_owner, created_at, updated_at)
 VALUES
 (1, 1, 'Vikram Rathore', 'admin@ironhouse.in', '9876543210',
    'sha256$240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'sha256',
-   'OWNER', 'ACTIVE', '{}', unixepoch(), unixepoch());
+   'OWNER', 'ACTIVE', '{}', 1, unixepoch(), unixepoch());
 
--- Gym Staff & Trainer
--- NOTE: both staff and trainer use the dev-only password 'admin123' for
--- convenience. SHA-256('admin123') is the same hex as the owner.
-INSERT OR IGNORE INTO users (id, gym_id, name, email, phone, password_hash, password_algo, role, status, permissions, created_at, updated_at)
-VALUES
-(2, 1, 'Anjali Sharma', 'staff@ironhouse.in', '9876543215',
-   'sha256$240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'sha256',
-   'STAFF', 'ACTIVE', '{}', unixepoch(), unixepoch()),
-(3, 1, 'Karan Verma', 'trainer@ironhouse.in', '9876543216',
-   'sha256$240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'sha256',
-   'TRAINER', 'ACTIVE', '{}', unixepoch(), unixepoch());
+-- Owner has ALL menu permissions (granted to themselves)
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES
+(1, 'dashboard', 1, unixepoch()),
+(1, 'members',    1, unixepoch()),
+(1, 'attendance',  1, unixepoch()),
+(1, 'payments',   1, unixepoch()),
+(1, 'pt_collections', 1, unixepoch()),
+(1, 'plans',     1, unixepoch()),
+(1, 'staff',     1, unixepoch()),
+(1, 'reports',   1, unixepoch()),
+(1, 'settings',  1, unixepoch()),
+(1, 'audit_logs',1, unixepoch());
 
 -- Gym Membership Plans
 INSERT OR IGNORE INTO membership_plans (id, gym_id, name, description, duration_months, price_paise, admission_fee_paise, tax_percentage, is_active, created_at, updated_at)

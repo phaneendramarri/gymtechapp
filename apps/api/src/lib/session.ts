@@ -19,6 +19,10 @@ export interface UserSessionPayload {
   name: string;
   role: UserRole;
   gymId: number | null;
+  /** True for the gym's primary owner account */
+  isOwner: boolean;
+  /** Menu permission keys granted to this user */
+  permissions: string[];
   exp: number;
   iss?: string;
   aud?: string;
@@ -160,6 +164,8 @@ export function payloadToSessionUser(p: UserSessionPayload): SessionUser {
     name: p.name,
     role: p.role,
     gymId: p.gymId,
+    isOwner: p.isOwner ?? false,
+    permissions: p.permissions ?? [],
     jti: p.jti,
   };
 }

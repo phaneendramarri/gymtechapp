@@ -223,7 +223,7 @@ export const CreateStaffRequestSchema = z.object({
   email: z.string().email('Valid email required'),
   phone: z.string().min(10, 'Valid phone required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
-  role: z.enum(['MANAGER', 'STAFF', 'TRAINER']),
+  /** Array of permission keys to grant this user (e.g. ['members', 'attendance', 'payments']) */
   permissions: z.array(z.string()).default([]),
 });
 export type CreateStaffRequest = z.infer<typeof CreateStaffRequestSchema>;

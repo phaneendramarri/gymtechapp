@@ -13,7 +13,7 @@
  *   - `attendance_date` is YYYYMMDD INTEGER.
  *   - Composite FKs (gym_id, id) mirror the DB-level tenant invariants.
  */
-import { sqliteTable, integer, text, real, uniqueIndex, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, integer, text, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
 
 // ============================================================
 // 1. platform_admins
@@ -93,9 +93,10 @@ export const users = sqliteTable('users', {
   email: text('email').notNull(),
   phone: text('phone'),
   passwordHash: text('password_hash').notNull(),
-  role: text('role', { enum: ['OWNER', 'MANAGER', 'STAFF', 'TRAINER', 'MEMBER'] }).notNull(),
+  role: text('role', { enum: ['OWNER', 'MEMBER'] }).notNull(),
   status: text('status', { enum: ['ACTIVE', 'DISABLED'] }).notNull().default('ACTIVE'),
   permissions: text('permissions').notNull().default('{}'),
+  isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
   lastLoginAt: integer('last_login_at'),
   passwordAlgo: text('password_algo', { enum: ['sha256', 'argon2id'] }).notNull().default('sha256'),
   failedLoginCount: integer('failed_login_count').notNull().default(0),
@@ -105,8 +106,20 @@ export const users = sqliteTable('users', {
   deletedAt: integer('deleted_at'),
 }, (t) => ({
   gymEmailUq: uniqueIndex('users_gym_email_unique').on(t.gymId, t.email),
-  gymRoleIdx: index('idx_users_gym_role').on(t.gymId, t.role),
+  gymOwnerIdx: index('idx_users_gym_owner').on(t.gymId, t.isOwner),
   gymStatusIdx: index('idx_users_gym_status').on(t.gymId, t.status, t.deletedAt),
+}));
+
+// ============================================================
+// 5. user_permissions
+// ============================================================
+export const userPermissions = sqliteTable('user_permissions', {
+  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  permissionKey: text('permission_key').notNull(),
+  grantedBy: integer('granted_by').notNull(),
+  grantedAt: integer('granted_at').notNull(),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.userId, t.permissionKey] }),
 }));
 
 // ============================================================

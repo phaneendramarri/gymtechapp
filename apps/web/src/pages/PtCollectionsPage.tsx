@@ -109,7 +109,7 @@ export const PtCollectionsPage: React.FC = () => {
   });
 
   const collections = collectionsData?.collections || [];
-  const canManage = user?.role === 'OWNER' || user?.role === 'MANAGER';
+  const canManage = user?.isOwner;
   const formValid = form.memberId && form.trainerId && parseFloat(form.amount || '0') > 0;
 
   return (

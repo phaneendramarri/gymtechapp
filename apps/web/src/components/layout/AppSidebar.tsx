@@ -35,16 +35,14 @@ import {
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/shared/Logo';
 import { useRecentRoutes } from '@/hooks/useRecentRoutes';
-import type { UserRole } from '@gymtech/shared';
-
-type NavRole = 'OWNER' | 'MANAGER' | 'STAFF' | 'TRAINER' | 'PLATFORM_ADMIN';
 
 interface NavItem {
   key: string;
   label: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles: NavRole[];
+  /** Permission keys required to see this nav item. Owner bypasses all checks. */
+  permissions: string[];
   shortcut?: string;
   badge?: string;
 }
@@ -61,32 +59,29 @@ interface AppSidebarProps {
   onCloseMobile: () => void;
 }
 
-const ALL: NavRole[] = ['OWNER', 'MANAGER', 'STAFF', 'TRAINER'];
-const STAFF: NavRole[] = ['OWNER', 'MANAGER', 'STAFF'];
-
 const navGroups: NavGroup[] = [
   {
     items: [
-      { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, roles: ALL, shortcut: '1' },
+      { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, permissions: ['dashboard'], shortcut: '1' },
     ],
   },
   {
     label: 'Operate',
     items: [
-      { key: 'members', label: 'Members', href: '/members', icon: Users, roles: ALL, shortcut: '2' },
-      { key: 'attendance', label: 'Floor', href: '/attendance', icon: CalendarCheck, roles: ALL, shortcut: '3' },
-      { key: 'payments', label: 'Payments', href: '/payments', icon: CreditCard, roles: STAFF, shortcut: '5' },
-      { key: 'pt', label: 'PT Collections', href: '/pt-collections', icon: Trophy, roles: ['OWNER', 'MANAGER', 'TRAINER'] as NavRole[] },
+      { key: 'members', label: 'Members', href: '/members', icon: Users, permissions: ['members'], shortcut: '2' },
+      { key: 'attendance', label: 'Floor', href: '/attendance', icon: CalendarCheck, permissions: ['attendance'], shortcut: '3' },
+      { key: 'payments', label: 'Payments', href: '/payments', icon: CreditCard, permissions: ['payments'], shortcut: '5' },
+      { key: 'pt', label: 'PT Collections', href: '/pt-collections', icon: Trophy, permissions: ['pt_collections'] },
     ],
   },
   {
     label: 'Configure',
     items: [
-      { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, roles: ['OWNER', 'MANAGER'] as NavRole[] },
-      { key: 'staff', label: 'Staff', href: '/staff', icon: UserCog, roles: ['OWNER'] as NavRole[] },
-      { key: 'reports', label: 'Reports', href: '/reports', icon: BarChart3, roles: ['OWNER'] as NavRole[] },
-      { key: 'settings', label: 'Settings', href: '/settings/notifications', icon: Settings, roles: ['OWNER'] as NavRole[] },
-      { key: 'settings', label: 'Audit Logs', href: '/audit-logs', icon: History, roles: ['OWNER'] as NavRole[] },
+      { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, permissions: ['plans'] },
+      { key: 'staff', label: 'Staff', href: '/staff', icon: UserCog, permissions: ['staff'] },
+      { key: 'reports', label: 'Reports', href: '/reports', icon: BarChart3, permissions: ['reports'] },
+      { key: 'settings', label: 'Settings', href: '/settings/notifications', icon: Settings, permissions: ['settings'] },
+      { key: 'audit_logs', label: 'Audit Logs', href: '/audit-logs', icon: History, permissions: ['audit_logs'] },
     ],
   },
 ];
@@ -104,8 +99,15 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
   const isAllowed = (item: NavItem) => {
     if (!user) return false;
-    if (user.role === 'PLATFORM_ADMIN') return false;
-    if (!item.roles.includes(user.role as UserRole as NavRole)) return false;
+    if (user.role === 'PLATFORM_ADMIN') return true;
+
+    // Owners have access to everything
+    if (user.isOwner) return true;
+
+    // Check: does the user have ALL required permission keys for this nav item?
+    if (!item.permissions.every((perm) => user.permissions?.includes(perm))) {
+      return false;
+    }
 
     // Feature gating check: if gym has enabled_features specified, verify item is enabled
     if (gym?.enabled_features && item.key) {

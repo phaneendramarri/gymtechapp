@@ -24,7 +24,7 @@ paymentRoutes.get('/', requireGym, requireFeature('payments'), safeHandler(async
   const [payments, total, summary] = await Promise.all([
     paymentRepo.list({ limit, offset, memberId: memberIdNum }),
     paymentRepo.count({ memberId: memberIdNum }),
-    ctx.user?.role === 'MANAGER'
+    (!ctx.user?.isOwner && !ctx.user?.permissions?.includes('payments'))
       ? Promise.resolve({ monthlyRevenue: 0, pendingDues: 0 })
       : paymentRepo.getSummaryMetrics(),
   ]);

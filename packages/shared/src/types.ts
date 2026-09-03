@@ -343,6 +343,10 @@ export interface SessionUser {
   name: string
   role: UserRole
   gymId: number | null
+  /** True for the gym's primary owner account */
+  isOwner: boolean
+  /** Menu permission keys granted to this user (e.g. dashboard, members, attendance …) */
+  permissions: string[]
   /** jti of the current access token — used for server-side session revocation */
   jti?: string
 }

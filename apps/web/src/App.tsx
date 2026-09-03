@@ -1,6 +1,19 @@
 import React, { lazy, Suspense } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'framer-motion';
+
+// Smooth page-transition wrapper — wraps every route's content element.
+const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+  <motion.div
+    initial={{ opacity: 0, y: 6 }}
+    animate={{ opacity: 1, y: 0 }}
+    exit={{ opacity: 0, y: -4 }}
+    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+  >
+    {children}
+  </motion.div>
+);
 import { ThemeProvider } from './lib/theme';
 import { AuthProvider } from './lib/auth';
 import { ToastProvider } from './components/ui/toast';
@@ -56,141 +69,173 @@ export const App: React.FC = () => {
           <ToastProvider>
           <BrowserRouter>
             <Suspense fallback={<RouteSkeleton />}>
-              <Routes>
-                {/* Public Routes — loaded immediately */}
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <AnimatePresence mode="wait" initial={false}>
+                <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
+                  {/* Public Routes — loaded immediately */}
+                  <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+                  <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+                  <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
 
-                {/* Gym Owner & Staff Routes — lazy loaded */}
-                <Route
-                  path="/dashboard"
-                  element={
-                    <ProtectedRoute requiredFeature="dashboard">
-                      <DashboardPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/members"
-                  element={
-                    <ProtectedRoute requiredFeature="members" allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
-                      <MembersPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/members/new"
-                  element={
-                    <ProtectedRoute requiredFeature="members" allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
-                      <NewMemberPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/members/:id"
-                  element={
-                    <ProtectedRoute requiredFeature="members" allowedRoles={['OWNER', 'MANAGER', 'STAFF', 'TRAINER']}>
-                      <MemberDetailPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/members/:id/renew"
-                  element={
-                    <ProtectedRoute requiredFeature="members" allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
-                      <RenewMemberPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/payments"
-                  element={
-                    <ProtectedRoute requiredFeature="payments" allowedRoles={['OWNER', 'MANAGER', 'STAFF']}>
-                      <PaymentsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/pt-collections"
-                  element={
-                    <ProtectedRoute requiredFeature="pt_collections" allowedRoles={['OWNER', 'MANAGER', 'TRAINER']}>
-                      <PtCollectionsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/attendance"
-                  element={
-                    <ProtectedRoute requiredFeature="attendance" allowedRoles={['OWNER', 'MANAGER', 'STAFF', 'TRAINER']}>
-                      <AttendancePage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/plans"
-                  element={
-                    <ProtectedRoute requiredFeature="plans" allowedRoles={['OWNER', 'MANAGER']}>
-                      <PlansPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/staff"
-                  element={
-                    <ProtectedRoute requiredFeature="staff" allowedRoles={['OWNER']}>
-                      <StaffPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/reports"
-                  element={
-                    <ProtectedRoute requiredFeature="reports" allowedRoles={['OWNER']}>
-                      <ReportsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/settings/notifications"
-                  element={
-                    <ProtectedRoute requiredFeature="settings" allowedRoles={['OWNER']}>
-                      <SettingsNotificationsPage />
-                    </ProtectedRoute>
-                  }
-                />
-                <Route
-                  path="/audit-logs"
-                  element={
-                    <ProtectedRoute allowedRoles={['OWNER']}>
-                      <AuditLogsPage />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Gym Owner & Staff Routes — lazy loaded */}
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="dashboard">
+                          <DashboardPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/members"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="members" requiredPermissions={['members']}>
+                          <MembersPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/members/new"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="members" requiredPermissions={['members']}>
+                          <NewMemberPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/members/:id"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="members" requiredPermissions={['members']}>
+                          <MemberDetailPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/members/:id/renew"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="members" requiredPermissions={['members']}>
+                          <RenewMemberPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/payments"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="payments" requiredPermissions={['payments']}>
+                          <PaymentsPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/pt-collections"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="pt_collections" requiredPermissions={['pt_collections']}>
+                          <PtCollectionsPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/attendance"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="attendance" requiredPermissions={['attendance']}>
+                          <AttendancePage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/plans"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="plans" requiredPermissions={['plans']}>
+                          <PlansPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/staff"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="staff" requiredPermissions={['staff']}>
+                          <StaffPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/reports"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="reports" requiredPermissions={['reports']}>
+                          <ReportsPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/settings/notifications"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredFeature="settings" requiredPermissions={['settings']}>
+                          <SettingsNotificationsPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/audit-logs"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredPermissions={['audit_logs']}>
+                          <AuditLogsPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
 
-                {/* Platform Super Admin Route */}
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute requireSuperAdmin={true}>
-                      <AdminPage />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Platform Super Admin Route */}
+                  <Route
+                    path="/admin"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requireSuperAdmin={true}>
+                          <AdminPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
 
-                {/* Member Self-Service Portal Route */}
-                <Route
-                  path="/portal"
-                  element={
-                    <ProtectedRoute allowMember={true}>
-                      <MemberPortalPage />
-                    </ProtectedRoute>
-                  }
-                />
+                  {/* Member Self-Service Portal Route */}
+                  <Route
+                    path="/portal"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute allowMember={true}>
+                          <MemberPortalPage />
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
 
-                {/* Fallback */}
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Routes>
+                  {/* Fallback */}
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </AnimatePresence>
             </Suspense>
           </BrowserRouter>
           </ToastProvider>

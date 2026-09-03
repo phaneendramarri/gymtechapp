@@ -94,7 +94,6 @@ export const DashboardPage: React.FC = () => {
   });
 
   const now = new Date();
-  const isManager = user?.role === 'MANAGER';
   const firstName = user?.name?.split(' ')[0];
 
   const mtd = (metrics?.monthlyRevenue || 0) / 100;
@@ -274,12 +273,12 @@ export const DashboardPage: React.FC = () => {
             foot={expiring.length > 0 ? `${expiring.length} expiring in 7 days` : 'All healthy'}
           />
           <StripCell
-            label={isManager ? 'At-risk' : 'Outstanding dues'}
-            value={isManager ? atRisk.length : compactNumber(pending)}
-            prefix={isManager ? undefined : '₹'}
-            tone={isManager ? (atRisk.length > 0 ? 'warn' : 'default') : pending > 0 ? 'warn' : 'default'}
+            label={user?.isOwner ? 'At-risk' : 'Outstanding dues'}
+            value={user?.isOwner ? atRisk.length : compactNumber(pending)}
+            prefix={user?.isOwner ? undefined : '₹'}
+            tone={user?.isOwner ? (atRisk.length > 0 ? 'warn' : 'default') : pending > 0 ? 'warn' : 'default'}
             foot={
-              isManager
+              user?.isOwner
                 ? atRisk.length > 0
                   ? 'Inactive 14+ days'
                   : 'None flagged'
