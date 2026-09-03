@@ -1,4 +1,5 @@
 import React from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { Users, Send, Snowflake, UserMinus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -17,9 +18,11 @@ interface MemberTableProps {
 }
 
 export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) => {
+  const navigate = useNavigate();
   const { toast } = useToast()
   const [pendingDelete, setPendingDelete] = React.useState<any | null>(null)
   const [pendingFreeze, setPendingFreeze] = React.useState<any | null>(null)
+
 
   if (members.length === 0 && !isLoading) {
     return (
@@ -31,7 +34,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
             description="Add your first member to start tracking attendance, plans, and payments."
             action={
               <Button asChild className="font-semibold">
-                <a href="/members/new">Add your first member</a>
+                <Link to="/members/new">Add your first member</Link>
               </Button>
             }
             onboardingSteps={[
@@ -56,21 +59,21 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
         const initials = `${m.firstName?.[0] || 'M'}${m.lastName?.[0] || ''}`.toUpperCase()
         return (
           <div className="flex items-center gap-3 min-w-0">
-            <div className="size-8.5 rounded-lg bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-display text-xs font-bold shrink-0 overflow-hidden shadow-2xs">
+            <span className="gt-avatar" data-size="sm">
               {m.photoUrl ? (
                 <img src={m.photoUrl} alt={m.firstName} className="size-full object-cover" />
               ) : (
                 initials
               )}
-            </div>
+            </span>
             <div className="flex flex-col min-w-0">
-              <a
-                href={`/members/${m.id}`}
-                className="font-semibold text-xs text-foreground hover:text-primary transition-colors truncate"
+              <Link
+                to={`/members/${m.id}`}
+                className="text-sm font-medium text-ink hover:text-(--iron) transition-colors truncate"
               >
                 {m.firstName} {m.lastName || ''}
-              </a>
-              <span className="text-[10px] font-mono text-muted-foreground">{m.memberCode}</span>
+              </Link>
+              <span className="text-[10px] font-mono text-ink-3">{m.memberCode}</span>
             </div>
           </div>
         )
@@ -82,8 +85,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       header: 'Contact',
       cell: (m) => (
         <div className="flex flex-col text-xs font-mono">
-          <span className="text-foreground">{m.phone}</span>
-          {m.email && <span className="text-muted-foreground text-meta truncate">{m.email}</span>}
+          <span className="text-ink">{m.phone}</span>
+          {m.email && <span className="text-meta truncate">{m.email}</span>}
         </div>
       ),
     },
@@ -93,28 +96,22 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       sortAccessor: (m) => m.planName || '',
       cell: (m) => {
         if (!m.membershipEndDate) {
-          return <span className="text-xs text-muted-foreground">{m.planName || 'No plan'}</span>
+          return <span className="text-xs text-meta">{m.planName || 'No plan'}</span>
         }
         const isExpired = m.membershipEndDate < nowSec
         const daysRemaining = Math.ceil((m.membershipEndDate - nowSec) / 86400)
         return (
           <div className="flex flex-col gap-1 text-xs">
-            <span className="font-semibold text-foreground">{m.planName || 'No Plan'}</span>
-            <span className="text-[10px] font-mono text-muted-foreground">
+            <span className="font-medium text-ink">{m.planName || 'No Plan'}</span>
+            <span className="text-[10px] font-mono text-ink-3">
               {m.membershipStartDate ? new Date(m.membershipStartDate * 1000).toLocaleDateString('en-IN') : '—'} → {new Date(m.membershipEndDate * 1000).toLocaleDateString('en-IN')}
             </span>
             {isExpired ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-destructive/10 text-destructive border border-destructive/30 w-fit">
-                EXPIRED
-              </span>
+              <span className="gt-chip" data-tone="danger">EXPIRED</span>
             ) : daysRemaining <= 7 ? (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/30 w-fit">
-                Expiring ({daysRemaining}d)
-              </span>
+              <span className="gt-chip" data-tone="warn">Expiring {daysRemaining}d</span>
             ) : (
-              <span className="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-ok/10 text-ok border border-ok/30 w-fit">
-                Active ({daysRemaining}d)
-              </span>
+              <span className="gt-chip" data-tone="ok">Active {daysRemaining}d</span>
             )}
           </div>
         )
@@ -137,11 +134,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       numeric: true,
       cell: (m) =>
         m.membership_due_amount_paise > 0 ? (
-          <span className="text-destructive font-bold text-xs">
+          <span className="text-sm font-semibold text-(--danger)">
             {formatCurrency(m.membership_due_amount_paise)}
           </span>
         ) : (
-          <span className="text-muted-foreground text-xs">₹0</span>
+          <span className="text-meta">₹0</span>
         ),
     },
     {
@@ -221,8 +218,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
         selectable
         bulkActions={bulkActions}
         rowActions={rowActions}
-        onView={(m) => { window.location.hash = `/members/${m.id}` }}
-        onEdit={(m) => { window.location.hash = `/members/${m.id}/edit` }}
+        onView={(m) => { navigate(`/members/${m.id}`); }}
+        onEdit={(m) => { navigate(`/members/${m.id}`); }}
         isLoading={isLoading}
         defaultSort={{ id: 'name', direction: 'asc' }}
         pageSize={25}

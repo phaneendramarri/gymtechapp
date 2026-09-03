@@ -1,31 +1,59 @@
-name: Deploy to GitHub Pages
+name: Deploy
 
-# DISABLED — GymTech API runs on Cloudflare Workers, not GitHub Pages.
-# GitHub Pages cannot serve the Hono API routes (/api/*). The SPA's
-# client-side routing (/dashboard/*, /members/*) also requires a server
-# that handles history-api fallbacks — not available on static hosting.
+# Deploys the GymTech monorepo to Cloudflare Workers + Static Assets.
 #
-# To re-enable: change to `push: branches: [main]` and set
-# VITE_API_BASE_URL as a Pages environment variable (it should point
-# to your Cloudflare Workers endpoint, e.g. https://api.gymtech.app).
+# Two jobs run sequentially on every push to `main`:
+#   1. deploy-staging    — Worker named `gymtech-staging` + D1 `gymtechapp-d1-staging`
+#   2. deploy-production — Worker named `gymtech`           + D1 `gymtechapp-d1-prod`
+#
+# Pipeline per job:
+#   1. Install deps (frozen lockfile)
+#   2. Type-check + lint + unit tests (mirrors ci.yml quality job)
+#   3. Apply D1 migrations to the remote D1 database for that env
+#      (idempotent — wrangler skips already-applied migrations)
+#   4. Build the Vite SPA
+#   5. wrangler deploy --env <name>
+#
+# `workflow_dispatch` lets you re-run either env from the GitHub UI
+# without touching the other one. Choose "production" carefully — there
+# is no automatic rollback.
+#
+# Required GitHub repository secrets (Settings → Secrets and variables →
+# Actions → New repository secret):
+#   CLOUDFLARE_API_TOKEN       — scoped to Workers / D1 / KV / Pages deploy
+#   CLOUDFLARE_ACCOUNT_ID      — account id from the Cloudflare dashboard
+#
+# The KV namespace ids (env.staging + env.production) in wrangler.jsonc
+# MUST be replaced before this workflow will succeed.
+
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which environment to deploy'
+        required: true
+        type: 'choice'
+        default: 'staging'
+        options:
+          - staging
+          - production
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: 'pages'
-  cancel-in-progress: true
 
 jobs:
-  build-and-deploy:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  deploy-staging:
+    name: Deploy to Cloudflare (staging)
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'staging'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: staging
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -33,31 +61,142 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 20
+          cache: pnpm
 
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 9
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build Shared & Web Packages
+      - name: Verify Cloudflare secrets are configured
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN is not set. Add it as a repository secret." >&2
+            exit 1
+          fi
+          if [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_ACCOUNT_ID is not set. Add it as a repository secret." >&2
+            exit 1
+          fi
+
+      - name: Verify staging KV namespace binding is not a placeholder
+        run: |
+          if grep -q "REPLACE_WITH_STAGING_KV_NAMESPACE_ID" wrangler.jsonc; then
+            echo "::error::wrangler.jsonc still contains the staging KV placeholder. Run 'wrangler kv:namespace create RATELIMIT_KV --env staging' and update wrangler.jsonc." >&2
+            exit 1
+          fi
+          if grep -q "REPLACE_WITH_STAGING_KV_PREVIEW_NAMESPACE_ID" wrangler.jsonc; then
+            echo "::error::wrangler.jsonc still contains the staging KV preview placeholder. Run 'wrangler kv:namespace create RATELIMIT_KV --preview --env staging' and update wrangler.jsonc." >&2
+            exit 1
+          fi
+          if grep -q "REPLACE_WITH_STAGING_D1_DATABASE_ID" wrangler.jsonc; then
+            echo "::error::wrangler.jsonc still contains the staging D1 placeholder. Create 'gymtechapp-d1-staging' and update wrangler.jsonc." >&2
+            exit 1
+          fi
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Apply D1 migrations to staging database
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            d1 migrations apply gymtechapp-d1-staging --remote
+            --config wrangler.jsonc --env staging
+
+      - name: Build SPA
         run: |
           pnpm --filter @gymtech/shared build
-          pnpm --filter @gymtech/web build
-        env:
-          VITE_API_BASE_URL: ${{ secrets.VITE_API_BASE_URL }}
+          pnpm --filter @gymtech/web build --mode staging
 
-      - name: Setup GitHub Pages
-        uses: actions/configure-pages@v6
-
-      - name: Upload Pages Artifact
-        uses: actions/upload-pages-artifact@v3
+      - name: Deploy Worker + Assets (staging)
+        uses: cloudflare/wrangler-action@v3
         with:
-          path: ./apps/web/dist
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.jsonc --env staging
+          workingDirectory: .
 
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+  deploy-production:
+    name: Deploy to Cloudflare (production)
+    needs: deploy-staging
+    if: github.event_name != 'workflow_dispatch' || inputs.target == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: production
+      url: https://gymtech.app
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify production KV namespace binding is not a placeholder
+        run: |
+          if grep -q "REPLACE_WITH_PROD_KV_NAMESPACE_ID" wrangler.jsonc; then
+            echo "::error::wrangler.jsonc still contains the production KV placeholder. Run 'wrangler kv:namespace create RATELIMIT_KV --env production' and update wrangler.jsonc." >&2
+            exit 1
+          fi
+          if grep -q "REPLACE_WITH_PROD_KV_PREVIEW_NAMESPACE_ID" wrangler.jsonc; then
+            echo "::error::wrangler.jsonc still contains the production KV preview placeholder. Run 'wrangler kv:namespace create RATELIMIT_KV --preview --env production' and update wrangler.jsonc." >&2
+            exit 1
+          fi
+
+      - name: Type check
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test
+
+      - name: Apply D1 migrations to production database
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: >-
+            d1 migrations apply gymtechapp-d1-prod --remote
+            --config wrangler.jsonc --env production
+
+      - name: Build SPA
+        run: |
+          pnpm --filter @gymtech/shared build
+          pnpm --filter @gymtech/web build --mode production
+
+      - name: Deploy Worker + Assets (production)
+        uses: cloudflare/wrangler-action@v3
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          command: deploy --config wrangler.jsonc --env production
+          workingDirectory: .

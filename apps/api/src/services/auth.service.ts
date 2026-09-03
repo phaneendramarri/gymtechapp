@@ -41,7 +41,13 @@ export class AuthService {
 
   async login(email: string, passwordPlain: string): Promise<{ token: string; refreshToken: string; user: SessionUser; gym?: Gym | null }> {
     const user = await this.userRepo.findByEmail(email);
-    if (!user) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
+    if (!user) {
+      const admin = await this.userRepo.findPlatformAdminByEmail(email);
+      if (admin) {
+        return this.loginPlatformAdmin(email, passwordPlain);
+      }
+      throw new Error(GENERIC_INVALID_CREDENTIALS);
+    }
     if (user.status !== 'ACTIVE') { throw new Error('This account has been deactivated or suspended'); }
     if (isAccountLocked(user.failedLoginCount, user.lockedUntil)) { throw new Error(GENERIC_INVALID_CREDENTIALS); }
 
@@ -60,7 +66,9 @@ export class AuthService {
     if (isLegacyHash(user.passwordHash)) {
       try {
         const newHash = await hashPassword(passwordPlain);
-        await this.userRepo.upgradePasswordHash(user.id, user.gymId, newHash, 'argon2id');
+        if (newHash.startsWith('$argon2id$')) {
+          await this.userRepo.upgradePasswordHash(user.id, user.gymId, newHash, 'argon2id');
+        }
       } catch (err) { console.error('Lazy rehash failed for user', user.id, err); }
     }
 
@@ -118,7 +126,9 @@ export class AuthService {
     if (isLegacyHash(admin.passwordHash)) {
       try {
         const newHash = await hashPassword(passwordPlain);
-        await this.userRepo.upgradePlatformAdminPasswordHash(admin.id, newHash, 'argon2id');
+        if (newHash.startsWith('$argon2id$')) {
+          await this.userRepo.upgradePlatformAdminPasswordHash(admin.id, newHash, 'argon2id');
+        }
       } catch (err) { console.error('Lazy rehash failed for platform admin', admin.id, err); }
     }
 

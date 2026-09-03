@@ -64,8 +64,8 @@ INSERT INTO menu_groups (key, label, icon, "order", is_active, created_at, updat
 INSERT INTO menu_items (group_key, key, label, href, icon, "order", permissions, feature_key, admin_only, is_active, created_at, updated_at) VALUES
   ('members', 'members_list',      'All Members',       '/members',             'Users',      10, '["members"]',                              null, 0, 1, unixepoch(), unixepoch()),
   ('members', 'member_add',        'Add Member',         '/members/new',        'UserPlus',   20, '["members","add"]',                       null, 0, 1, unixepoch(), unixepoch()),
-  ('members', 'member_detail',     'Member Detail',      '/members/:id',        'Users',      30, '["members"]',                             null, 0, 1, unixepoch(), unixepoch()),
-  ('members', 'member_renew',      'Renew Member',       '/members/:id/renew',   'Tag',        40, '["members"]',                             null, 0, 1, unixepoch(), unixepoch()),
+  ('members', 'member_detail',     'Member Detail',      null,                  'Users',      30, '["members"]',                             null, 0, 1, unixepoch(), unixepoch()),
+  ('members', 'member_renew',      'Renew Member',       null,                  'Tag',        40, '["members"]',                             null, 0, 1, unixepoch(), unixepoch()),
   ('members', 'member_export',     'Export Members',     '/members/export',      'Download',   50, '["members","export"]',                    null, 0, 1, unixepoch(), unixepoch()),
   ('members', 'member_freeze',     'Freeze Member',      null,                  'Snowflake',  60, '["members","freeze"]',                    null, 0, 1, unixepoch(), unixepoch()),
   ('members', 'member_unfreeze',   'Unfreeze Member',    null,                  'Snowflake',  70, '["members","unfreeze"]',                  null, 0, 1, unixepoch(), unixepoch()),
@@ -84,7 +84,7 @@ INSERT INTO menu_items (group_key, key, label, href, icon, "order", permissions,
 INSERT INTO menu_items (group_key, key, label, href, icon, "order", permissions, feature_key, admin_only, is_active, created_at, updated_at) VALUES
   ('payments', 'payments_list',     'All Payments',    '/payments',          'CreditCard', 10, '["payments"]',                           null, 0, 1, unixepoch(), unixepoch()),
   ('payments', 'payment_add',       'Record Payment',   '/payments/new',       'Receipt',    20, '["payments","add"]',                    null, 0, 1, unixepoch(), unixepoch()),
-  ('payments', 'payment_detail',    'Payment Detail',   '/payments/:id',      'CreditCard', 30, '["payments"]',                           null, 0, 1, unixepoch(), unixepoch()),
+  ('payments', 'payment_detail',    'Payment Detail',   null,                 'CreditCard', 30, '["payments"]',                           null, 0, 1, unixepoch(), unixepoch()),
   ('payments', 'payment_invoice',   'View Invoice',      null,                 'FileText',   40, '["payments"]',                           null, 0, 1, unixepoch(), unixepoch());
 
 -- PT Collections group
@@ -96,18 +96,19 @@ INSERT INTO menu_items (group_key, key, label, href, icon, "order", permissions,
 INSERT INTO menu_items (group_key, key, label, href, icon, "order", permissions, feature_key, admin_only, is_active, created_at, updated_at) VALUES
   ('plans', 'plans_list',    'All Plans',    '/plans',      'Tag',   10, '["plans"]',               null, 0, 1, unixepoch(), unixepoch()),
   ('plans', 'plan_add',      'Add Plan',     '/plans/new',  'Plus',  20, '["plans","add"]',         null, 0, 1, unixepoch(), unixepoch()),
-  ('plans', 'plan_detail',   'Plan Detail',  '/plans/:id',  'Tag',   30, '["plans"]',               null, 0, 1, unixepoch(), unixepoch()),
+  ('plans', 'plan_detail',   'Plan Detail',  null,          'Tag',   30, '["plans"]',               null, 0, 1, unixepoch(), unixepoch()),
   ('plans', 'plan_restore',  'Restore Plan', null,          'RotateCcw', 40, '["plans","restore"]', null, 0, 1, unixepoch(), unixepoch());
 
 -- Staff & Roles group
 INSERT INTO menu_items (group_key, key, label, href, icon, "order", permissions, feature_key, admin_only, is_active, created_at, updated_at) VALUES
   ('staff', 'staff_list',    'Team',           '/staff',           'UserCog',      10, '["staff"]',                null, 0, 1, unixepoch(), unixepoch()),
   ('staff', 'staff_add',     'Add Staff',      '/staff/new',       'UserPlus',     20, '["staff","add"]',          null, 0, 1, unixepoch(), unixepoch()),
-  ('staff', 'staff_detail',  'Staff Detail',   '/staff/:id',       'UserCog',      30, '["staff"]',                null, 0, 1, unixepoch(), unixepoch()),
+  ('staff', 'staff_detail',  'Staff Detail',   null,               'UserCog',      30, '["staff"]',                null, 0, 1, unixepoch(), unixepoch()),
   ('staff', 'staff_restore', 'Restore Staff',  null,               'RotateCcw',   40, '["staff","restore"]',       null, 0, 1, unixepoch(), unixepoch()),
   ('staff', 'roles_list',    'Roles',          '/staff/roles',     'ShieldCheck', 50, '["staff"]',                null, 0, 1, unixepoch(), unixepoch()),
   ('staff', 'role_add',      'Add Role',       '/staff/roles/new', 'Shield',      60, '["staff","add"]',          null, 0, 1, unixepoch(), unixepoch()),
-  ('staff', 'role_edit',     'Edit Role',      '/staff/roles/:id', 'ShieldCheck', 70, '["staff","edit"]',         null, 0, 1, unixepoch(), unixepoch());
+  ('staff', 'role_edit',     'Edit Role',      null,               'ShieldCheck', 70, '["staff","edit"]',         null, 0, 1, unixepoch(), unixepoch());
+
 
 -- Reports group
 INSERT INTO menu_items (group_key, key, label, href, icon, "order", permissions, feature_key, admin_only, is_active, created_at, updated_at) VALUES

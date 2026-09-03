@@ -28,7 +28,9 @@ function collectQueries(): QueryHit[] {
     let m: RegExpExecArray | null;
     while ((m = re.exec(src))) {
       const lineNo = src.substring(0, m.index).split('\n').length;
-      hits.push({ file: f, line: lineNo, sql: m[1] });
+      if (m[1]) {
+        hits.push({ file: f, line: lineNo, sql: m[1] });
+      }
     }
   }
   return hits;
@@ -40,13 +42,21 @@ const TENANT_TABLES = [
   'user_sessions', 'user_password_resets', 'audit_events', 'gym_features',
   'communication_logs',
 ];
-const NON_TENANT_QUERIES: Array<{ file: string; line: number; reason: string }> = [
+const NON_TENANT_QUERIES: Array<{ file: string; match: (q: QueryHit) => boolean; reason: string }> = [
   // The `gyms` table is its own tenant — gyms.id == gyms.gym_id, so a
-  // `WHERE id = ctx.gymId` predicate is sufficient tenant isolation.
-  { file: 'settings.routes.ts', line: 62, reason: 'updates the current gym by primary key (id == gym_id)' },
+  // `WHERE id = ?` predicate is sufficient tenant isolation.
+  {
+    file: 'settings.routes.ts',
+    match: (q) => /UPDATE\s+gyms\s+SET.*WHERE\s+id\s*=/i.test(q.sql),
+    reason: 'updates the current gym by primary key (id == gym_id)',
+  },
   // Platform admin routes look up gyms across tenants by primary key — they
   // are guarded by `requireSuperAdminMiddleware` upstream.
-  { file: 'admin.routes.ts', line: 96, reason: 'platform-admin cross-tenant lookup of a gym by primary key' },
+  {
+    file: 'admin.routes.ts',
+    match: (q) => /FROM\s+gyms\s+WHERE\s+id\s*=/i.test(q.sql),
+    reason: 'platform-admin cross-tenant lookup of a gym by primary key',
+  },
 ];
 
 describe('Multi-tenant safety — raw SQL in routes', () => {
@@ -60,7 +70,7 @@ describe('Multi-tenant safety — raw SQL in routes', () => {
         if (!new RegExp(`\\b(?:FROM|INTO|UPDATE)\\s+${table}\\b`, 'i').test(q.sql)) continue;
         if (new RegExp(`\\b${table}\\.gym_id\\b`, 'i').test(q.sql)) continue;
         if (new RegExp(`\\bgym_id\\b`, 'i').test(q.sql)) continue;
-        if (NON_TENANT_QUERIES.some((e) => e.file === q.file && e.line === q.line)) continue;
+        if (NON_TENANT_QUERIES.some((e) => e.file === q.file && e.match(q))) continue;
         violations.push(`${q.file}:${q.line} → ${q.sql.substring(0, 90)}…`);
       }
     }

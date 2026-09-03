@@ -52,14 +52,17 @@ describe('Auth & Cryptographic Security', () => {
 
   it('creates and verifies valid session tokens', async () => {
     const user = {
-      id: 'usr_123',
+      id: 123,
       email: 'owner@gym.com',
       name: 'Gym Owner',
       role: 'OWNER' as const,
-      gymId: 'gym_abc',
+      gymId: 1,
+      isOwner: true,
+      permissions: ['dashboard', 'members'],
+      roleId: null,
     };
 
-      const { token } = await createSessionToken(user, secret, { expiresInSeconds: 3600 });
+    const { token } = await createSessionToken(user, secret, { expiresInSeconds: 3600 });
     expect(token).toBeTruthy();
     expect(token.split('.').length).toBe(3);
 
@@ -73,11 +76,14 @@ describe('Auth & Cryptographic Security', () => {
 
   it('rejects expired tokens', async () => {
     const user = {
-      id: 'usr_expired',
+      id: 456,
       email: 'expired@gym.com',
       name: 'Expired User',
-      role: 'STAFF' as const,
-      gymId: 'gym_abc',
+      role: 'MEMBER' as const,
+      gymId: 1,
+      isOwner: false,
+      permissions: [],
+      roleId: null,
     };
 
     // Expire immediately (negative duration, -86400 = 1 day ago regardless of clock)
@@ -88,11 +94,14 @@ describe('Auth & Cryptographic Security', () => {
 
   it('rejects tokens signed with a different secret', async () => {
     const user = {
-      id: 'usr_forged',
+      id: 999,
       email: 'forged@gym.com',
       name: 'Forged User',
-      role: 'SUPER_ADMIN' as const,
+      role: 'PLATFORM_ADMIN' as const,
       gymId: null,
+      isOwner: false,
+      permissions: [],
+      roleId: null,
     };
 
     const { token } = await createSessionToken(user, 'secret-a', { expiresInSeconds: 3600 });
@@ -102,17 +111,20 @@ describe('Auth & Cryptographic Security', () => {
 
   it('rejects tampered token payloads', async () => {
     const user = {
-      id: 'usr_normal',
+      id: 789,
       email: 'normal@gym.com',
       name: 'Normal User',
-      role: 'STAFF' as const,
-      gymId: 'gym_abc',
+      role: 'MEMBER' as const,
+      gymId: 1,
+      isOwner: false,
+      permissions: [],
+      roleId: null,
     };
 
     const { token } = await createSessionToken(user, secret, { expiresInSeconds: 3600 });
     const parts = token.split('.');
     // Tamper with middle part (payload)
-    const tamperedPayload = btoa(JSON.stringify({ ...user, role: 'SUPER_ADMIN', exp: Math.floor(Date.now() / 1000) + 3600 }))
+    const tamperedPayload = btoa(JSON.stringify({ ...user, role: 'PLATFORM_ADMIN', exp: Math.floor(Date.now() / 1000) + 3600 }))
       .replace(/=/g, '')
       .replace(/\+/g, '-')
       .replace(/\//g, '_');

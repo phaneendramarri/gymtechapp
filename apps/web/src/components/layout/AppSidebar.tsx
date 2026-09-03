@@ -1,5 +1,5 @@
 import React from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -95,7 +95,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     // Group/parent node (has children) — only show if there are visible children
     if (node.children && node.children.length > 0) {
       const visibleChildren = node.children.filter(
-        (child) => !child.adminOnly || user?.role === 'PLATFORM_ADMIN',
+        (child) =>
+          (!child.adminOnly || user?.role === 'PLATFORM_ADMIN') &&
+          (!child.href || !child.href.includes(':'))
       );
       if (visibleChildren.length === 0) return null;
 
@@ -121,11 +123,15 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               </TooltipTrigger>
               <TooltipContent side="right" className="text-xs flex flex-col gap-1">
                 <p className="font-semibold">{node.label}</p>
-                {visibleChildren.map((child) => (
-                  <a key={child.key} href={child.href} className="hover:text-foreground">
-                    {child.label}
-                  </a>
-                ))}
+                {visibleChildren.map((child) =>
+                  child.href ? (
+                    <Link key={child.key} to={child.href} className="hover:text-foreground">
+                      {child.label}
+                    </Link>
+                  ) : (
+                    <span key={child.key} className="text-muted-foreground">{child.label}</span>
+                  )
+                )}
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
@@ -143,14 +149,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       );
     }
 
-    // Leaf node (no children) — skip if no href
-    if (!node.href) return null;
+    // Leaf node (no children) — skip if no href or if href has dynamic :id params
+    if (!node.href || node.href.includes(':')) return null;
 
     const IconComponent = resolveIcon(node.icon);
     const active = isActive(node.href);
     const content = (
-      <a
-        href={node.href}
+      <Link
+        to={node.href}
         className={cn(
           'gt-nav-link',
           mode === 'rail' ? 'justify-center' : '',
@@ -173,8 +179,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             {node.shortcut}
           </kbd>
         )}
-      </a>
+      </Link>
     );
+
 
     if (collapsed && mode === 'rail') {
       return (

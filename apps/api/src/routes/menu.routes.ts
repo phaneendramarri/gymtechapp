@@ -16,6 +16,9 @@ menuRoutes.get('/', requireAuth, async (c) => {
   const ctx = getCtx(c);
 
   if (!ctx.gymId) {
+    if (ctx.user?.role === 'PLATFORM_ADMIN') {
+      return jsonOk({ menu: [] });
+    }
     return jsonErr('Gym context required', 403);
   }
 

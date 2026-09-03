@@ -38,6 +38,23 @@ coverage/
 .env
 .env.*
 !.env.example
+# Per-machine secret overrides (never committed)
+.env.staging.local
+.env.production.local
+.env.development.local
+
+# Cloudflare Wrangler — secrets & local dev state.
+# `.dev.vars` is the Wrangler equivalent of `.env` for `wrangler dev` and
+# contains secret keys (JWT_SECRET, TURNSTILE_SECRET_KEY, etc.).
+# `*.pem` / `*.key` covers ad-hoc key files used for local signing.
+.dev.vars
+.dev.vars.*
+.wrangler/
+.dev/
+.cloudflare/
+*.pem
+*.key
+!*.pub.key
 
 # IDE & System
 .vscode/
@@ -49,3 +66,14 @@ coverage/
 *.sw?
 .DS_Store
 Thumbs.db
+
+# Database seed files & credentials
+apps/api/seed/seed_production.sql
+apps/api/seed/update_hash.sql
+apps/api/seed/*prod*.sql
+apps/api/seed/*hash*.sql
+seed_*.sql
+*.seed.sql
+temp_*.sql
+*.dump.sql
+

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { LandingNavbar } from '@/components/landing/LandingNavbar';
 import { HeroSection } from '@/components/landing/HeroSection';
+import { BentoGrid } from '@/components/landing/BentoGrid';
 import { GymOSFlow } from '@/components/landing/GymOSFlow';
 import { HowItWorks } from '@/components/landing/HowItWorks';
 import { PricingSection } from '@/components/landing/PricingSection';
@@ -50,6 +51,9 @@ export const LandingPage: React.FC = () => {
 
       <main className="flex-1 flex flex-col">
         <HeroSection />
+
+        {/* Bento grid — all features at a glance. */}
+        <BentoGrid />
 
         {/* "What you actually do with it" — three concrete workflows. */}
         <GymOSFlow />

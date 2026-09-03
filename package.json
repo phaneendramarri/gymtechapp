@@ -7,6 +7,8 @@
     "dev": "pnpm --filter @gymtech/shared build && concurrently -k -n web,api -c blue,magenta \"pnpm --filter @gymtech/web dev\" \"pnpm --filter @gymtech/api dev\"",
     "dev:web": "pnpm --filter @gymtech/web dev",
     "dev:api": "pnpm --filter @gymtech/api dev",
+    "dev:api:staging": "WRANGLER_ENV=staging pnpm --filter @gymtech/api dev",
+    "dev:api:production": "WRANGLER_ENV=production pnpm --filter @gymtech/api dev",
     "build": "pnpm --filter @gymtech/shared build && pnpm --filter @gymtech/web build && pnpm --filter @gymtech/api build",
     "build:web": "pnpm --filter @gymtech/shared build && pnpm --filter @gymtech/web build",
     "build:api": "pnpm --filter @gymtech/shared build && pnpm --filter @gymtech/api build",
@@ -15,9 +17,13 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "db:migrate:local": "pnpm --filter @gymtech/api db:migrate:local",
+    "db:migrate:staging": "pnpm --filter @gymtech/api db:migrate:staging",
+    "db:migrate:production": "pnpm --filter @gymtech/api db:migrate:production",
     "db:seed:local": "pnpm --filter @gymtech/api db:seed:local",
     "db:schema:pull:local": "pnpm --filter @gymtech/api db:schema:pull:local",
-    "deploy": "pnpm build && wrangler deploy",
+    "deploy:staging": "pnpm build && wrangler deploy --env staging",
+    "deploy:production": "pnpm build && wrangler deploy --env production",
+    "deploy": "pnpm deploy:production",
     "preview": "pnpm build && wrangler dev"
   },
   "engines": {

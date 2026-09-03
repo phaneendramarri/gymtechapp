@@ -246,13 +246,13 @@ export function DataTable<T>({
       )}
 
       {/* Table surface */}
-      <div className="rounded-lg border border-border bg-card overflow-hidden">
+      <div className="gt-table-wrapper">
         <div className="relative w-full overflow-auto">
-          <table className="w-full caption-bottom text-sm">
-            <thead className="bg-secondary/30 border-b border-border sticky top-0 z-[1]">
+          <table className="gt-table">
+            <thead className="gt-table-thead">
               <tr>
                 {selectable && (
-                  <th className="h-11 px-3 w-10 align-middle">
+                  <th className="gt-table-th w-10">
                     <Checkbox
                       checked={someOnPageSelected ? "indeterminate" : allOnPageSelected}
                       onCheckedChange={toggleAllOnPage}
@@ -268,9 +268,9 @@ export function DataTable<T>({
                       key={col.id}
                       scope="col"
                       className={cn(
-                        "h-11 px-4 text-left align-middle text-micro text-muted-foreground",
+                        "gt-table-th",
                         col.numeric && "text-right",
-                        canSort && "cursor-pointer select-none hover:text-foreground transition-colors",
+                        canSort && "sortable",
                         col.headerClassName,
                         col.widthClass
                       )}
@@ -279,7 +279,7 @@ export function DataTable<T>({
                       <span className={cn("inline-flex items-center gap-1.5", col.numeric && "justify-end w-full")}>
                         {col.header}
                         {canSort && (
-                          <span className="text-muted-foreground/70">
+                          <span className="sort-icon">
                             {isSorted ? (
                               sort?.direction === "asc" ? (
                                 <ArrowUp className="size-3" />
@@ -287,7 +287,7 @@ export function DataTable<T>({
                                 <ArrowDown className="size-3" />
                               )
                             ) : (
-                              <ArrowUpDown className="size-3 opacity-0 group-hover:opacity-100" />
+                              <ArrowUpDown className="size-3" />
                             )}
                           </span>
                         )}
@@ -296,7 +296,7 @@ export function DataTable<T>({
                   )
                 })}
                 {showActionsColumn && (
-                  <th scope="col" className="h-11 px-3 w-12 text-right align-middle text-micro text-muted-foreground">
+                  <th scope="col" className="gt-table-th w-12 text-right">
                     <span className="sr-only">Actions</span>
                   </th>
                 )}
@@ -305,19 +305,19 @@ export function DataTable<T>({
             <tbody>
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <tr key={`sk-${i}`} className="border-b border-border">
+                  <tr key={`sk-${i}`} className="gt-table-tr">
                     {Array.from({ length: totalColCount }).map((__, j) => (
-                      <td key={j} className="px-4 py-3">
-                        <div className="h-4 rounded bg-muted/60 shimmer-effect" />
+                      <td key={j} className="gt-table-td">
+                        <div className="gt-skel h-4 w-full" />
                       </td>
                     ))}
                   </tr>
                 ))
               ) : sorted.length === 0 ? (
                 <tr>
-                  <td colSpan={totalColCount} className="p-0">
+                  <td colSpan={totalColCount} className="gt-table-td">
                     {emptyState ?? (
-                      <div className="py-12 text-center text-xs text-muted-foreground font-mono">
+                      <div className="py-10 text-center text-meta font-mono">
                         No results.
                       </div>
                     )}
@@ -331,14 +331,14 @@ export function DataTable<T>({
                     <tr
                       key={key}
                       className={cn(
-                        "border-b border-border/60 transition-colors hover:bg-muted/40 group",
-                        density === "compact" && "[&>td]:py-2",
-                        isSelected && "bg-primary/5 hover:bg-primary/10"
+                        "gt-table-tr",
+                        density === "compact" && "compact",
+                        isSelected && "selected"
                       )}
                       data-state={isSelected ? "selected" : undefined}
                     >
                       {selectable && (
-                        <td className="px-3 align-middle w-10">
+                        <td className="gt-table-td w-10">
                           <Checkbox
                             checked={isSelected}
                             onCheckedChange={() => toggleOne(key)}
@@ -350,7 +350,7 @@ export function DataTable<T>({
                         <td
                           key={col.id}
                           className={cn(
-                            "px-4 align-middle text-sm-app",
+                            "gt-table-td",
                             col.numeric && "text-right",
                             col.cellClassName
                           )}
@@ -359,7 +359,7 @@ export function DataTable<T>({
                         </td>
                       ))}
                       {showActionsColumn && (
-                        <td className="px-3 align-middle text-right w-12">
+                        <td className="gt-table-td w-12 text-right">
                           <RowActionsMenu
                             row={row}
                             rowActions={rowActions}
@@ -377,7 +377,7 @@ export function DataTable<T>({
         </div>
 
         {/* Footer: pagination + density */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-t border-border bg-secondary/20 px-3 py-2 text-xs text-muted-foreground">
+        <div className="gt-table-footer">
           <div className="flex items-center gap-3">
             <span className="font-mono">
               {sorted.length === 0

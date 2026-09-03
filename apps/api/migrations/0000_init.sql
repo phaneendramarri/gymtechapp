@@ -17,7 +17,7 @@
 PRAGMA foreign_keys = ON;
 
 -- ============================================================================
--- 1. platform_admins  (SUPER_ADMIN login identities; no gym_id)
+-- 1. platform_admins  (SUPER_ADMIN login identities - no gym_id)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS platform_admins (
     id                  INTEGER PRIMARY KEY,
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS gyms (
 CREATE INDEX IF NOT EXISTS idx_gyms_status ON gyms(status, deleted_at);
 
 -- ============================================================================
--- 3. licenses  (one per gym; plan metadata lives here directly)
+-- 3. licenses  (one per gym - plan metadata lives here directly)
 --    No separate saas_plans table — each gym's plan is a self-contained row.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS licenses (
@@ -130,7 +130,7 @@ CREATE TABLE IF NOT EXISTS gym_settings (
 );
 
 -- ============================================================================
--- 6. membership_plans  (gym-level catalog; sold to members)
+-- 6. membership_plans  (gym-level catalog - sold to members)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS membership_plans (
     id                  INTEGER PRIMARY KEY,
@@ -365,7 +365,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_gym_action_created ON audit_events(gym_id, 
 CREATE INDEX IF NOT EXISTS idx_audit_gym_entity ON audit_events(gym_id, entity_type, entity_id);
 
 -- ============================================================================
--- 15. saas_audit_events  (platform-level audit log; no gym_id)
+-- 15. saas_audit_events  (platform-level audit log - no gym_id)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS saas_audit_events (
     id                INTEGER PRIMARY KEY,

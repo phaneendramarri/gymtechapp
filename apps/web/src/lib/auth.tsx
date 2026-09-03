@@ -16,7 +16,7 @@ interface AuthContextType {
   /** DB-driven menu tree, filtered by the user's role permissions. */
   menu: MenuNode[];
   isLoading: boolean;
-  login: (credentials: LoginRequest) => Promise<void>;
+  login: (credentials: LoginRequest) => Promise<any>;
   logout: () => Promise<void>;
 }
 
@@ -35,9 +35,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const initAuth = async () => {
       try {
-        const [meData, menuData] = await Promise.all([api.getMe(), api.getMenu()]);
+        const meData = await api.getMe();
         setUser(meData.user);
         if (meData.gym) setGym(meData.gym);
+
+        const menuData = await api.getMenu().catch(() => ({ menu: [] }));
         setMenu(menuData.menu ?? []);
       } catch (err) {
         // No valid session — cookie expired or absent. Stay logged out.
@@ -58,10 +60,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(res.user);
     setGym(res.gym || null);
     // Fetch menu after login — server returns pre-filtered menu per role
-    const menuData = await api.getMenu();
-    setMenu(menuData.menu ?? []);
-    // The server has set the httpOnly session cookie + CSRF cookie in
-    // the response. JS doesn't need to (and can't) read the session JWT.
+    try {
+      const menuData = await api.getMenu();
+      setMenu(menuData.menu ?? []);
+    } catch {
+      setMenu([]);
+    }
+    return res;
   };
 
   const logout = async () => {

@@ -18,11 +18,6 @@ VALUES
  'Road No 36, Jubilee Hills', 'Hyderabad', 'Telangana', '500033', '36AAAAA0000A1Z5',
  'INR', 'ACTIVE', unixepoch(), unixepoch());
 
--- Platform Super Admin (top-level tenant bypass)
--- password: admin123
--- Stored as legacy `sha256$<hex>` format. AuthService will lazily rehash
--- to Argon2id on the first successful login.
--- SHA-256('admin123') = 240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9
 INSERT OR IGNORE INTO platform_admins (id, email, password_hash, password_algo, name, status, created_at, updated_at)
 VALUES
 (1, 'admin@gymtech.app', 'sha256$240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9', 'sha256',

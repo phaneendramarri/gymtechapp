@@ -15,15 +15,22 @@ import { licenses, gyms, users, members, membershipPlans, gymFeatures } from '..
 export class AdminRepository {
   private licenseRepo: LicenseRepository;
   private db: Database;
+  private d1: D1Database;
 
   constructor(db: Database | D1Database) {
-    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+    if ((db as any).prepare) {
+      this.d1 = db as D1Database;
+      this.db = createDatabase(db as D1Database);
+    } else {
+      this.db = db as Database;
+      this.d1 = (db as any).$client || (db as any);
+    }
     // gymId doesn't matter for license repo since all license ops are by gymId param
     this.licenseRepo = new LicenseRepository(this.db, 0);
   }
 
   async listGyms(): Promise<any[]> {
-    const { results } = await (this.db as any).prepare(`
+    const { results } = await this.d1.prepare(`
       SELECT g.*,
              l.name as license_name,
              l.price_paise as license_price_paise,
@@ -44,7 +51,7 @@ export class AdminRepository {
   }
 
   async getPlatformMetrics() {
-    const { results: gymsResults } = await (this.db as any).prepare(`
+    const { results: gymsResults } = await this.d1.prepare(`
       SELECT
         COUNT(*) as total_gyms,
         SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_gyms,
@@ -52,11 +59,11 @@ export class AdminRepository {
       FROM gyms WHERE deleted_at IS NULL
     `).all();
 
-    const { results: membersResults } = await (this.db as any).prepare(`
+    const { results: membersResults } = await this.d1.prepare(`
       SELECT COUNT(*) as total_members FROM members WHERE deleted_at IS NULL
     `).all();
 
-    const { results: revResults } = await (this.db as any).prepare(`
+    const { results: revResults } = await this.d1.prepare(`
       SELECT SUM(amount_paise) as platform_revenue FROM payments WHERE status = 'COMPLETED'
     `).all();
 

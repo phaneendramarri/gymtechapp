@@ -188,21 +188,32 @@ export const DashboardPage: React.FC = () => {
           ============================================================ */}
       <motion.section
         {...fadeUp(0)}
-        className="flex flex-col gap-1 pt-10 pb-8 border-b border-(--line)"
+        className="pt-10 pb-8 border-b border-(--line)"
       >
-        <div className="flex items-center gap-3 flex-wrap">
-          <span className="gt-kicker">
-            <span className="size-1.5 rounded-full bg-(--iron)" /> Today at {gym?.name || 'your gym'}
-          </span>
+        {/* Eyebrow row */}
+        <div className="flex items-center gap-3 flex-wrap mb-3">
+          <span className="gt-kicker">{gym?.name || 'Your gym'}</span>
           {todayCount > 0 && (
             <span className="gt-live-pill">
-              {todayCount} on the floor now
+              {todayCount} checked in
             </span>
           )}
-          <span className="text-meta">
-            {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
-          </span>
         </div>
+
+        {/* Greeting — the primary heading */}
+        <h1 className="text-display text-ink leading-tight">
+          {greeting(now, firstName)}
+        </h1>
+
+        {/* Subtext */}
+        <p className="text-body text-ink-2 mt-2 max-w-xl">
+          {greetingLine(metrics)}
+        </p>
+
+        {/* Date */}
+        <p className="text-meta mt-3">
+          {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+        </p>
       </motion.section>
 
       {/* ============================================================
@@ -211,12 +222,9 @@ export const DashboardPage: React.FC = () => {
       <motion.section {...fadeUp(0.05)} className="pt-8">
         <header className="flex items-end justify-between gap-3 mb-4">
           <div>
-            <p className="gt-kicker gt-kicker-iron">Do these today</p>
-            <h2 className="text-h2 text-ink mt-1.5">Three things that move the needle</h2>
+            <p className="gt-kicker">Priorities</p>
+            <h2 className="text-h2 text-ink mt-1.5">Three things to prioritise</h2>
           </div>
-          <p className="text-meta hidden sm:block">
-            Updated <span className="num text-ink-2">{timeAgo(Math.floor(now.getTime() / 1000) - 30)}</span>
-          </p>
         </header>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

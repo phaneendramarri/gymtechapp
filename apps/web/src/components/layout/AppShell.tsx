@@ -83,37 +83,39 @@ export const AppShell: React.FC<AppShellProps> = ({
         />
 
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Page header */}
-          <header className="px-6 lg:px-10 pt-8 pb-6 border-b border-(--line)">
-            <div className="max-w-350 mx-auto flex flex-col gap-4">
-              {crumbs.length > 0 && (
-                <nav className="flex items-center gap-1.5 text-meta">
-                  {crumbs.map((c, i) => (
-                    <React.Fragment key={i}>
-                      {c.href ? (
-                        <a href={c.href} className="hover:text-ink transition-colors">
-                          {c.label}
-                        </a>
-                      ) : (
-                        <span className={cn(i === crumbs.length - 1 ? 'text-ink-2' : '')}>{c.label}</span>
-                      )}
-                      {i < crumbs.length - 1 && (
-                        <span className="text-(--line) select-none">/</span>
-                      )}
-                    </React.Fragment>
-                  ))}
-                </nav>
-              )}
-
-              <div className="flex items-start justify-between gap-6 flex-wrap">
-                <div className="min-w-0">
-                  <h1 className="text-h1 text-ink leading-none">{title}</h1>
-                  {description && (
-                    <p className="text-meta mt-2 max-w-2xl">{description}</p>
+          {/* Page header — clean, horizontal layout */}
+          <header className="px-6 lg:px-10 pt-7 pb-5 border-b border-(--line)">
+            <div className="max-w-350 mx-auto flex items-center justify-between gap-6">
+              <div className="min-w-0 flex-1">
+                {/* Breadcrumb */}
+                {crumbs.length > 0 && (
+                  <nav className="flex items-center gap-1.5 text-micro text-ink-3 mb-2">
+                    {crumbs.map((c, i) => (
+                      <React.Fragment key={i}>
+                        {c.href ? (
+                          <a href={c.href} className="hover:text-ink transition-colors">
+                            {c.label}
+                          </a>
+                        ) : (
+                          <span className={cn(i === crumbs.length - 1 ? 'text-ink-2' : '')}>{c.label}</span>
+                        )}
+                        {i < crumbs.length - 1 && (
+                          <span className="text-(--line) select-none">/</span>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </nav>
+                )}
+                {/* Title row */}
+                <div className="flex items-center gap-4">
+                  <h1 className="text-h2 text-ink leading-none truncate">{title}</h1>
+                  {actions && (
+                    <div className="flex items-center gap-2 shrink-0">{actions}</div>
                   )}
                 </div>
-                {actions && (
-                  <div className="flex items-center gap-2 shrink-0 flex-wrap">{actions}</div>
+                {/* Description */}
+                {description && (
+                  <p className="text-meta mt-1.5 max-w-2xl truncate">{description}</p>
                 )}
               </div>
             </div>

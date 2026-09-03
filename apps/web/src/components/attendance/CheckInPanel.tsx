@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useTransition } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Search,
   CheckCircle2,
@@ -358,12 +359,12 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
             {blockedMember?.id && (
               <div className="flex items-center gap-2 pt-1">
                 <Button asChild size="sm" className="bg-destructive text-white hover:bg-destructive/90 font-bold text-xs h-8">
-                  <a href={`/members/${blockedMember.id}/renew`}>
+                  <Link to={`/members/${blockedMember.id}/renew`}>
                     Renew Membership Now <ArrowRight className="size-3.5 ml-1" />
-                  </a>
+                  </Link>
                 </Button>
                 <Button asChild size="sm" variant="outline" className="text-xs h-8 border-destructive/40 text-destructive hover:bg-destructive/10">
-                  <a href={`/members/${blockedMember.id}`}>View Profile</a>
+                  <Link to={`/members/${blockedMember.id}`}>View Profile</Link>
                 </Button>
               </div>
             )}

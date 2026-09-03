@@ -168,7 +168,7 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   return next();
 };
 
-export function requireRole(...allowed: UserRole[]) {
+export function requireRole(...allowed: (UserRole | string)[]) {
   return async (c: AuthContext, next: () => Promise<void>) => {
     const ctx = getCtx(c);
     const err = checkRole(ctx, allowed);

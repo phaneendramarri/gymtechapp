@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { Check, ArrowRight, IndianRupee } from 'lucide-react';
+import { Check, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 const fadeUp = (delay = 0) => ({
-  initial: { opacity: 0, y: 6 },
+  initial: { opacity: 0, y: 8 },
   whileInView: { opacity: 1, y: 0 },
-  viewport: { once: true, margin: '-80px' },
-  transition: { duration: 0.32, delay, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+  viewport: { once: true, margin: '-60px' },
+  transition: { duration: 0.4, delay, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
 });
 
 interface Plan {
@@ -26,7 +26,7 @@ const PLANS: Plan[] = [
     blurb: 'For a single-floor gym, just getting online.',
     monthly: 1499,
     yearly: 14999,
-    cta: 'Start with Starter',
+    cta: 'Start free trial',
     features: [
       'Up to 100 active members',
       '3 staff logins',
@@ -38,10 +38,10 @@ const PLANS: Plan[] = [
   },
   {
     name: 'Pro',
-    blurb: 'For a busy gym with trainers and renewals.',
+    blurb: 'For a growing gym with trainers and renewals.',
     monthly: 3499,
     yearly: 34999,
-    cta: 'Choose Pro',
+    cta: 'Start free trial',
     highlight: true,
     features: [
       'Up to 500 active members',
@@ -71,109 +71,122 @@ const PLANS: Plan[] = [
   },
 ];
 
-const fmtRupees = (n: number) => '₹' + n.toLocaleString('en-IN');
+const fmtRupees = (n: number) => '\u20B9' + n.toLocaleString('en-IN');
 
 export const PricingSection: React.FC = () => {
   const [yearly, setYearly] = useState(false);
 
   return (
-    <section id="pricing" className="py-24 sm:py-32 border-t border-(--line) bg-(--surface)">
+    <section id="pricing" className="py-28 sm:py-40 border-t border-(--line) bg-(--bg)">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-        <motion.div {...fadeUp(0)} className="max-w-2xl mx-auto text-center mb-10">
+        {/* Header */}
+        <motion.div {...fadeUp(0)} className="max-w-2xl mx-auto text-center mb-16">
           <p className="gt-kicker">Pricing</p>
           <h2 className="text-h1 sm:text-display-serif-sm text-ink mt-3">
-            Simple, per-gym pricing.
+            Simple, honest pricing.
           </h2>
           <p className="text-body text-ink-2 mt-4">
-            All plans include the owner dashboard, QR attendance, and WhatsApp receipts. No setup fees, ever.
+            No seat fees. No surprise overages. One price per gym, every month.
           </p>
-        </motion.div>
 
-        {/* Toggle */}
-        <motion.div {...fadeUp(0.05)} className="flex items-center justify-center mb-10">
-          <div
-            role="tablist"
-            aria-label="Billing period"
-            className="inline-flex items-center gap-1 p-1 bg-(--surface-2) border border-(--line) rounded-lg"
-          >
-            {(['monthly', 'yearly'] as const).map((v) => {
-              const active = (v === 'yearly') === yearly;
-              return (
-                <button
-                  key={v}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  onClick={() => setYearly(v === 'yearly')}
-                  className={
-                    'px-3.5 h-8 text-xs font-medium rounded-md transition-colors inline-flex items-center gap-1.5 ' +
-                    (active
-                      ? 'bg-(--ink) text-(--ink-inverse)'
-                      : 'text-ink-2 hover:text-ink')
-                  }
-                >
-                  {v === 'monthly' ? 'Monthly' : 'Yearly'}
-                  {v === 'yearly' && (
-                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-(--positive-soft) text-(--positive)">
-                      Save 2 months
-                    </span>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+          {/* Toggle */}
+          <motion.div {...fadeUp(0.08)} className="flex items-center justify-center gap-3 mt-8">
+            <span className={`text-sm font-medium transition-colors ${!yearly ? 'text-ink' : 'text-ink-3'}`}>
+              Monthly
+            </span>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={yearly}
+              onClick={() => setYearly(!yearly)}
+              className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-(--line)"
+            >
+              <span
+                className={`inline-block size-4 rounded-full bg-(--surface) shadow-sm transition-transform ${
+                  yearly ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className={`text-sm font-medium transition-colors ${yearly ? 'text-ink' : 'text-ink-3'}`}>
+              Yearly
+            </span>
+            <span className="ml-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-(--positive-soft) text-(--positive)">
+              Save 2 months
+            </span>
+          </motion.div>
         </motion.div>
 
         {/* Plans */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-(--line) border border-(--line) rounded-2xl overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 lg:gap-8 items-start">
           {PLANS.map((p, idx) => (
             <motion.div
               key={p.name}
-              {...fadeUp(idx * 0.05)}
-              className={
-                'p-8 flex flex-col bg-(--surface) ' +
-                (p.highlight ? 'bg-(--bg)' : '')
-              }
+              {...fadeUp(idx * 0.07)}
+              className={`relative flex flex-col rounded-2xl border p-8 transition-shadow duration-300 hover:shadow-lg ${
+                p.highlight
+                  ? 'border-(--iron) bg-(--bg) shadow-[0_0_0_1px_var(--iron),0_8px_32px_rgba(217,72,15,0.10)]'
+                  : 'border-(--line) bg-(--surface) hover:border-(--ink-3)'
+              }`}
             >
-              <div className="flex items-center justify-between mb-4">
+              {/* Highlighted badge */}
+              {p.highlight && (
+                <div className="absolute -top-3.5 left-1/2 -translate-x-1/2">
+                  <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold font-mono px-3 py-1 rounded-full bg-(--iron) text-white shadow-sm">
+                    <span className="size-1.5 rounded-full bg-white animate-pulse" />
+                    Most popular
+                  </span>
+                </div>
+              )}
+
+              {/* Plan header */}
+              <div className="mb-6">
                 <h3 className="text-h3 text-ink">{p.name}</h3>
-                {p.highlight && (
-                  <span className="gt-tag" data-tone="iron">Most popular</span>
-                )}
+                <p className="text-[13px] text-ink-3 mt-1.5 leading-relaxed">{p.blurb}</p>
               </div>
-              <p className="text-[13px] text-ink-3 leading-relaxed min-h-[3em]">{p.blurb}</p>
 
-              <div className="mt-6 flex items-baseline gap-1.5">
-                <span className="text-display-serif-sm text-ink num">
-                  {fmtRupees(yearly ? p.yearly : p.monthly)}
-                </span>
-                <span className="text-[12px] text-ink-3">
-                  /{yearly ? 'year' : 'month'}
-                </span>
+              {/* Price */}
+              <div className="mb-1">
+                <div className="flex items-baseline gap-1">
+                  <span className="text-price text-ink num">
+                    {fmtRupees(yearly ? p.yearly : p.monthly)}
+                  </span>
+                  <span className="text-[13px] text-ink-3">
+                    /{yearly ? 'yr' : 'mo'}
+                  </span>
+                </div>
+                <p className="text-[11px] text-ink-3 mt-0.5">
+                  {yearly ? 'Billed annually' : 'Billed monthly · cancel anytime'}
+                </p>
               </div>
-              <p className="text-[11px] text-ink-3 mt-1">
-                {yearly ? 'Billed annually' : 'Billed monthly · cancel anytime'}
-              </p>
 
+              {/* CTA */}
               <Button
                 asChild
-                className={
-                  'mt-6 h-10 gap-1.5 rounded-lg font-medium ' +
-                  (p.highlight
-                    ? 'bg-iron hover:bg-iron-hover text-white border-transparent shadow-sm'
-                    : 'bg-(--surface) text-ink hover:bg-(--surface-2) border-(--line)')
-                }
+                className={`mt-6 h-11 gap-2 rounded-xl font-semibold text-[14px] transition-all ${
+                  p.highlight
+                    ? 'bg-(--iron) hover:bg-(--iron-hover) text-white shadow-[0_4px_16px_rgba(217,72,15,0.25)] hover:shadow-[0_6px_24px_rgba(217,72,15,0.35)] active:scale-[0.98]'
+                    : 'bg-(--surface-2) hover:bg-(--ink) text-ink hover:text-(--ink-inverse) border border-(--line)'
+                }`}
               >
                 <a href="/login">
                   {p.cta}
-                  <ArrowRight className="h-3.5 w-3.5" />
+                  <ArrowRight className="h-4 w-4" />
                 </a>
               </Button>
 
-              <ul className="mt-7 flex flex-col gap-2.5">
+              {/* Divider */}
+              <div className="my-7 border-t border-(--line)" />
+
+              {/* Features */}
+              <ul className="flex flex-col gap-3 flex-1">
                 {p.features.map((f) => (
-                  <li key={f} className="flex items-start gap-2 text-[13px] text-ink-2">
-                    <Check className="h-3.5 w-3.5 text-(--positive) shrink-0 mt-0.5" />
+                  <li key={f} className="flex items-start gap-2.5 text-[13px] text-ink-2">
+                    <span className={`shrink-0 mt-0.5 rounded-full p-0.5 ${p.highlight ? 'bg-(--iron-soft)' : 'bg-(--positive-soft)'}`}>
+                      <Check
+                        className={`h-3 w-3 ${p.highlight ? 'text-(--iron)' : 'text-(--positive)'}`}
+                        strokeWidth={2.5}
+                      />
+                    </span>
                     <span>{f}</span>
                   </li>
                 ))}
@@ -182,8 +195,12 @@ export const PricingSection: React.FC = () => {
           ))}
         </div>
 
-        <p className="mt-6 text-center text-[12px] text-ink-3">
-          All prices in INR, exclusive of GST. Need a custom plan? <a href="/contact" className="text-ink underline underline-offset-2">Talk to us</a>.
+        {/* Footer note */}
+        <p className="mt-12 text-center text-[13px] text-ink-3">
+          All prices in INR, exclusive of GST.{' '}
+          <a href="/contact" className="text-ink underline underline-offset-2 hover:text-(--iron) transition-colors">
+            Need a custom plan?
+          </a>
         </p>
       </div>
     </section>

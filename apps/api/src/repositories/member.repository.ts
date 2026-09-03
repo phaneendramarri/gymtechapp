@@ -19,9 +19,16 @@ export function todayYyyymmdd(): number {
 
 export class MemberRepository {
   private db: Database;
+  private d1: D1Database;
 
   constructor(db: Database | D1Database, private gymId: number) {
-    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+    if ((db as any).prepare) {
+      this.d1 = db as D1Database;
+      this.db = createDatabase(db as D1Database);
+    } else {
+      this.db = db as Database;
+      this.d1 = (db as any).$client || (db as any);
+    }
   }
 
   async list(params: {
@@ -103,7 +110,7 @@ export class MemberRepository {
       LIMIT ${limit} OFFSET ${offset}
     `;
 
-    const { results } = await (this.db as any).prepare(query).bind(...bindings).all() as { results: MemberListItem[] };
+    const { results } = await this.d1.prepare(query).bind(...bindings).all() as { results: MemberListItem[] };
     return results || [];
   }
 
@@ -143,7 +150,7 @@ export class MemberRepository {
     }
 
     const query = `SELECT COUNT(*) as count FROM members WHERE ${whereParts.join(' AND ')}`;
-    const result = await (this.db as any).prepare(query).first() as { count: number } | undefined;
+    const result = await this.d1.prepare(query).first() as { count: number } | undefined;
     return result?.count ?? 0;
   }
 
@@ -278,7 +285,7 @@ export class MemberRepository {
       .where(eq(members.gymId, this.gymId));
     let memberCodeCounter = (total || 0) + 1;
 
-    const license = await (this.db as any)
+    const license = await this.d1
       .prepare(`SELECT max_members FROM licenses WHERE gym_id = ?`)
       .bind(this.gymId)
       .first() as { max_members: number } | undefined;

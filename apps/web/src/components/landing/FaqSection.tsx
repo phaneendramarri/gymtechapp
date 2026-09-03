@@ -1,6 +1,5 @@
 import React from 'react';
 import { Lock, Plus, Minus } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 
 const FAQS = [
   {
@@ -27,32 +26,32 @@ const FAQS = [
 
 export const FaqSection: React.FC = () => {
   return (
-    <section id="faq" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-(--border)/60 w-full">
+    <section id="faq" className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 border-t border-(--line)/60 w-full">
       <div className="text-center mb-12">
-        <Badge variant="outline" className="mb-3 px-3 py-1 rounded-full border-primary/30 bg-primary/10 text-primary text-xs font-mono font-bold tracking-wider uppercase">
-          <Lock className="size-3 text-primary mr-1.5 inline" />
+        <div className="mb-3 inline-flex items-center gap-2 px-3 py-1 rounded-full border border-(--iron)/30 bg-(--iron)/10 text-(--iron) text-xs font-mono font-bold tracking-wider uppercase">
+          <Lock className="size-3 mr-1.5 inline" />
           <span>COMMON QUESTIONS</span>
-        </Badge>
-        <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-foreground">
+        </div>
+        <h2 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
           Frequently Asked Questions
         </h2>
-        <p className="text-muted-foreground text-xs sm:text-sm mt-2">
+        <p className="text-ink-3 text-xs sm:text-sm mt-2">
           Everything you need to know about setting up and running GymTech.
         </p>
       </div>
 
-      <ul className="divide-y divide-(--border)/60 rounded-xl border border-(--border)/60 bg-card">
+      <ul className="divide-y divide-(--line)/60 rounded-xl border border-(--line)/60 bg-(--surface)">
         {FAQS.map((item, i) => (
           <li key={i}>
             <details className="group" {...(i === 0 ? { open: true } : {})}>
-              <summary className="flex items-center justify-between gap-4 cursor-pointer list-none px-5 py-4 text-sm font-medium text-foreground hover:text-primary transition-colors">
+              <summary className="flex items-center justify-between gap-4 cursor-pointer list-none px-5 py-4 text-sm font-medium text-ink hover:text-(--iron) transition-colors">
                 <span>{item.q}</span>
-                <span className="size-6 rounded-full border border-(--border)/60 flex items-center justify-center text-muted-foreground group-open:text-primary group-open:border-primary/40 transition-colors">
+                <span className="size-6 rounded-full border border-(--line)/60 flex items-center justify-center text-ink-3 group-open:text-(--iron) group-open:border-(--iron)/40 transition-colors">
                   <Plus className="size-3.5 group-open:hidden" />
                   <Minus className="size-3.5 hidden group-open:block" />
                 </span>
               </summary>
-              <div className="px-5 pb-5 -mt-1 text-sm text-muted-foreground leading-relaxed">
+              <div className="px-5 pb-5 -mt-1 text-sm text-ink-3 leading-relaxed">
                 {item.a}
               </div>
             </details>

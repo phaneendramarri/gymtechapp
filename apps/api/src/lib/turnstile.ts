@@ -34,11 +34,17 @@ export interface TurnstileVerifyResult {
   devBypass?: boolean;
 }
 
+export interface VerifyTurnstileOptions {
+  expectedAction?: string;
+  expectedHostnames?: string[];
+}
+
 export async function verifyTurnstileToken(
   token: string | undefined | null,
   secretKey: string | undefined,
   ipAddress: string | undefined,
-  appEnv: TurnstileAppEnv = 'production'
+  appEnv: TurnstileAppEnv = 'production',
+  options?: VerifyTurnstileOptions
 ): Promise<TurnstileVerifyResult> {
   if (!token) {
     return { success: false, error: 'Cloudflare Turnstile verification token is required' };
@@ -101,6 +107,16 @@ export async function verifyTurnstileToken(
 
     const data: any = await res.json().catch(() => ({}));
     if (data.success === true) {
+      if (options?.expectedAction && data.action && data.action !== options.expectedAction) {
+        console.warn('Turnstile action mismatch:', { expected: options.expectedAction, got: data.action });
+        return { success: false, error: 'Bot verification failed (action mismatch)' };
+      }
+      if (options?.expectedHostnames && options.expectedHostnames.length > 0 && data.hostname) {
+        if (!options.expectedHostnames.includes(data.hostname)) {
+          console.warn('Turnstile hostname mismatch:', { expected: options.expectedHostnames, got: data.hostname });
+          return { success: false, error: 'Bot verification failed (hostname mismatch)' };
+        }
+      }
       return { success: true };
     }
 

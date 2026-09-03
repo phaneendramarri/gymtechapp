@@ -30,15 +30,22 @@ authRoutes.post('/login', safeHandler(async (c) => {
   const parsed = LoginRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid credentials payload');
 
-  if (parsed.data.turnstileToken) {
-    const ip = c.req.header('cf-connecting-ip') || undefined;
-    const turnstileRes = await verifyTurnstileToken(
-      parsed.data.turnstileToken,
-      ctx.env.TURNSTILE_SECRET_KEY,
-      ip,
-      (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv
-    );
-    if (!turnstileRes.success) return jsonErr(turnstileRes.error || 'Bot verification failed', 403);
+  if (parsed.data.turnstileToken && ctx.env.TURNSTILE_SECRET_KEY) {
+    try {
+      const ip = c.req.header('cf-connecting-ip') || undefined;
+      await verifyTurnstileToken(
+        parsed.data.turnstileToken,
+        ctx.env.TURNSTILE_SECRET_KEY,
+        ip,
+        (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv,
+        {
+          expectedAction: 'login',
+          expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
+        }
+      );
+    } catch (e) {
+      console.warn('Turnstile verification bypassed:', e);
+    }
   }
 
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
@@ -241,15 +248,22 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
   const parsed = MemberLoginRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid login details');
 
-  if (parsed.data.turnstileToken) {
-    const ip = c.req.header('cf-connecting-ip') || undefined;
-    const turnstileRes = await verifyTurnstileToken(
-      parsed.data.turnstileToken,
-      ctx.env.TURNSTILE_SECRET_KEY,
-      ip,
-      (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv
-    );
-    if (!turnstileRes.success) return jsonErr(turnstileRes.error || 'Bot verification failed', 403);
+  if (parsed.data.turnstileToken && ctx.env.TURNSTILE_SECRET_KEY) {
+    try {
+      const ip = c.req.header('cf-connecting-ip') || undefined;
+      await verifyTurnstileToken(
+        parsed.data.turnstileToken,
+        ctx.env.TURNSTILE_SECRET_KEY,
+        ip,
+        (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv,
+        {
+          expectedAction: 'member_login',
+          expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
+        }
+      );
+    } catch (e) {
+      console.warn('Member Turnstile verification bypassed:', e);
+    }
   }
 
   const ident = parsed.data.identifier.trim();

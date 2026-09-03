@@ -27,6 +27,7 @@ export interface WorkerEnv {
   EMAIL_FROM?: string;
   APP_URL?: string;
   TURNSTILE_SECRET_KEY?: string;
+  RATELIMIT_KV?: KVNamespace;
 }
 
 export default {
@@ -40,11 +41,15 @@ export default {
     }
 
     // Everything else is a static asset request. Workers Static Assets
-    // automatically returns index.html for unknown paths (SPA fallback),
-    // so a missing file on disk is exactly what we want for client-side
-    // routes like /dashboard, /members, /members/123, etc.
+    // serves files directly. For SPA client-side routes (e.g. /login,
+    // /dashboard), if the file isn't found (404), fall back to /index.html.
     if (env.ASSETS) {
-      return env.ASSETS.fetch(request);
+      const res = await env.ASSETS.fetch(request);
+      if (res.status === 404) {
+        const indexUrl = new URL('/index.html', request.url);
+        return env.ASSETS.fetch(new Request(indexUrl, request));
+      }
+      return res;
     }
 
     // Defensive fallback: if ASSETS somehow isn't bound (misconfigured

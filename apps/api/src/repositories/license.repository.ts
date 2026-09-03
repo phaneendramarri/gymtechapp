@@ -6,12 +6,53 @@ import { licenses } from '../db/schema';
 
 export class LicenseRepository {
   private db: Database;
+  private d1?: D1Database;
 
   constructor(db: Database | D1Database, private gymId: number) {
-    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+    if ((db as any).prepare) {
+      this.d1 = db as D1Database;
+      this.db = createDatabase(db as D1Database);
+    } else {
+      this.db = db as Database;
+      this.d1 = (db as any).$client;
+    }
   }
 
   async findByGymId(gymId: number = this.gymId): Promise<License | null> {
+    if (this.d1) {
+      const row = await this.d1
+        .prepare(`SELECT * FROM licenses WHERE gym_id = ? LIMIT 1`)
+        .bind(gymId)
+        .first<any>();
+      if (row) {
+        return {
+          id: row.id,
+          gymId: row.gym_id ?? row.gymId,
+          name: row.name ?? 'Standard',
+          code: row.code ?? 'STD',
+          pricePaise: row.price_paise ?? row.pricePaise ?? 0,
+          billingPeriod: row.billing_period ?? row.billingPeriod ?? 'MONTHLY',
+          maxMembers: row.max_members ?? row.maxMembers ?? -1,
+          maxOwners: row.max_owners ?? row.maxOwners ?? 1,
+          maxManagers: row.max_managers ?? row.maxManagers ?? 2,
+          maxStaffTotal: row.max_staff_total ?? row.maxStaffTotal ?? 10,
+          maxSms: row.max_sms ?? row.maxSms ?? 0,
+          maxWhatsapp: row.max_whatsapp ?? row.maxWhatsapp ?? 0,
+          maxEmail: row.max_email ?? row.maxEmail ?? 0,
+          smsUsed: row.sms_used ?? row.smsUsed ?? 0,
+          whatsappUsed: row.whatsapp_used ?? row.whatsappUsed ?? 0,
+          emailUsed: row.email_used ?? row.emailUsed ?? 0,
+          features: row.features ?? null,
+          startedAt: row.started_at ?? row.startedAt ?? 0,
+          expiresAt: row.expires_at ?? row.expiresAt ?? 0,
+          status: row.status ?? 'ACTIVE',
+          createdByAdminId: row.created_by_admin_id ?? row.createdByAdminId ?? 1,
+          createdAt: row.created_at ?? row.createdAt ?? 0,
+          updatedAt: row.updated_at ?? row.updatedAt ?? 0,
+        };
+      }
+      return null;
+    }
     const rows = await this.db
       .select()
       .from(licenses)

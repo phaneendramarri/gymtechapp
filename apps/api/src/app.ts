@@ -68,10 +68,20 @@ app.use(
   '*',
   cors({
     origin: (origin, c) => {
-      const allowed = c.env.CORS_ORIGINS;
-      if (!allowed || allowed === '*') return '*';
-      const list = allowed.split(',').map((o: string) => o.trim());
-      return list.includes(origin) ? origin : list[0] || '*';
+      const raw = c.env.CORS_ORIGINS;
+      // SECURITY: never combine wildcard origin with `credentials: true`
+      // — browsers reject it AND servers that accept it leak cookies to
+      // any attacker-controlled origin. We refuse the wildcard in
+      // production-like envs and force the caller to ship an explicit
+      // allowlist. Local dev keeps a wildcard for convenience.
+      const isProd = (c.env.APP_ENV ?? 'development') !== 'development';
+      if (!raw || raw === '*') {
+        return isProd ? '' : '*';
+      }
+      const list = raw.split(',').map((o: string) => o.trim()).filter(Boolean);
+      // Echo the requested origin only if it matches the allowlist;
+      // returning `''` makes the browser reject the response.
+      return list.includes(origin) ? origin : '';
     },
     allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'X-Request-Id', 'X-CSRF-Token'],

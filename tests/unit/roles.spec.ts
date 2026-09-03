@@ -1,8 +1,20 @@
 import { describe, it, expect } from 'vitest';
 import { checkRole, jsonError } from '../../apps/api/src/lib/roles';
-
 describe('lib/roles — pure auth helpers', () => {
-  const baseCtx = (role: string | null | undefined) => ({ user: role ? { id: 1, email: 'a@b.c', name: 'A', role, gymId: 1 } : null });
+  const baseCtx = (role: string | null | undefined) => ({
+    user: role
+      ? {
+          id: 1,
+          email: 'a@b.c',
+          name: 'A',
+          role: role as any,
+          gymId: 1,
+          isOwner: role === 'OWNER',
+          permissions: [],
+          roleId: null,
+        }
+      : null,
+  });
 
   describe('checkRole', () => {
     it('returns null when PLATFORM_ADMIN bypasses role restrictions', () => {

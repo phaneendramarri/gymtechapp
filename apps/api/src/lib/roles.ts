@@ -18,7 +18,7 @@ export function jsonError(message: string, status: number, extra?: Record<string
 
 export function checkRole(
   ctx: { user?: SessionUser | null },
-  allowed: UserRole[]
+  allowed: (UserRole | string)[]
 ) {
   if (!ctx.user) return jsonError('Authentication required', 401);
   if (ctx.user.role === 'PLATFORM_ADMIN') return null;

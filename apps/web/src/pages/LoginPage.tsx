@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/shared/TurnstileWidget';
 import {
   ArrowRight,
   AlertCircle,
@@ -13,6 +14,7 @@ import {
   KeyRound,
   Dumbbell,
   Shield,
+  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -41,6 +43,9 @@ export const LoginPage: React.FC = () => {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string>('');
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Forgot password dialog state
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -68,9 +73,14 @@ export const LoginPage: React.FC = () => {
         await api.memberLogin({
           identifier: memberIdentifier.trim(),
           codeOrPin: memberCode.trim(),
+          turnstileToken: turnstileToken || undefined,
         });
+        setFailedAttempts(0);
         navigate('/portal');
       } catch (err: any) {
+        setFailedAttempts((prev) => prev + 1);
+        turnstileRef.current?.reset();
+        setTurnstileToken('');
         setError(err.message || 'Invalid member credentials. Check your phone number and member code.');
       } finally {
         setIsLoading(false);
@@ -81,19 +91,28 @@ export const LoginPage: React.FC = () => {
     // 2. Staff / Admin Login (Auto-routes by role)
     setIsLoading(true);
     try {
-      const res = await api.login({ email, password });
+      const res = await login({
+        email,
+        password,
+        turnstileToken: turnstileToken || undefined,
+      });
+      setFailedAttempts(0);
       // Server has set the session + CSRF cookies. The role is in res.user.
-      if (res.user.role === 'PLATFORM_ADMIN') {
+      if (res?.user?.role === 'PLATFORM_ADMIN') {
         navigate('/admin');
       } else {
         navigate('/dashboard');
       }
     } catch (err: any) {
+      setFailedAttempts((prev) => prev + 1);
+      turnstileRef.current?.reset();
+      setTurnstileToken('');
       setError(err.message || 'Failed to sign in. Please verify your email and password.');
     } finally {
       setIsLoading(false);
     }
   };
+
 
   const handleForgotSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,7 +195,7 @@ export const LoginPage: React.FC = () => {
             <div className="inline-flex p-1 bg-(--surface-2) rounded-lg mb-8" role="tablist">
               <button
                 type="button"
-                onClick={() => { setMode('STAFF'); setError(null); }}
+                onClick={() => { setMode('STAFF'); setError(null); setFailedAttempts(0); setTurnstileToken(''); turnstileRef.current?.reset(); }}
                 className={`px-3 h-8 text-xs font-medium rounded-md transition-colors ${mode === 'STAFF' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
                 role="tab"
                 aria-selected={mode === 'STAFF'}
@@ -185,7 +204,7 @@ export const LoginPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => { setMode('MEMBER'); setError(null); }}
+                onClick={() => { setMode('MEMBER'); setError(null); setFailedAttempts(0); setTurnstileToken(''); turnstileRef.current?.reset(); }}
                 className={`px-3 h-8 text-xs font-medium rounded-md transition-colors ${mode === 'MEMBER' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
                 role="tab"
                 aria-selected={mode === 'MEMBER'}
@@ -308,6 +327,32 @@ export const LoginPage: React.FC = () => {
                     </p>
                   </div>
                 </>
+              )}
+
+              {/* Progressive verification: Runs invisibly in the background for normal users; reveals challenge only if repeated failed attempts occur */}
+              {failedAttempts >= 2 ? (
+                <div className="flex flex-col gap-2 p-3 rounded-lg bg-(--surface-2) border border-(--line) my-1">
+                  <p className="text-xs text-ink-2 font-medium flex items-center gap-1.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-ink" /> Please complete the security check:
+                  </p>
+                  <TurnstileWidget
+                    key={`visible-${mode}-${failedAttempts}`}
+                    ref={turnstileRef}
+                    action={mode === 'STAFF' ? 'login' : 'member_login'}
+                    onVerify={(token) => setTurnstileToken(token)}
+                    onExpire={() => setTurnstileToken('')}
+                  />
+                </div>
+              ) : (
+                <div className="hidden" aria-hidden="true">
+                  <TurnstileWidget
+                    key={`silent-${mode}`}
+                    ref={turnstileRef}
+                    action={mode === 'STAFF' ? 'login' : 'member_login'}
+                    onVerify={(token) => setTurnstileToken(token)}
+                    onExpire={() => setTurnstileToken('')}
+                  />
+                </div>
               )}
 
               <Button

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { ArrowLeft, CheckCircle2, MessageCircle, AlertCircle } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { ArrowLeft, CheckCircle2, MessageCircle, AlertCircle, Sparkles, User, CreditCard, ShieldCheck } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,7 @@ import { PhotoCaptureUpload } from '@/components/ui/PhotoCaptureUpload';
 import { api } from '@/lib/api';
 import { CreateMemberResponse } from '@gymtech/shared';
 import { extractSignatureFromUrl, serializeFaceSignature } from '@/lib/face-matcher';
+import { formatCurrency } from '@/lib/utils';
 
 export const NewMemberPage: React.FC = () => {
   const { data: plansData, isLoading: plansLoading } = useQuery({
@@ -58,12 +60,26 @@ export const NewMemberPage: React.FC = () => {
     }
   }, [plans, planId]);
 
+  const selectedPlan = plans.find((p) => p.id === planId);
+  const planPrice = selectedPlan ? selectedPlan.pricePaise / 100 : 0;
+  const netPayable = Math.max(0, planPrice - (Number(discountAmount) || 0));
+  const balanceDue = Math.max(0, netPayable - (Number(initialPaymentAmount) || 0));
+
   const handlePlanChange = (selectedId: string) => {
     const numericId = parseInt(selectedId, 10);
     setPlanId(numericId);
-    const selectedPlan = plans.find((p) => p.id === numericId);
+    const plan = plans.find((p) => p.id === numericId);
+    if (plan) {
+      const discounted = Math.max(0, (plan.pricePaise / 100) - (Number(discountAmount) || 0));
+      setInitialPaymentAmount(discounted);
+    }
+  };
+
+  const handleDiscountChange = (val: number) => {
+    setDiscountAmount(val);
     if (selectedPlan) {
-      setInitialPaymentAmount(selectedPlan.pricePaise / 100);
+      const discounted = Math.max(0, (selectedPlan.pricePaise / 100) - (val || 0));
+      setInitialPaymentAmount(discounted);
     }
   };
 
@@ -113,110 +129,134 @@ export const NewMemberPage: React.FC = () => {
 
   return (
     <AppShell title="Enroll New Member" breadcrumb="Members">
-      <div className="max-w-2xl mx-auto w-full flex flex-col gap-6">
-        <div>
-          <a
-            href="/members"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
+      <div className="max-w-4xl mx-auto w-full flex flex-col gap-8 pb-12">
+        {/* Header with Navigation */}
+        <div className="flex flex-col gap-2">
+          <Link
+            to="/members"
+            className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-3 hover:text-ink transition-colors w-fit"
           >
-            <ArrowLeft className="size-3.5" /> Back to Member Directory
-          </a>
-          <h2 className="mt-1 font-display text-2xl font-bold tracking-tight text-foreground">
-            New Member Registration
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Capture personal details, assign a membership plan, and log the initial fee
-          </p>
+            <ArrowLeft className="size-4" /> Back to Member Directory
+          </Link>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-1">
+            <div>
+              <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
+                New Member Registration
+              </h1>
+              <p className="text-sm text-ink-3 mt-1">
+                Capture personal details, assign a membership plan, and log the initial fee
+              </p>
+            </div>
+            <span className="gt-tag self-start sm:self-auto" data-tone="iron">
+              <Sparkles className="size-3.5 mr-1" /> Quick Enrollment
+            </span>
+          </div>
         </div>
 
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
-            <AlertDescription className="text-xs">{error}</AlertDescription>
+            <AlertDescription className="text-sm font-medium">{error}</AlertDescription>
           </Alert>
         )}
 
         {createdResult ? (
-          <Card className="border-ok/30 bg-card shadow-md p-8 text-center flex flex-col items-center gap-4">
-            <div className="size-14 rounded-full bg-ok/10 text-ok flex items-center justify-center">
-              <CheckCircle2 className="size-8" />
+          <Card className="border-(--line) bg-surface shadow-md p-8 sm:p-12 text-center flex flex-col items-center gap-6">
+            <div className="size-16 rounded-full bg-(--positive-soft) text-(--positive) flex items-center justify-center">
+              <CheckCircle2 className="size-9" />
             </div>
-            <div>
-              <h3 className="font-display text-xl font-bold text-foreground">
+            <div className="flex flex-col gap-2 max-w-md">
+              <h2 className="font-display text-2xl font-bold text-ink">
                 Member Enrolled Successfully
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                Assigned Member Code:{' '}
-                <strong className="font-mono text-sm text-primary">
-                  {createdResult.member.memberCode}
-                </strong>
+              </h2>
+              <p className="text-sm text-ink-2">
+                {createdResult.member.firstName} {createdResult.member.lastName || ''} has been added to your gym roster with active status.
               </p>
-              {createdResult.receiptNumber && (
-                <p className="text-xs font-mono text-muted-foreground mt-0.5">
-                  Payment Receipt: {createdResult.receiptNumber}
-                </p>
-              )}
+              <div className="mt-4 p-4 rounded-lg bg-(--surface-2) border border-(--line) flex flex-col gap-2 text-left">
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-ink-3">Member ID Code:</span>
+                  <span className="font-mono font-bold text-ink bg-(--surface) px-2 py-0.5 rounded border border-(--line)">
+                    {createdResult.member.memberCode}
+                  </span>
+                </div>
+                {createdResult.receiptNumber && (
+                  <div className="flex justify-between items-center text-sm">
+                    <span className="text-ink-3">Payment Receipt:</span>
+                    <span className="font-mono text-ink">{createdResult.receiptNumber}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-ink-3">Registered Mobile:</span>
+                  <span className="font-mono text-ink">+91 {createdResult.member.phone}</span>
+                </div>
+              </div>
             </div>
 
-            <div className="flex flex-col sm:flex-row gap-2.5 mt-4 w-full max-w-sm">
+            <div className="flex flex-col sm:flex-row gap-3 mt-4 w-full max-w-md">
               {createdResult.whatsappUrl && (
-                <Button asChild className="flex-1 bg-[#25D366] hover:bg-[#20BA5A] text-white font-bold text-xs h-10">
+                <Button asChild className="flex-1 bg-[#25D366] hover:bg-[#20BA5A] text-white font-semibold text-sm h-11 shadow-sm">
                   <a href={createdResult.whatsappUrl} target="_blank" rel="noopener noreferrer">
-                    <MessageCircle className="size-4 mr-2 fill-current" /> Send WhatsApp
+                    <MessageCircle className="size-4 mr-2 fill-current" /> Send WhatsApp Welcome
                   </a>
                 </Button>
               )}
-              <Button asChild variant="outline" className="flex-1 h-10 text-xs font-medium">
-                <a href="/members">View Directory</a>
+              <Button asChild variant="outline" className="flex-1 h-11 text-sm font-semibold">
+                <Link to={`/members/${createdResult.member.id}`}>View Profile</Link>
+              </Button>
+              <Button asChild variant="ghost" className="h-11 text-sm text-ink-3 hover:text-ink">
+                <Link to="/members">Directory</Link>
               </Button>
             </div>
           </Card>
         ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-6">
+          <form onSubmit={handleSubmit} className="flex flex-col gap-8">
             {/* Section 1: Personal Information */}
-            <Card className="border-border shadow-xs">
-              <CardHeader className="pb-3 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <span className="size-6 rounded-md bg-primary/10 text-primary font-mono font-bold text-xs flex items-center justify-center">
+            <Card className="border-(--line) shadow-xs overflow-hidden">
+              <CardHeader className="p-6 pb-4 border-b border-(--line) bg-(--surface-2)/50">
+                <div className="flex items-center gap-3">
+                  <span className="size-7 rounded-lg bg-ink text-(--ink-inverse) font-mono font-bold text-sm flex items-center justify-center">
                     1
                   </span>
-                  <CardTitle className="text-sm font-semibold">Personal Information</CardTitle>
+                  <div>
+                    <CardTitle className="text-base sm:text-lg font-semibold text-ink">Personal Information</CardTitle>
+                    <p className="text-xs text-ink-3 mt-0.5">Primary member identification and contact info</p>
+                  </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-4 flex flex-col gap-4">
+              <CardContent className="p-6 flex flex-col gap-6">
                 <PhotoCaptureUpload
                   value={photoUrl}
                   onChange={setPhotoUrl}
-                  label="Member Avatar / Photo (Free WebP Compression)"
+                  label="Member Photo (for Face ID & Digital Member Pass)"
                 />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="firstName" className="text-xs font-semibold">First Name *</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="firstName" className="text-sm font-medium text-ink">First Name *</Label>
                     <Input
                       id="firstName"
                       required
                       placeholder="e.g. Rahul"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="text-xs"
+                      className="h-11 text-sm"
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="lastName" className="text-xs font-semibold">Last Name</Label>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="lastName" className="text-sm font-medium text-ink">Last Name</Label>
                     <Input
                       id="lastName"
                       placeholder="e.g. Sharma"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="text-xs"
+                      className="h-11 text-sm"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="phone" className="text-xs font-semibold">Mobile Phone (10 Digits) *</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="phone" className="text-sm font-medium text-ink">Mobile Phone (10 Digits) *</Label>
                     <Input
                       id="phone"
                       type="tel"
@@ -225,27 +265,27 @@ export const NewMemberPage: React.FC = () => {
                       placeholder="9876543210"
                       value={phone}
                       onChange={(e) => setPhone(e.target.value)}
-                      className="text-xs font-mono"
+                      className="h-11 text-sm font-mono tracking-wide"
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="email" className="text-xs font-semibold">Email Address</Label>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="email" className="text-sm font-medium text-ink">Email Address (Optional)</Label>
                     <Input
                       id="email"
                       type="email"
                       placeholder="rahul@example.com"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className="text-xs"
+                      className="h-11 text-sm"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label id="gender-label" className="text-xs font-semibold">Gender</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <Label id="gender-label" className="text-sm font-medium text-ink">Gender</Label>
                     <Select value={gender} onValueChange={(val: any) => setGender(val)}>
-                      <SelectTrigger className="text-xs" aria-labelledby="gender-label">
+                      <SelectTrigger className="h-11 text-sm" aria-labelledby="gender-label">
                         <SelectValue placeholder="Select gender" />
                       </SelectTrigger>
                       <SelectContent>
@@ -255,24 +295,48 @@ export const NewMemberPage: React.FC = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="dateOfBirth" className="text-xs font-semibold">Date of Birth</Label>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="dateOfBirth" className="text-sm font-medium text-ink">Date of Birth</Label>
                     <Input
                       id="dateOfBirth"
                       type="date"
                       value={dateOfBirth}
                       onChange={(e) => setDateOfBirth(e.target.value)}
-                      className="text-xs"
+                      className="h-11 text-sm"
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="joinedDate" className="text-xs font-semibold">Joining Date</Label>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="joinedDate" className="text-sm font-medium text-ink">Joining Date</Label>
                     <Input
                       id="joinedDate"
                       type="date"
                       value={joinedDate}
                       onChange={(e) => setJoinedDate(e.target.value)}
-                      className="text-xs"
+                      className="h-11 text-sm"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 pt-2 border-t border-(--line)">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="emergencyContactName" className="text-sm font-medium text-ink">Emergency Contact Person</Label>
+                    <Input
+                      id="emergencyContactName"
+                      placeholder="e.g. Father / Spouse"
+                      value={emergencyContactName}
+                      onChange={(e) => setEmergencyContactName(e.target.value)}
+                      className="h-11 text-sm"
+                    />
+                  </div>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="emergencyContactPhone" className="text-sm font-medium text-ink">Emergency Contact Phone</Label>
+                    <Input
+                      id="emergencyContactPhone"
+                      type="tel"
+                      placeholder="e.g. 9876543210"
+                      value={emergencyContactPhone}
+                      onChange={(e) => setEmergencyContactPhone(e.target.value)}
+                      className="h-11 text-sm font-mono"
                     />
                   </div>
                 </div>
@@ -280,20 +344,23 @@ export const NewMemberPage: React.FC = () => {
             </Card>
 
             {/* Section 2: Membership Package & Initial Payment */}
-            <Card className="border-border shadow-xs">
-              <CardHeader className="pb-3 border-b border-border">
-                <div className="flex items-center gap-2">
-                  <span className="size-6 rounded-md bg-ok/10 text-ok font-mono font-bold text-xs flex items-center justify-center">
+            <Card className="border-(--line) shadow-xs overflow-hidden">
+              <CardHeader className="p-6 pb-4 border-b border-(--line) bg-(--surface-2)/50">
+                <div className="flex items-center gap-3">
+                  <span className="size-7 rounded-lg bg-ink text-(--ink-inverse) font-mono font-bold text-sm flex items-center justify-center">
                     2
                   </span>
-                  <CardTitle className="text-sm font-semibold">Membership Plan &amp; Initial Payment</CardTitle>
+                  <div>
+                    <CardTitle className="text-base sm:text-lg font-semibold text-ink">Membership Package &amp; Initial Payment</CardTitle>
+                    <p className="text-xs text-ink-3 mt-0.5">Select plan, apply discount, and record initial collection</p>
+                  </div>
                 </div>
               </CardHeader>
-              <CardContent className="pt-4 flex flex-col gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="planId" className="text-xs font-semibold">Select Membership Package *</Label>
+              <CardContent className="p-6 flex flex-col gap-6">
+                <div className="flex flex-col gap-2">
+                  <Label htmlFor="planId" className="text-sm font-medium text-ink">Select Membership Package *</Label>
                   <Select value={planId?.toString() ?? ''} onValueChange={handlePlanChange}>
-                    <SelectTrigger id="planId" className="text-xs">
+                    <SelectTrigger id="planId" className="h-11 text-sm">
                       <SelectValue placeholder={plansLoading ? 'Loading plans...' : 'Choose package'} />
                     </SelectTrigger>
                     <SelectContent>
@@ -306,20 +373,21 @@ export const NewMemberPage: React.FC = () => {
                   </Select>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="discount" className="text-xs font-semibold">Discount (₹)</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="discount" className="text-sm font-medium text-ink">Discount (₹)</Label>
                     <Input
                       id="discount"
                       type="number"
                       min="0"
-                      value={discountAmount}
-                      onChange={(e) => setDiscountAmount(Number(e.target.value))}
-                      className="text-xs font-mono"
+                      value={discountAmount || ''}
+                      placeholder="0"
+                      onChange={(e) => handleDiscountChange(Number(e.target.value))}
+                      className="h-11 text-sm font-mono"
                     />
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="initialPayment" className="text-xs font-semibold">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="initialPayment" className="text-sm font-medium text-ink">
                       Initial Payment Collected (₹) *
                     </Label>
                     <Input
@@ -327,36 +395,63 @@ export const NewMemberPage: React.FC = () => {
                       type="number"
                       min="0"
                       required
-                      value={initialPaymentAmount}
+                      value={initialPaymentAmount || ''}
+                      placeholder="0"
                       onChange={(e) => setInitialPaymentAmount(Number(e.target.value))}
-                      className="text-xs font-mono font-bold"
+                      className="h-11 text-sm font-mono font-bold text-ink"
                     />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="paymentMode" className="text-xs font-semibold">Payment Mode</Label>
+                {/* Calculation Summary Box */}
+                <div className="rounded-xl border border-(--line) bg-(--surface-2)/60 p-5 flex flex-col sm:flex-row justify-between gap-4">
+                  <div className="flex flex-col">
+                    <span className="text-xs text-ink-3">Package Fee</span>
+                    <span className="text-base font-semibold text-ink font-mono">{formatCurrency(planPrice)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-ink-3">Discount</span>
+                    <span className="text-base font-semibold text-ink-3 font-mono">- {formatCurrency(Number(discountAmount) || 0)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-ink-3">Net Fee</span>
+                    <span className="text-base font-semibold text-ink font-mono">{formatCurrency(netPayable)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-ink-3">Paid Now</span>
+                    <span className="text-base font-semibold text-(--positive) font-mono">{formatCurrency(Number(initialPaymentAmount) || 0)}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-xs text-ink-3">Outstanding Dues</span>
+                    <span className={`text-base font-bold font-mono ${balanceDue > 0 ? 'text-(--warn)' : 'text-(--positive)'}`}>
+                      {balanceDue > 0 ? formatCurrency(balanceDue) : '₹0 (Paid in Full)'}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="paymentMode" className="text-sm font-medium text-ink">Payment Mode</Label>
                     <Select value={paymentMode} onValueChange={(val: any) => setPaymentMode(val)}>
-                      <SelectTrigger id="paymentMode" className="text-xs">
+                      <SelectTrigger id="paymentMode" className="h-11 text-sm">
                         <SelectValue placeholder="Select mode" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="UPI">UPI / QR Code</SelectItem>
                         <SelectItem value="CASH">Cash</SelectItem>
                         <SelectItem value="CARD">Debit / Credit Card</SelectItem>
-                        <SelectItem value="BANK_TRANSFER">Net Banking</SelectItem>
+                        <SelectItem value="BANK_TRANSFER">Net Banking / Transfer</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="referenceId" className="text-xs font-semibold">Reference ID / Notes</Label>
+                  <div className="flex flex-col gap-2">
+                    <Label htmlFor="referenceId" className="text-sm font-medium text-ink">Reference ID / Transaction Notes</Label>
                     <Input
                       id="referenceId"
-                      placeholder="e.g. UPI/2026/XXXX"
+                      placeholder="e.g. UPI/2026/XXXX or Desk Cash"
                       value={referenceId}
                       onChange={(e) => setReferenceId(e.target.value)}
-                      className="text-xs font-mono"
+                      className="h-11 text-sm font-mono"
                     />
                   </div>
                 </div>
@@ -365,15 +460,15 @@ export const NewMemberPage: React.FC = () => {
 
             {/* Form Actions */}
             <div className="flex items-center justify-between pt-2">
-              <Button asChild variant="ghost" className="text-xs">
-                <a href="/members">Cancel</a>
+              <Button asChild variant="ghost" className="text-sm text-ink-3 hover:text-ink">
+                <Link to="/members">Cancel</Link>
               </Button>
               <Button
                 type="submit"
                 disabled={isSubmitting}
-                className="bg-primary text-primary-foreground font-bold text-xs h-10 px-6"
+                className="bg-ink text-(--ink-inverse) hover:bg-ink-2 font-bold text-sm h-11 px-8 shadow-sm"
               >
-                {isSubmitting ? 'Registering...' : 'Complete Member Registration'}
+                {isSubmitting ? 'Registering Member...' : 'Complete Member Registration'}
               </Button>
             </div>
           </form>

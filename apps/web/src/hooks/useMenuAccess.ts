@@ -32,18 +32,36 @@ export function useMenuAccess(): UseMenuAccessResult {
     const isPlatformAdmin = user.role === 'PLATFORM_ADMIN';
     const userPerms = new Set<string>(user.permissions ?? []);
 
+    // Clean nodes to remove parameterized routes like :id from sidebar navigation
+    function cleanTree(nodes: MenuNode[]): MenuNode[] {
+      return nodes
+        .map((node) => {
+          const children = node.children ? cleanTree(node.children) : undefined;
+          return { ...node, children };
+        })
+        .filter((node) => {
+          // Keep if it has children with at least 1 item
+          if (node.children && node.children.length > 0) return true;
+          // If it's a leaf, keep only if href exists and has no unreplaced :params
+          return Boolean(node.href && !node.href.includes(':'));
+        });
+    }
+
+    const filtered = cleanTree(menu);
+
     // Collect all leaf nodes with href for router helpers
     function collectLeaves(nodes: MenuNode[]): MenuNode[] {
       return nodes.flatMap((n) => (n.children ? collectLeaves(n.children) : [n]));
     }
 
-    const visibleItems = collectLeaves(menu).filter((n) => !!n.href);
+    const visibleItems = collectLeaves(filtered).filter((n) => !!n.href);
 
     const hasPermission = (key: string): boolean => {
       if (isPlatformAdmin) return true;
       return userPerms.has(key);
     };
 
-    return { visibleItems: menu, filteredTree: menu, hasPermission };
+    return { visibleItems, filteredTree: filtered, hasPermission };
   }, [user, menu]);
 }
+

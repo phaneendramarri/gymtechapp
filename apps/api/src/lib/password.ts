@@ -37,15 +37,21 @@ export async function hashPassword(password: string): Promise<string> {
     // bcrypt/argon2 silently truncate; we refuse to mask a bug.
     throw new Error('Password exceeds maximum allowed length (1024 chars)');
   }
-  return await argon2id({
-    password,
-    salt: crypto.getRandomValues(new Uint8Array(16)),
-    parallelism: ARGON2_PARALLELISM,
-    iterations: ARGON2_ITERATIONS,
-    memorySize: ARGON2_MEMORY_KIB,
-    hashLength: ARGON2_HASH_LENGTH,
-    outputType: 'encoded', // PHC string starting with $argon2id$
-  });
+  try {
+    return await argon2id({
+      password,
+      salt: crypto.getRandomValues(new Uint8Array(16)),
+      parallelism: ARGON2_PARALLELISM,
+      iterations: ARGON2_ITERATIONS,
+      memorySize: ARGON2_MEMORY_KIB,
+      hashLength: ARGON2_HASH_LENGTH,
+      outputType: 'encoded', // PHC string starting with $argon2id$
+    });
+  } catch (err) {
+    // Graceful fallback for runtimes that restrict dynamic WebAssembly compilation (e.g. Cloudflare Workers standard runtime)
+    console.warn('Argon2id hashing unavailable in current runtime, falling back to WebCrypto SHA-256:', err);
+    return await hashPasswordLegacySha256(password);
+  }
 }
 
 /**

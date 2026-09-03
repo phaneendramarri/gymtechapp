@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, CheckCircle2, MessageCircle, AlertCircle } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
@@ -96,12 +96,12 @@ export const RenewMemberPage: React.FC = () => {
     <AppShell title={`Renew Plan — ${member?.firstName || 'Member'}`} breadcrumb="Members">
       <div className="max-w-xl mx-auto w-full flex flex-col gap-6">
         <div>
-          <a
-            href={`/members/${id}`}
+          <Link
+            to={`/members/${id}`}
             className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
           >
             <ArrowLeft className="size-3.5" /> Back to {member?.firstName || 'Member'}'s Profile
-          </a>
+          </Link>
           <h2 className="mt-1 font-display text-2xl font-bold tracking-tight text-foreground">
             Renew / Extend Membership
           </h2>
@@ -145,7 +145,7 @@ export const RenewMemberPage: React.FC = () => {
                 </Button>
               )}
               <Button asChild variant="outline" className="flex-1 h-10 text-xs font-medium">
-                <a href={`/members/${id}`}>View Profile</a>
+                <Link to={`/members/${id}`}>View Profile</Link>
               </Button>
             </div>
           </Card>
@@ -245,7 +245,7 @@ export const RenewMemberPage: React.FC = () => {
 
             <div className="flex items-center justify-between">
               <Button asChild variant="ghost" className="text-xs">
-                <a href={`/members/${id}`}>Cancel</a>
+                <Link to={`/members/${id}`}>Cancel</Link>
               </Button>
               <Button
                 type="submit"
