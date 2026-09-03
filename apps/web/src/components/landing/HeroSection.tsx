@@ -19,7 +19,7 @@ export const HeroSection: React.FC = () => {
         className="absolute inset-0 pointer-events-none"
         style={{
           background:
-            'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(245,124,0,0.08) 0%, transparent 70%), radial-gradient(ellipse 60% 50% at 80% 40%, rgba(255,109,0,0.04) 0%, transparent 60%)',
+            'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(217,72,15,0.08) 0%, transparent 70%), radial-gradient(ellipse 60% 50% at 80% 40%, rgba(249,115,22,0.04) 0%, transparent 60%)',
         }}
       />
 

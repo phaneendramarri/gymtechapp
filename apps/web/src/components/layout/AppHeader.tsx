@@ -112,7 +112,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
 
         {/* Gym badge (mobile only — desktop shows it in the rail) */}
         <div className="md:hidden flex items-center gap-2 ml-1">
-          <div className="h-6 w-6 rounded bg-iron text-iron-ink flex items-center justify-center text-[10px] font-semibold">
+          <div className="h-6 w-6 rounded bg-(--iron) text-(--iron-ink) flex items-center justify-center text-[10px] font-semibold">
             {gymName?.[0] || 'G'}
           </div>
           <span className="text-xs font-semibold text-ink truncate max-w-40">{gymName}</span>
@@ -153,7 +153,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({ gymName, onOpenMobileMenu 
             aria-label="Notifications"
           >
             <Bell className="h-4 w-4" />
-            <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-iron ring-2 ring-surface" />
+            <span className="absolute top-2 right-2 h-1.5 w-1.5 rounded-full bg-(--iron) ring-2 ring-(--surface)" />
           </button>
 
           {user && user.role !== 'MEMBER' && (

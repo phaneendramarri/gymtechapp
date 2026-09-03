@@ -323,7 +323,7 @@ export const DashboardPage: React.FC = () => {
                   When a member scans in or the desk logs them, you'll see the live stream here.
                 </p>
                 <div className="mt-4">
-                  <Button asChild size="sm" className="bg-iron text-iron-ink hover:bg-iron-hover border-iron">
+                  <Button asChild size="sm" className="bg-(--iron) text-(--iron-ink) hover:bg-(--iron-hover) border-(--iron)">
                     <Link to="/attendance">
                       Open the desk
                     </Link>

@@ -36,7 +36,7 @@ export const Logo: React.FC<LogoProps> = ({
   return (
     <div className={`inline-flex items-center gap-2.5 select-none ${className}`}>
       <span
-        className={`${iconSizes[size]} relative inline-flex items-center justify-center rounded-lg bg-iron text-iron-ink overflow-hidden shrink-0`}
+        className={`${iconSizes[size]} relative inline-flex items-center justify-center rounded-lg bg-(--iron) text-(--iron-ink) overflow-hidden shrink-0`}
         aria-hidden="true"
       >
         <svg

@@ -118,7 +118,7 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-(--bg) text-(--ink) selection:bg-iron-soft selection:text-(--ink)">
+    <div className="min-h-screen flex flex-col bg-(--bg) text-(--ink) selection:bg-(--iron-soft) selection:text-(--ink)">
       {/* Top bar */}
       <header className="px-6 lg:px-10 py-5 flex items-center justify-between">
         <a href="/" className="inline-flex items-center">
@@ -156,7 +156,7 @@ export const LoginPage: React.FC = () => {
               { icon: <Shield className="h-4 w-4" />, text: 'Every payment, every freeze, every change — fully audited.' },
             ].map((p, i) => (
               <li key={i} className="flex items-start gap-3">
-                <span className="size-7 rounded-md bg-iron-soft text-(--iron) flex items-center justify-center shrink-0 mt-0.5">
+                <span className="size-7 rounded-md bg-(--iron-soft) text-(--iron) flex items-center justify-center shrink-0 mt-0.5">
                   {p.icon}
                 </span>
                 <span className="text-sm text-ink-2 leading-relaxed">{p.text}</span>

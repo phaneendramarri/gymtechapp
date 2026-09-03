@@ -118,26 +118,27 @@
   --ink-3: #71717A;
   --ink-inverse: #FAFAFA;
 
-  --iron: #F57C00;          /* premium vibrant orange — Nike style */
-  --iron-hover: #E65100;
-  --iron-soft: rgba(245, 124, 0, 0.12);
+  --iron: #D9480F;           /* primary brand — CTAs, active states, key accents */
+  --iron-hover: #B9380C;
+  --iron-soft: rgba(217, 72, 15, 0.10);
   --iron-ink: #FFFFFF;
 
-  --clay: #FF6D00;          /* bright orange — warm accent moments */
-  --clay-soft: rgba(255, 109, 0, 0.12);
+  /* Warm secondary — Clay. For warmth moments (member wins, birthdays). */
+  --clay: #F97316;           /* orange-500 — warm accent moments */
+  --clay-soft: rgba(249, 115, 22, 0.10);
   --clay-ink: #FFFFFF;
 
-  --positive: #15803D;
-  --positive-soft: rgba(21, 128, 61, 0.10);
-  --warning: #B45309;
-  --warning-soft: rgba(180, 83, 9, 0.10);
-  --danger: #D35400;
-  --danger-soft: rgba(211, 84, 0, 0.10);
-  --info: #1D4ED8;
-  --info-soft: rgba(29, 78, 216, 0.10);
+  --positive: #16A34A;
+  --positive-soft: rgba(22, 163, 74, 0.10);
+  --warning: #D97706;
+  --warning-soft: rgba(217, 119, 6, 0.10);
+  --danger: #DC2626;
+  --danger-soft: rgba(220, 38, 38, 0.10);
+  --info: #2563EB;
+  --info-soft: rgba(37, 99, 235, 0.10);
 
-  --line: #E7E5E0;
-  --line-2: #EEECE6;
+  --line: #E5E7EB;
+  --line-2: #F3F4F6;
 }
 
 .dark {
@@ -149,26 +150,26 @@
   --ink-3: #8A8A8E;
   --ink-inverse: #0A0A0A;
 
-  --iron: #FB7C3F;
-  --iron-hover: #FF9163;
-  --iron-soft: rgba(251, 124, 63, 0.16);
-  --iron-ink: #0B0B0A;
+  --iron: #FB923C;
+  --iron-hover: #D9480F;
+  --iron-soft: rgba(251, 146, 60, 0.15);
+  --iron-ink: #FFFFFF;
 
-  --clay: #F5A85A;
-  --clay-soft: rgba(245, 168, 90, 0.16);
-  --clay-ink: #0B0B0A;
+  --clay: #FBBF24;
+  --clay-soft: rgba(251, 191, 36, 0.15);
+  --clay-ink: #0A0A0A;
 
   --positive: #4ADE80;
   --positive-soft: rgba(74, 222, 128, 0.12);
   --warning: #FBBF24;
   --warning-soft: rgba(251, 191, 36, 0.12);
-  --danger: #FB923C;
-  --danger-soft: rgba(251, 146, 60, 0.12);
+  --danger: #F87171;
+  --danger-soft: rgba(248, 113, 113, 0.12);
   --info: #60A5FA;
   --info-soft: rgba(96, 165, 250, 0.12);
 
-  --line: #262624;
-  --line-2: #1F1F1D;
+  --line: #2E2E2E;
+  --line-2: #262626;
 }
 
 /* =========================================================================
