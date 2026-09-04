@@ -45,6 +45,7 @@ import { LicenseLimitsDialog } from '@/components/admin/LicenseLimitsDialog';
 import { GymUsersDialog } from '@/components/admin/GymUsersDialog';
 import { TopUpCreditsDialog } from '@/components/admin/TopUpCreditsDialog';
 import { PlatformAuditTab } from '@/components/admin/PlatformAuditTab';
+import { GymCrudTab } from '@/components/admin/GymCrudTab';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import type { PlatformCommunicationsConfig, SmtpSettings } from '@gymtech/shared';
@@ -479,6 +480,10 @@ export const AdminPage: React.FC = () => {
             <Radio className="h-4 w-4 text-primary" />
             Gateways &amp; Messaging (Super Admin Only)
           </TabsTrigger>
+          <TabsTrigger value="gym-ops" className="gap-2 text-xs font-semibold">
+            <UserCog className="h-4 w-4 text-primary" />
+            Gym Operations
+          </TabsTrigger>
           <TabsTrigger value="audit" className="gap-2 text-xs font-semibold">
             <History className="h-4 w-4 text-primary" />
             Platform Audit Logs
@@ -714,7 +719,7 @@ export const AdminPage: React.FC = () => {
                   <form onSubmit={handleCreateGym} className="space-y-3.5">
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="gName" className="text-xs font-semibold">Gym Name *</Label>
+                        <Label htmlFor="gName" className="text-xs font-semibold gt-label-required">Gym Name</Label>
                         <Input
                           id="gName"
                           required
@@ -725,7 +730,7 @@ export const AdminPage: React.FC = () => {
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="gSlug" className="text-xs font-semibold">Subdomain Slug *</Label>
+                        <Label htmlFor="gSlug" className="text-xs font-semibold gt-label-required">Subdomain Slug</Label>
                         <Input
                           id="gSlug"
                           required
@@ -739,7 +744,7 @@ export const AdminPage: React.FC = () => {
 
                     <div className="grid grid-cols-2 gap-2.5">
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="gCity" className="text-xs font-semibold">City *</Label>
+                        <Label htmlFor="gCity" className="text-xs font-semibold gt-label-required">City</Label>
                         <Input
                           id="gCity"
                           required
@@ -750,7 +755,7 @@ export const AdminPage: React.FC = () => {
                         />
                       </div>
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="gPhone" className="text-xs font-semibold">Gym Phone *</Label>
+                        <Label htmlFor="gPhone" className="text-xs font-semibold gt-label-required">Gym Phone</Label>
                         <Input
                           id="gPhone"
                           required
@@ -768,7 +773,7 @@ export const AdminPage: React.FC = () => {
                       </p>
 
                       <div className="flex flex-col gap-1">
-                        <Label htmlFor="oName" className="text-xs font-semibold">Owner Name *</Label>
+                        <Label htmlFor="oName" className="text-xs font-semibold gt-label-required">Owner Name</Label>
                         <Input
                           id="oName"
                           required
@@ -781,7 +786,7 @@ export const AdminPage: React.FC = () => {
 
                       <div className="grid grid-cols-2 gap-2.5">
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="oEmail" className="text-xs font-semibold">Owner Email *</Label>
+                          <Label htmlFor="oEmail" className="text-xs font-semibold gt-label-required">Owner Email</Label>
                           <Input
                             id="oEmail"
                             type="email"
@@ -793,7 +798,7 @@ export const AdminPage: React.FC = () => {
                           />
                         </div>
                         <div className="flex flex-col gap-1">
-                          <Label htmlFor="oPhone" className="text-xs font-semibold">Owner Phone *</Label>
+                          <Label htmlFor="oPhone" className="text-xs font-semibold gt-label-required">Owner Phone</Label>
                           <Input
                             id="oPhone"
                             required
@@ -1104,6 +1109,11 @@ export const AdminPage: React.FC = () => {
             events={filteredAuditEvents}
           />
         </TabsContent>
+
+        {/* TAB 4: Gym Operations — Cross-gym CRUD */}
+        <TabsContent value="gym-ops" className="space-y-4">
+          <GymOpsSelector gyms={gyms} gymsLoading={gymsLoading} />
+        </TabsContent>
       </Tabs>
 
       {/* Feature Permissions Dialog */}
@@ -1209,6 +1219,82 @@ export const AdminPage: React.FC = () => {
         destructive={pendingToggle?.currentStatus === 'ACTIVE'}
         onConfirm={handleToggleStatus}
       />
+
+      {/* Gym Operations Selector */}
+      <GymOpsSelector gyms={gyms} gymsLoading={gymsLoading} />
     </AdminShell>
+  );
+};
+
+// ---------------------------------------------------------------------------
+// Gym Operations — gym selector + CRUD tab
+// ---------------------------------------------------------------------------
+interface GymOpsSelectorProps {
+  gyms: any[];
+  gymsLoading: boolean;
+}
+
+const GymOpsSelector: React.FC<GymOpsSelectorProps> = ({ gyms, gymsLoading }) => {
+  const [selectedGym, setSelectedGym] = useState<any>(null);
+
+  if (gymsLoading) {
+    return (
+      <div className="flex items-center justify-center h-40 text-xs text-muted-foreground">
+        Loading gyms...
+      </div>
+    );
+  }
+
+  if (!gyms.length) {
+    return (
+      <div className="flex flex-col items-center justify-center h-40 text-xs text-muted-foreground gap-2">
+        <Building2 className="h-6 w-6 opacity-40" />
+        <span>No active gyms found.</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Building2 className="h-4 w-4 text-primary" />
+        <span className="text-sm font-semibold">Select Gym:</span>
+        <Select
+          value={selectedGym?.id?.toString() ?? ''}
+          onValueChange={(v) => {
+            const g = gyms.find((gym) => gym.id.toString() === v);
+            setSelectedGym(g || null);
+          }}
+        >
+          <SelectTrigger className="w-64 text-xs">
+            <SelectValue placeholder="Choose a gym to manage..." />
+          </SelectTrigger>
+          <SelectContent>
+            {gyms.map((gym) => (
+              <SelectItem key={gym.id} value={gym.id.toString()} className="text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{gym.name}</span>
+                  <span className="text-muted-foreground font-mono">#{gym.id}</span>
+                  <Badge
+                    variant="outline"
+                    className={`text-[10px] font-mono ml-1 ${
+                      gym.status === 'ACTIVE'
+                        ? 'border-ok/50 text-ok'
+                        : gym.status === 'SUSPENDED'
+                        ? 'border-destructive/50 text-destructive'
+                        : 'border-muted-foreground/50 text-muted-foreground'
+                    }`}
+                  >
+                    {gym.status}
+                  </Badge>
+                </div>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {selectedGym && <GymCrudTab gymId={selectedGym.id} gymName={selectedGym.name} />}
+    </div>
   );
 };

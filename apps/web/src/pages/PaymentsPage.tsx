@@ -129,6 +129,7 @@ export const PaymentsPage: React.FC = () => {
           payments={payments}
           isLoading={isLoading}
           onOpenInvoice={(id) => setInvoicePaymentId(id)}
+          onRecordPayment={() => setDialogOpen(true)}
         />
       </motion.section>
 

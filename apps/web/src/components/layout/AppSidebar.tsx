@@ -1,6 +1,7 @@
 import React from 'react';
 import { useLocation, useNavigate, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SidebarIndicator } from '@/components/motion/SidebarIndicator';
 import {
   LayoutDashboard,
   Users,
@@ -244,7 +245,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       )}
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-4">
+      <motion.nav
+        layout
+        data-sidebar-nav="true"
+        className="flex-1 overflow-y-auto px-3 py-4 flex flex-col gap-4 relative"
+      >
+        {/* Animated active indicator — tracks active link via ResizeObserver */}
+        <SidebarIndicator collapsed={collapsed} />
+
         {filteredTree.map((node) =>
           renderNode(node, mobileOpen ? 'drawer' : 'rail'),
         )}
@@ -277,7 +285,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
             ))}
           </div>
         )}
-      </nav>
+      </motion.nav>
 
       {/* Footer user */}
       <div className={cn('border-t border-(--line) p-3 shrink-0', collapsed && !mobileOpen ? 'flex justify-center' : '')}>

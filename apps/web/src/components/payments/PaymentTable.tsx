@@ -1,6 +1,7 @@
 import React from 'react';
 import { CreditCard, Download } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { DataTable, type DataTableColumn, type DataTableBulkAction } from '@/components/ui/data-table';
 import { EmptyPaymentsIllustration } from '@/components/shared/illustrations';
@@ -11,6 +12,8 @@ interface PaymentTableProps {
   payments: any[];
   isLoading?: boolean;
   onOpenInvoice: (paymentId: number) => void;
+  /** Called when user clicks "Record payment" CTA in the empty state. */
+  onRecordPayment?: () => void;
 }
 
 const getModeBadge = (mode: string) => {
@@ -44,6 +47,7 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
   payments,
   isLoading,
   onOpenInvoice,
+  onRecordPayment,
 }) => {
   const { toast } = useToast()
 
@@ -134,6 +138,13 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
             illustration={<EmptyPaymentsIllustration className="w-full h-auto" />}
             title="No transactions recorded"
             description="Payments collected from members will appear in this ledger."
+            action={
+              onRecordPayment ? (
+                <Button variant="default" size="sm" onClick={onRecordPayment}>
+                  <CreditCard className="h-3.5 w-3.5" /> Record payment
+                </Button>
+              ) : undefined
+            }
             onboardingSteps={[
               { n: 1, label: 'Add members' },
               { n: 2, label: 'Collect payment' },

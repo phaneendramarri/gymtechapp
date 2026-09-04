@@ -154,7 +154,7 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
           {/* Core Info */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="editFirstName" className="text-xs font-semibold">First Name *</Label>
+              <Label htmlFor="editFirstName" className="text-xs font-semibold gt-label-required">First Name</Label>
               <Input
                 id="editFirstName"
                 required
@@ -177,7 +177,7 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="editPhone" className="text-xs font-semibold">Mobile Phone (10 Digits) *</Label>
+              <Label htmlFor="editPhone" className="text-xs font-semibold gt-label-required">Mobile Phone (10 Digits)</Label>
               <Input
                 id="editPhone"
                 required

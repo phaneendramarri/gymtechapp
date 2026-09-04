@@ -1,19 +1,8 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AnimatePresence, motion } from 'framer-motion';
-
-// Smooth page-transition wrapper — wraps every route's content element.
-const PageTransition: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <motion.div
-    initial={{ opacity: 0, y: 6 }}
-    animate={{ opacity: 1, y: 0 }}
-    exit={{ opacity: 0, y: -4 }}
-    transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-  >
-    {children}
-  </motion.div>
-);
+import { AnimatePresence } from 'framer-motion';
+import { PageTransition } from '@/components/motion/PageTransition';
 import { ThemeProvider } from './lib/theme';
 import { AuthProvider } from './lib/auth';
 import { ToastProvider } from './components/ui/toast';

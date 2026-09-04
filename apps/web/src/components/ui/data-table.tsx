@@ -517,6 +517,7 @@ function RowActionsMenu<T>({
         <button
           type="button"
           aria-label="Row actions"
+          title="More actions"
           className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors focus-ring"
         >
           <MoreHorizontal className="size-4" />

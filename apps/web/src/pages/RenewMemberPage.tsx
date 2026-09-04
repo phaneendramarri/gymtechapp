@@ -160,7 +160,7 @@ export const RenewMemberPage: React.FC = () => {
               </CardHeader>
               <CardContent className="pt-4 flex flex-col gap-4">
                 <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="planId" className="text-xs font-semibold">Select Plan *</Label>
+                  <Label htmlFor="planId" className="text-xs font-semibold gt-label-required">Select Plan</Label>
                   <Select value={planId?.toString() ?? ''} onValueChange={handlePlanChange}>
                     <SelectTrigger id="planId" className="text-xs">
                       <SelectValue placeholder="Choose renewal package" />

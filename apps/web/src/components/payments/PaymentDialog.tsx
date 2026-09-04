@@ -128,7 +128,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
         ) : (
           <form onSubmit={handleRecordSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="memberSelect" className="text-xs font-semibold">Select Member *</Label>
+              <Label htmlFor="memberSelect" className="text-xs font-semibold gt-label-required">Select Member</Label>
               <Select value={selectedMemberId?.toString() ?? ''} onValueChange={(val) => setSelectedMemberId(parseInt(val, 10))}>
                 <SelectTrigger id="memberSelect" className="text-xs">
                   <SelectValue placeholder="Select member" />
@@ -145,7 +145,7 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
             </div>
 
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="amount" className="text-xs font-semibold">Amount (₹) *</Label>
+              <Label htmlFor="amount" className="text-xs font-semibold gt-label-required">Amount (₹)</Label>
               <Input
                 id="amount"
                 type="number"

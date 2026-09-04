@@ -232,7 +232,7 @@ export const NewMemberPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="firstName" className="text-sm font-medium text-ink">First Name *</Label>
+                    <Label htmlFor="firstName" className="text-sm font-medium text-ink gt-label-required">First Name</Label>
                     <Input
                       id="firstName"
                       required
@@ -256,7 +256,7 @@ export const NewMemberPage: React.FC = () => {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="phone" className="text-sm font-medium text-ink">Mobile Phone (10 Digits) *</Label>
+                    <Label htmlFor="phone" className="text-sm font-medium text-ink gt-label-required">Mobile Phone (10 Digits)</Label>
                     <Input
                       id="phone"
                       type="tel"
@@ -358,7 +358,7 @@ export const NewMemberPage: React.FC = () => {
               </CardHeader>
               <CardContent className="p-6 flex flex-col gap-6">
                 <div className="flex flex-col gap-2">
-                  <Label htmlFor="planId" className="text-sm font-medium text-ink">Select Membership Package *</Label>
+                  <Label htmlFor="planId" className="text-sm font-medium text-ink gt-label-required">Select Membership Package</Label>
                   <Select value={planId?.toString() ?? ''} onValueChange={handlePlanChange}>
                     <SelectTrigger id="planId" className="h-11 text-sm">
                       <SelectValue placeholder={plansLoading ? 'Loading plans...' : 'Choose package'} />
@@ -387,8 +387,8 @@ export const NewMemberPage: React.FC = () => {
                     />
                   </div>
                   <div className="flex flex-col gap-2">
-                    <Label htmlFor="initialPayment" className="text-sm font-medium text-ink">
-                      Initial Payment Collected (₹) *
+                    <Label htmlFor="initialPayment" className="text-sm font-medium text-ink gt-label-required">
+                      Initial Payment Collected (₹)
                     </Label>
                     <Input
                       id="initialPayment"

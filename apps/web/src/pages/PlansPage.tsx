@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Clock, Tag } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import {
@@ -103,7 +104,7 @@ export const PlansPage: React.FC = () => {
             return (
               <article
                 key={p.id}
-                className="flex flex-col gap-4 p-6 rounded-md border border-(--line) bg-(--surface) hover:border-(--ink-3) transition-colors"
+                className="gt-card gt-card-interactive flex flex-col gap-4 p-6"
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
@@ -228,7 +229,9 @@ export const PlansPage: React.FC = () => {
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-medium text-ink">{label}</label>
+    <label className={cn('text-xs font-medium text-ink', label.endsWith(' *') && 'gt-label-required')}>
+      {label.replace(' *', '')}
+    </label>
     {children}
   </div>
 );

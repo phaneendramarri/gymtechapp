@@ -1,0 +1,155 @@
+/* =========================================================================
+   GymTech OS — Motion System v1.
+   Premium animation tokens and keyframes.
+   Use only these tokens; never invent new durations or easings.
+   ========================================================================= */
+
+/* ---------------------------------------------------------------------------
+   Motion Tokens — consume these everywhere, never hardcode values.
+   --------------------------------------------------------------------------- */
+:root {
+  /* Duration scale */
+  --motion-instant: 100ms;
+  --motion-fast:     140ms;
+  --motion-normal:    180ms;
+  --motion-page:      220ms;
+  --motion-slow:      280ms;
+  --motion-drawer:    300ms;
+
+  /* Easing — use only these three curves */
+  --ease-out-expo:    cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-soft: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring:      cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* Distance scale for spatial transitions */
+  --motion-shift:     12px;
+  --motion-rise:      6px;
+  --motion-expand:    4px;
+
+  /* Z-index layers */
+  --z-page:     10;
+  --z-overlay:  40;
+  --z-dialog:   50;
+  --z-toast:    60;
+  --z-command:  70;
+}
+
+/* ---------------------------------------------------------------------------
+   Keyframes — page, content, overlay, list, toast.
+   --------------------------------------------------------------------------- */
+
+/* Forward page enter (from right) */
+@keyframes gt-page-enter-forward {
+  from { opacity: 0; transform: translateX(var(--motion-shift)); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Back page enter (from left — returning) */
+@keyframes gt-page-enter-back {
+  from { opacity: 0; transform: translateX(calc(-1 * var(--motion-shift))); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* Page exit (forward — leaving to the right) */
+@keyframes gt-page-exit-forward {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(calc(-1 * var(--motion-shift))); }
+}
+
+/* Page exit (back — leaving to the left) */
+@keyframes gt-page-exit-back {
+  from { opacity: 1; transform: translateX(0); }
+  to   { opacity: 0; transform: translateX(var(--motion-shift)); }
+}
+
+/* Fade + subtle rise — used for overlays, modals, content reveals */
+@keyframes gt-fade-rise {
+  from { opacity: 0; transform: translateY(var(--motion-rise)); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* Fade + subtle sink — used for toast exit */
+@keyframes gt-fade-sink {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(var(--motion-rise)); }
+}
+
+/* Scale rise (dialogs, modals) */
+@keyframes gt-dialog-enter {
+  from { opacity: 0; transform: scale(0.97) translateY(var(--motion-rise)); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Backdrop fade */
+@keyframes gt-backdrop-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes gt-backdrop-exit {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+
+/* List item — enter and collapse */
+@keyframes gt-list-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes gt-list-exit {
+  from { opacity: 1; transform: translateY(0); }
+  to   { opacity: 0; transform: translateY(4px); }
+}
+
+/* Skeleton shimmer */
+@keyframes gt-skel {
+  0%   { background-position: 100% 0; }
+  100% { background-position: -100% 0; }
+}
+
+/* Sidebar indicator — vertical glide */
+@keyframes gt-indicator-enter {
+  from { opacity: 0; transform: scaleY(0.8); }
+  to   { opacity: 1; transform: scaleY(1); }
+}
+
+/* Toast enter */
+@keyframes gt-toast-enter {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Toast exit */
+@keyframes gt-toast-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to   { opacity: 0; transform: translateY(4px) scale(0.98); }
+}
+
+/* Highlight flash — for list item after mutation */
+@keyframes gt-highlight {
+  0%   { background-color: var(--iron-soft); }
+  100% { background-color: transparent; }
+}
+
+/* ---------------------------------------------------------------------------
+   Reduced motion — respect prefers-reduced-motion.
+   --------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --motion-instant: 0ms;
+    --motion-fast:    0ms;
+    --motion-normal:  0ms;
+    --motion-page:    0ms;
+    --motion-slow:    0ms;
+    --motion-drawer:  0ms;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

@@ -364,6 +364,13 @@
     box-shadow: 0 0 0 3px var(--iron-soft);
     outline: none;
   }
+  /* Required field asterisk — red asterisk, consistent across all forms */
+  .gt-label-required::after {
+    content: ' *';
+    color: var(--danger);
+    font-weight: 600;
+  }
+
   .gt-input:disabled { opacity: 0.5; cursor: not-allowed; }
 
   /* Buttons — restrained, confident */
@@ -428,6 +435,16 @@
   .gt-card:hover {
     box-shadow: var(--shadow-xs);
     border-color: var(--line-2);
+  }
+
+  /* Cards that are clickable — add cursor-pointer + stronger hover affordance */
+  .gt-card-interactive {
+    cursor: pointer;
+  }
+
+  .gt-card-interactive:hover {
+    border-color: var(--ink-3);
+    box-shadow: var(--shadow-sm);
   }
 
   .gt-section-label {

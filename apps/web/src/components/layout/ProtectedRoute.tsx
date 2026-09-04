@@ -46,23 +46,18 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/dashboard" replace />;
   }
 
-  if (!requireSuperAdmin && isPlatformAdmin) {
-    return <Navigate to="/admin" replace />;
-  }
-
   // Feature authorization guard — gates on gym plan features (e.g. PT disabled)
-  if (requiredFeature && gym?.enabledFeatures && !gym.enabledFeatures.includes(requiredFeature as any)) {
+  // PLATFORM_ADMIN bypasses feature gates so they can view any gym's data
+  if (requiredFeature && gym?.enabledFeatures && !gym.enabledFeatures.includes(requiredFeature as any) && !isPlatformAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Permission guard — PLATFORM_ADMIN bypasses all; everyone else needs all requiredPermissions
-  if (requiredPermissions && requiredPermissions.length > 0) {
-    const isPlatformAdmin = user.role === 'PLATFORM_ADMIN';
-    if (!isPlatformAdmin) {
-      const hasAll = requiredPermissions.every((perm) => user.permissions?.includes(perm));
-      if (!hasAll) {
-        return <Navigate to="/dashboard" replace />;
-      }
+  // Permission guard — PLATFORM_ADMIN bypasses all permission checks so they have
+  // full read/write access across every gym's modules (members, payments, etc.)
+  if (requiredPermissions && requiredPermissions.length > 0 && !isPlatformAdmin) {
+    const hasAll = requiredPermissions.every((perm) => user.permissions?.includes(perm));
+    if (!hasAll) {
+      return <Navigate to="/dashboard" replace />;
     }
   }
 

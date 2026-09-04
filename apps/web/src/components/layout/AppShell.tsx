@@ -1,9 +1,11 @@
 import React from 'react';
 import { useLocation } from 'react-router-dom';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
+import { fadeRiseVariants } from '@/lib/motion';
 
 export interface BreadcrumbItem {
   label: string;
@@ -49,6 +51,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     return localStorage.getItem('gym_rail_collapsed') === 'true';
   });
   const [mobileOpen, setMobileOpen] = React.useState(false);
+  // Bump this to re-trigger title animation on route change
+  const [titleKey, setTitleKey] = React.useState(location.pathname);
 
   const toggle = () => {
     const next = !collapsed;
@@ -59,6 +63,7 @@ export const AppShell: React.FC<AppShellProps> = ({
   // Close mobile drawer on route change.
   React.useEffect(() => {
     setMobileOpen(false);
+    setTitleKey(location.pathname);
   }, [location.pathname]);
 
   const crumbs: BreadcrumbItem[] = Array.isArray(breadcrumb)
@@ -108,7 +113,19 @@ export const AppShell: React.FC<AppShellProps> = ({
                 )}
                 {/* Title row */}
                 <div className="flex items-center gap-4">
-                  <h1 className="text-h2 text-ink leading-none truncate">{title}</h1>
+                  <AnimatePresence mode="wait" initial={false}>
+                    <motion.h1
+                      key={titleKey}
+                      variants={fadeRiseVariants}
+                      initial="initial"
+                      animate="animate"
+                      exit="exit"
+                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      className="text-h2 text-ink leading-none truncate"
+                    >
+                      {title}
+                    </motion.h1>
+                  </AnimatePresence>
                   {actions && (
                     <div className="flex items-center gap-2 shrink-0">{actions}</div>
                   )}

@@ -128,7 +128,7 @@ export const StaffPage: React.FC = () => {
           {staff.map((s: any) => (
             <li
               key={s.id}
-              className="flex items-center gap-3 p-3 rounded-md border border-(--line) bg-(--surface) hover:border-(--ink-3) transition-colors"
+              className="gt-card gt-card-interactive flex items-center gap-3 p-3"
             >
               <div className="h-9 w-9 rounded-full bg-(--surface-2) text-ink-2 flex items-center justify-center text-sm font-semibold shrink-0">
                 {(s.name?.[0] || '·').toUpperCase()}
@@ -261,7 +261,9 @@ export const StaffPage: React.FC = () => {
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div className="flex flex-col gap-1.5">
-    <label className="text-xs font-medium text-ink">{label}</label>
+    <label className={cn('text-xs font-medium text-ink', label.endsWith(' *') && 'gt-label-required')}>
+      {label.replace(' *', '')}
+    </label>
     {children}
   </div>
 );

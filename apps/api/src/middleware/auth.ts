@@ -101,15 +101,30 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
 
   setUser(c, payloadToSessionUser(session), session.gymId ?? undefined);
 
-  if (!ctx.gymId) {
-    return jsonError('User is not assigned to a gym tenant', 403);
+  // Resolve gymId: platform admins use ?gymId= query param to scope themselves;
+  // regular users always have gymId set in their JWT.
+  const user = payloadToSessionUser(session);
+  if (user.role === 'PLATFORM_ADMIN') {
+    const gymIdParam = c.req.query('gymId');
+    if (!gymIdParam) {
+      return jsonError('Platform admin must specify target gym via ?gymId= query parameter', 400);
+    }
+    const gymId = Number(gymIdParam);
+    if (!gymId || !Number.isInteger(gymId)) {
+      return jsonError('Invalid gymId parameter', 400);
+    }
+    setUser(c, user, gymId);
+  } else {
+    if (!session.gymId) {
+      return jsonError('User is not assigned to a gym tenant', 403);
+    }
+    setUser(c, user, session.gymId);
   }
 
   // Load role permissions for all gym users (owners + non-owners, excluding platform-admins).
   // Platform admins bypass all checks and have permissions: ['*'] hardcoded.
   // Owners have no universal bypass — they only see what their roleId (or individual grants) give them.
   // roleId is embedded in the JWT's session.user.roleId field (added during token minting).
-  const user = ctx.user!;
   if (user.role !== 'PLATFORM_ADMIN' && (user as any).roleId) {
     const roleId = (user as any).roleId as number;
     const roleRow = await c.env.DB
@@ -232,6 +247,10 @@ export function requirePermission(...required: string[]) {
 
 export function requireFeature(featureKey: GymFeatureKey) {
   return async (c: AuthContext, next: () => Promise<void>) => {
+    const ctx = getCtx(c);
+    // PLATFORM_ADMIN bypasses all feature gates
+    if (ctx.user?.role === 'PLATFORM_ADMIN') return next();
+
     const tenant = c.get('tenant');
     if (!tenant) return jsonError('Tenant not resolved', 500);
     if (!tenant.enabledFeatures.includes(featureKey)) {

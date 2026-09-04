@@ -165,8 +165,26 @@ class ApiClient {
   }
 
   // Members
-  async getMembers(params?: { search?: string; status?: string; limit?: number; offset?: number }): Promise<{ members: any[] }> {
+  // ---------- Gym-scoped helpers (platform-admin cross-gym support) ----------
+  /**
+   * Build a gymId-aware query string. When gymId is omitted the backend falls
+   * back to the session's JWT gymId (regular gym users). When gymId is
+   * provided (platform admin) the ?gymId= param is forwarded to requireGym.
+   */
+  private gymParams(gymId?: number, extra?: Record<string, string | number | undefined>): URLSearchParams {
     const q = new URLSearchParams();
+    if (gymId) q.set('gymId', String(gymId));
+    if (extra) {
+      for (const [k, v] of Object.entries(extra)) {
+        if (v !== undefined) q.set(k, String(v));
+      }
+    }
+    return q;
+  }
+
+  // Members
+  async getMembers(params?: { search?: string; status?: string; limit?: number; offset?: number }, gymId?: number): Promise<{ members: any[] }> {
+    const q = this.gymParams(gymId);
     if (params?.search) q.set('search', params.search);
     if (params?.status && params.status !== 'ALL') q.set('status', params.status);
     if (params?.limit) q.set('limit', String(params.limit));
@@ -176,99 +194,127 @@ class ApiClient {
     return this.request<{ members: any[] }>(`/api/members${qs ? `?${qs}` : ''}`);
   }
 
-  async createMember(payload: CreateMemberRequest): Promise<CreateMemberResponse> {
-    return this.request<CreateMemberResponse>('/api/members', {
+  async createMember(payload: CreateMemberRequest, gymId?: number): Promise<CreateMemberResponse> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<CreateMemberResponse>(`/api/members${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
-  async bulkImportMembers(payload: BulkImportMembersRequest): Promise<BulkImportMembersResponse> {
-    return this.request<BulkImportMembersResponse>('/api/members/bulk-import', {
+  async bulkImportMembers(payload: BulkImportMembersRequest, gymId?: number): Promise<BulkImportMembersResponse> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<BulkImportMembersResponse>(`/api/members/bulk-import${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
-  async getMemberDetail(id: number): Promise<MemberDetailResponse> {
-    return this.request<MemberDetailResponse>(`/api/members/${id}`);
+  async getMemberDetail(id: number, gymId?: number): Promise<MemberDetailResponse> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<MemberDetailResponse>(`/api/members/${id}${qs ? `?${qs}` : ''}`);
   }
 
-  async updateMember(id: number, payload: UpdateMemberRequest): Promise<Member> {
-    return this.request<Member>(`/api/members/${id}`, {
+  async updateMember(id: number, payload: UpdateMemberRequest, gymId?: number): Promise<Member> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<Member>(`/api/members/${id}${qs ? `?${qs}` : ''}`, {
       method: 'PUT',
       body: JSON.stringify(payload),
     });
   }
 
-  async renewMembership(id: number, payload: RenewMembershipRequest): Promise<RenewMembershipResponse> {
-    return this.request<RenewMembershipResponse>(`/api/members/${id}/renew`, {
+  async renewMembership(id: number, payload: RenewMembershipRequest, gymId?: number): Promise<RenewMembershipResponse> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<RenewMembershipResponse>(`/api/members/${id}/renew${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
-  async freezeMember(id: number, reason?: string): Promise<FreezeMemberResponse> {
-    return this.request<FreezeMemberResponse>(`/api/members/${id}/freeze`, {
+  async freezeMember(id: number, reason?: string, gymId?: number): Promise<FreezeMemberResponse> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<FreezeMemberResponse>(`/api/members/${id}/freeze${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify({ reason }),
     });
   }
 
-  async unfreezeMember(id: number): Promise<FreezeMemberResponse> {
-    return this.request<FreezeMemberResponse>(`/api/members/${id}/unfreeze`, {
+  async unfreezeMember(id: number, gymId?: number): Promise<FreezeMemberResponse> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<FreezeMemberResponse>(`/api/members/${id}/unfreeze${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify({}),
     });
   }
 
   // Plans
-  async getPlans(): Promise<{ plans: GymMembershipPlan[] }> {
-    return this.request<{ plans: GymMembershipPlan[] }>('/api/plans');
+  async getPlans(gymId?: number): Promise<{ plans: GymMembershipPlan[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ plans: GymMembershipPlan[] }>(`/api/plans${qs ? `?${qs}` : ''}`);
   }
 
-  async createPlan(payload: CreatePlanRequest): Promise<GymMembershipPlan> {
-    return this.request<GymMembershipPlan>('/api/plans', {
+  async createPlan(payload: CreatePlanRequest, gymId?: number): Promise<GymMembershipPlan> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<GymMembershipPlan>(`/api/plans${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
   // Payments
-  async getPayments(params?: { limit?: number; memberId?: string }): Promise<{ payments: Payment[]; summary: any }> {
-    const q = new URLSearchParams();
+  async getPayments(params?: { limit?: number; memberId?: string }, gymId?: number): Promise<{ payments: Payment[]; summary: any }> {
+    const q = this.gymParams(gymId);
     if (params?.limit) q.set('limit', String(params.limit));
     if (params?.memberId) q.set('memberId', params.memberId);
     const qs = q.toString();
     return this.request<{ payments: Payment[]; summary: any }>(`/api/payments${qs ? `?${qs}` : ''}`);
   }
 
-  async recordPayment(payload: RecordPaymentRequest): Promise<RecordPaymentResponse> {
-    return this.request<RecordPaymentResponse>('/api/payments', {
+  async recordPayment(payload: RecordPaymentRequest, gymId?: number): Promise<RecordPaymentResponse> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<RecordPaymentResponse>(`/api/payments${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
   // Attendance
-  async getAttendance(): Promise<{ logs: any[] }> {
-    return this.request<{ logs: any[] }>('/api/attendance');
+  async getAttendance(gymId?: number): Promise<{ logs: any[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ logs: any[] }>(`/api/attendance${qs ? `?${qs}` : ''}`);
   }
 
-  async checkIn(payload: CheckInRequest): Promise<CheckInResponse> {
-    return this.request<CheckInResponse>('/api/attendance/check-in', {
+  async checkIn(payload: CheckInRequest, gymId?: number): Promise<CheckInResponse> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<CheckInResponse>(`/api/attendance/check-in${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
   }
 
   // Staff
-  async getStaff(): Promise<{ staff: User[] }> {
-    return this.request<{ staff: User[] }>('/api/staff');
+  async getStaff(gymId?: number): Promise<{ staff: User[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ staff: User[] }>(`/api/staff${qs ? `?${qs}` : ''}`);
   }
 
-  async createStaff(payload: CreateStaffRequest): Promise<User> {
-    return this.request<User>('/api/staff', {
+  async createStaff(payload: CreateStaffRequest, gymId?: number): Promise<User> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<User>(`/api/staff${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -412,38 +458,50 @@ class ApiClient {
   }
 
   // Soft Deletes & Lifecycle Archival
-  async archiveMember(id: number): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/api/members/${id}`, {
+  async archiveMember(id: number, gymId?: number): Promise<{ success: boolean; message: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; message: string }>(`/api/members/${id}${qs ? `?${qs}` : ''}`, {
       method: 'DELETE',
     });
   }
 
-  async restoreMember(id: number): Promise<{ success: boolean; member: any; message: string }> {
-    return this.request<{ success: boolean; member: any; message: string }>(`/api/members/${id}/restore`, {
+  async restoreMember(id: number, gymId?: number): Promise<{ success: boolean; member: any; message: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; member: any; message: string }>(`/api/members/${id}/restore${qs ? `?${qs}` : ''}`, {
       method: 'POST',
     });
   }
 
-  async archivePlan(id: number): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/api/plans/${id}`, {
+  async archivePlan(id: number, gymId?: number): Promise<{ success: boolean; message: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; message: string }>(`/api/plans/${id}${qs ? `?${qs}` : ''}`, {
       method: 'DELETE',
     });
   }
 
-  async restorePlan(id: number): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/api/plans/${id}/restore`, {
+  async restorePlan(id: number, gymId?: number): Promise<{ success: boolean; message: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; message: string }>(`/api/plans/${id}/restore${qs ? `?${qs}` : ''}`, {
       method: 'POST',
     });
   }
 
-  async archiveStaff(id: number): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/api/staff/${id}`, {
+  async archiveStaff(id: number, gymId?: number): Promise<{ success: boolean; message: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; message: string }>(`/api/staff/${id}${qs ? `?${qs}` : ''}`, {
       method: 'DELETE',
     });
   }
 
-  async restoreStaff(id: number): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>(`/api/staff/${id}/restore`, {
+  async restoreStaff(id: number, gymId?: number): Promise<{ success: boolean; message: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; message: string }>(`/api/staff/${id}/restore${qs ? `?${qs}` : ''}`, {
       method: 'POST',
     });
   }
