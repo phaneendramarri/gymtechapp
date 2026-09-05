@@ -312,7 +312,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         )}
       >
         {/* Logo */}
-        <div className={cn('flex items-center h-14 border-b border-border shrink-0', collapsed ? 'justify-center px-0' : 'px-4 gap-2.5')}>
+        <div className={cn('flex items-center h-14 sm:h-16 border-b border-border shrink-0', collapsed ? 'justify-center px-0' : 'px-4 gap-2.5')}>
           <Logo className="h-7 w-7 shrink-0" />
           {!collapsed && (
             <motion.span

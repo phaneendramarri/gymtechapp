@@ -471,7 +471,7 @@ export const AdminPage: React.FC = () => {
     <AdminShell title="Platform Management & Centralized Gateways">
       {/* Tab Navigation */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-secondary/40 p-1 border border-border/60 rounded-xl">
+        <TabsList className="bg-secondary/40 p-1 border border-border/60 rounded-xl max-w-full overflow-x-auto flex justify-start sm:inline-flex sm:w-auto h-auto">
           <TabsTrigger value="tenants" className="gap-2 text-xs font-semibold">
             <Building2 className="h-4 w-4" />
             Tenants &amp; Subscriptions
