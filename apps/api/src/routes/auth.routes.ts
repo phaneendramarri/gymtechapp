@@ -200,7 +200,11 @@ authRoutes.post('/forgot-password', safeHandler(async (c) => {
     .bind(user.gym_id, user.id, tokenHash, expiresAt)
     .run();
 
-  const emailService = new EmailService(ctx.env);
+  const origin = c.req.header('origin');
+  const appUrl = origin && (origin.includes('gymtech.app') || origin.includes('workers.dev'))
+    ? origin
+    : (ctx.env.APP_URL || 'https://gymtech.app');
+  const emailService = new EmailService({ ...ctx.env, APP_URL: appUrl });
   const sendResult = await emailService.sendPasswordResetEmail({ to: user.email, name: user.name, token });
 
   // Only include the raw reset URL in non-production environments. The URL
@@ -239,7 +243,11 @@ authRoutes.post('/reset-password', safeHandler(async (c) => {
     ctx.env.DB.prepare(`UPDATE user_password_resets SET used_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(resetRecord.id, resetRecord.gym_id),
   ]);
 
-  const emailService = new EmailService(ctx.env);
+  const confOrigin = c.req.header('origin');
+  const confAppUrl = confOrigin && (confOrigin.includes('gymtech.app') || confOrigin.includes('workers.dev'))
+    ? confOrigin
+    : (ctx.env.APP_URL || 'https://gymtech.app');
+  const emailService = new EmailService({ ...ctx.env, APP_URL: confAppUrl });
   await emailService.sendPasswordResetConfirmation({ to: user.email, name: user.name });
 
   return jsonOk({ success: true, message: 'Your password has been successfully reset.' });

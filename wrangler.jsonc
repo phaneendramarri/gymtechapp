@@ -47,9 +47,9 @@
 	// `APP_URL` per env. Local dev defaults stay permissive.
 	"vars": {
 		"APP_ENV": "production",
-		"CORS_ORIGINS": "https://gymtech.phaneendra73.workers.dev,https://gymtech.app,https://www.gymtech.app",
-		"EMAIL_FROM": "GymTech <onboarding@resend.dev>",
-		"APP_URL": "https://gymtech.phaneendra73.workers.dev",
+		"CORS_ORIGINS": "https://gymtech.app,https://www.gymtech.app,https://gymtech.phaneendra73.workers.dev",
+		"EMAIL_FROM": "GymTech <notifications@gymtech.app>",
+		"APP_URL": "https://gymtech.app",
 		"FILEBASE_ENDPOINT": "https://s3.filebase.com",
 		"FILEBASE_REGION": "us-east-1",
 		"FILEBASE_BUCKET": "gymtech-media"
@@ -131,9 +131,9 @@
 			"name": "gymtech",
 			"vars": {
 				"APP_ENV": "production",
-				"CORS_ORIGINS": "https://gymtech.phaneendra73.workers.dev,https://gymtech.app,https://www.gymtech.app",
-				"EMAIL_FROM": "GymTech <onboarding@resend.dev>",
-				"APP_URL": "https://gymtech.phaneendra73.workers.dev",
+				"CORS_ORIGINS": "https://gymtech.app,https://www.gymtech.app,https://gymtech.phaneendra73.workers.dev",
+				"EMAIL_FROM": "GymTech <notifications@gymtech.app>",
+				"APP_URL": "https://gymtech.app",
 				"FILEBASE_ENDPOINT": "https://s3.filebase.com",
 				"FILEBASE_REGION": "us-east-1",
 				"FILEBASE_BUCKET": "gymtech-media"

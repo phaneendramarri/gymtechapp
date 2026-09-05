@@ -21,16 +21,11 @@ export class EmailService {
   }) {
     this.resendApiKey = env.RESEND_API_KEY;
     this.db = env.DB;
-    const configuredFrom = env.EMAIL_FROM;
-    if (configuredFrom && !configuredFrom.includes('gymtech.app')) {
-      this.defaultFrom = configuredFrom;
-    } else {
-      this.defaultFrom = 'GymTech <onboarding@resend.dev>';
-    }
-    this.appUrl = env.APP_URL || 'https://gymtech.phaneendra73.workers.dev';
+    this.defaultFrom = env.EMAIL_FROM || 'GymTech <notifications@gymtech.app>';
+    this.appUrl = env.APP_URL || 'https://gymtech.app';
   }
 
-  async sendEmail(options: EmailOptions): Promise<{ success: boolean; provider: string; id?: string }> {
+  async sendEmail(options: EmailOptions): Promise<{ success: boolean; provider: string; id?: string; error?: string }> {
     const from = options.from || this.defaultFrom;
     const textContent = options.text || options.html.replace(/<[^>]*>?/gm, '');
     let apiKey = options.apiKey || this.resendApiKey;
@@ -46,6 +41,8 @@ export class EmailService {
         }
       } catch {}
     }
+
+    let lastError: string | undefined;
 
     // 1. If Resend API Key is available, use Resend
     if (apiKey) {
@@ -67,6 +64,7 @@ export class EmailService {
 
         if (!res.ok) {
           const errText = await res.text();
+          lastError = errText;
           console.warn(`[EmailService] Resend initial send error (${res.status}): ${errText}`);
           if (from !== 'GymTech <onboarding@resend.dev>') {
             res = await fetch('https://api.resend.com/emails', {
@@ -92,9 +90,11 @@ export class EmailService {
           return { success: true, provider: 'resend', id: (data as any)?.id };
         } else {
           const errText = await res.text();
+          lastError = errText;
           console.warn(`[EmailService] Resend API error: ${errText}. Falling back to automated dev mailer.`);
         }
       } catch (err: any) {
+        lastError = err.message;
         console.warn(`[EmailService] Resend dispatch failed: ${err.message}`);
       }
     }
@@ -131,7 +131,7 @@ export class EmailService {
     console.log(`Body (Plain):\n${textContent}`);
     console.log(`=================================================================\n`);
 
-    return { success: true, provider: 'dev-mailer' };
+    return { success: true, provider: 'dev-mailer', error: lastError };
   }
 
   // ==========================================
@@ -375,7 +375,7 @@ export class EmailService {
 </html>
 `;
 
-    await this.sendEmail({
+    const result = await this.sendEmail({
       to: params.to,
       subject: `[SMTP Test] Verification email for ${params.gymName || 'GymTech'}`,
       html,
@@ -383,9 +383,16 @@ export class EmailService {
       apiKey: params.apiKey,
     });
 
+    if (result.provider === 'resend') {
+      return {
+        success: true,
+        message: `Test email successfully dispatched to ${params.to} via Resend! (Resend ID: ${result.id || 'N/A'})`,
+      };
+    }
+
     return {
-      success: true,
-      message: `Test email successfully dispatched to ${params.to}!`,
+      success: false,
+      message: `Resend dispatch failed: ${result.error || 'Check RESEND_API_KEY and domain verification in Resend dashboard.'}`,
     };
   }
 }
