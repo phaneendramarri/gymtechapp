@@ -33,6 +33,7 @@ const CSRF_EXEMPT_PATHS = [
   '/api/auth/login',
   '/api/auth/platform-login',
   '/api/auth/member-login',
+  '/api/auth/logout',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/health',

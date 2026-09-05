@@ -11,12 +11,14 @@ import { AuthService } from '../services/auth.service';
 import { EmailService } from '../services/email.service';
 import { AuditService, extractClientInfo } from '../services/audit.service';
 import { verifyTurnstileToken, type TurnstileAppEnv } from '../lib/turnstile';
-import { hashPassword, hashOpaqueToken, verifyOpaqueToken } from '../lib/session';
+import { hashPassword, hashOpaqueToken, verifyOpaqueToken, verifySessionToken } from '../lib/session';
 import {
   buildSessionCookie,
   buildCsrfCookie,
   buildClearSessionCookie,
   generateCsrfToken,
+  readCookie,
+  COOKIE_NAMES,
 } from '../lib/cookies';
 import { requireAuth } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
@@ -368,13 +370,21 @@ authRoutes.get('/portal', safeHandler(async (c) => {
   });
 }));
 
-authRoutes.post('/logout', requireAuth, safeHandler(async (c) => {
+authRoutes.post('/logout', safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL, ctx.env.DENYLIST_KV);
-  // Revoke the session from DB so the access token can never be used again
-  if (ctx.user?.jti) {
-    await authService.logout(ctx.user.jti);
-  }
+  try {
+    const cookieToken = readCookie(c.req.header('Cookie'), COOKIE_NAMES.SESSION);
+    const authHeader = c.req.header('Authorization');
+    const token = cookieToken || (authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null);
+    if (token) {
+      const iss = ctx.env.APP_URL ?? 'gymtech';
+      const session = await verifySessionToken(token, ctx.env.JWT_SECRET, { iss, aud: 'gymtech-api' }).catch(() => null);
+      if (session?.jti) {
+        const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL, ctx.env.DENYLIST_KV);
+        await authService.logout(session.jti).catch(() => {});
+      }
+    }
+  } catch {}
   return jsonOk(
     { success: true, message: 'Logged out.' },
     200,

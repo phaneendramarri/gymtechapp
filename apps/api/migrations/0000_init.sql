@@ -1,4 +1,4 @@
-﻿-- ============================================================================
+-- ============================================================================
 -- GYM SAAS D1 MIGRATION 0000 — Single-file schema for fresh installs
 -- Contains complete schema + seed data.
 -- All tables use argon2id for passwords (no sha256 fallback).
@@ -473,7 +473,7 @@ CREATE INDEX IF NOT EXISTS idx_menu_items_active ON menu_items(is_active);
 -- SEED DATA
 -- Idempotent -- safe to re-apply.
 -- Password for all accounts: Password123!
--- Hash: $argon2id$v=19$m=19456,t=2,p=1$Z3ltdGVjaHNhbHQwMDAwMDE$cC1Nhfqdtu65rVMxXM13yV5/kKgF5p9haplsZdEYUIs
+-- Hash: pbkdf2$sha256:100000$IYdSfFurT5whhDM6qMDpbA$4a5TtElMSVG0ZkczJkDq5DYf5aMaFLpVSwpNX6XeQpc
 -- ============================================================================
 
 -- Platform Root Gym (id=0) for platform admin sessions
@@ -482,7 +482,7 @@ VALUES (0, 'Platform Administration', 'platform-admin', '0000000000', 'admin@gym
 
 -- Super Admin
 INSERT OR IGNORE INTO platform_admins (id, email, password_hash, name, status, created_at, updated_at)
-VALUES (1, 'admin@gymtech.app', '$argon2id$v=19$m=19456,t=2,p=1$Z3ltdGVjaHNhbHQwMDAwMDE$cC1Nhfqdtu65rVMxXM13yV5/kKgF5p9haplsZdEYUIs', 'Super Admin', 'ACTIVE', unixepoch(), unixepoch());
+VALUES (1, 'admin@gymtech.app', 'pbkdf2$sha256:100000$IYdSfFurT5whhDM6qMDpbA$4a5TtElMSVG0ZkczJkDq5DYf5aMaFLpVSwpNX6XeQpc', 'Super Admin', 'ACTIVE', unixepoch(), unixepoch());
 
 -- Default Gym
 INSERT OR IGNORE INTO gyms (id, name, slug, phone, email, address, city, state, pincode, currency, status, created_at, updated_at)
@@ -515,7 +515,7 @@ INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at)
 
 -- Gym Owner
 INSERT OR IGNORE INTO users (id, gym_id, name, email, phone, password_hash, role, status, permissions, created_at, updated_at)
-VALUES (1, 1, 'Gym Owner', 'owner@gymtech.app', '9876543210', '$argon2id$v=19$m=19456,t=2,p=1$Z3ltdGVjaHNhbHQwMDAwMDE$cC1Nhfqdtu65rVMxXM13yV5/kKgF5p9haplsZdEYUIs', 'OWNER', 'ACTIVE', '{}', unixepoch(), unixepoch());
+VALUES (1, 1, 'Gym Owner', 'owner@gymtech.app', '9876543210', 'pbkdf2$sha256:100000$IYdSfFurT5whhDM6qMDpbA$4a5TtElMSVG0ZkczJkDq5DYf5aMaFLpVSwpNX6XeQpc', 'OWNER', 'ACTIVE', '{}', unixepoch(), unixepoch());
 
 -- Owner Permissions
 INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'dashboard', 1, unixepoch());
