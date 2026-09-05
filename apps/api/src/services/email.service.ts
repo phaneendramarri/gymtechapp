@@ -4,34 +4,56 @@ export interface EmailOptions {
   html: string;
   text?: string;
   from?: string;
+  apiKey?: string;
 }
 
 export class EmailService {
   private resendApiKey?: string;
   private defaultFrom: string;
   private appUrl: string;
+  private db?: any;
 
   constructor(env: {
     RESEND_API_KEY?: string;
     EMAIL_FROM?: string;
     APP_URL?: string;
+    DB?: any;
   }) {
     this.resendApiKey = env.RESEND_API_KEY;
-    this.defaultFrom = env.EMAIL_FROM || 'GymTech <notifications@gymtech.app>';
-    this.appUrl = env.APP_URL || 'http://localhost:5173';
+    this.db = env.DB;
+    const configuredFrom = env.EMAIL_FROM;
+    if (configuredFrom && !configuredFrom.includes('gymtech.app')) {
+      this.defaultFrom = configuredFrom;
+    } else {
+      this.defaultFrom = 'GymTech <onboarding@resend.dev>';
+    }
+    this.appUrl = env.APP_URL || 'https://gymtech.phaneendra73.workers.dev';
   }
 
   async sendEmail(options: EmailOptions): Promise<{ success: boolean; provider: string; id?: string }> {
     const from = options.from || this.defaultFrom;
     const textContent = options.text || options.html.replace(/<[^>]*>?/gm, '');
+    let apiKey = options.apiKey || this.resendApiKey;
 
-    // 1. If Resend API Key is available, use Resend's free tier
-    if (this.resendApiKey) {
+    if (!apiKey && this.db) {
       try {
-        const res = await fetch('https://api.resend.com/emails', {
+        const row = await this.db.prepare(`SELECT value_json FROM platform_settings WHERE key = 'communications'`).first();
+        if (row?.value_json) {
+          const comms = JSON.parse(row.value_json);
+          if (comms?.smtp?.password) {
+            apiKey = comms.smtp.password;
+          }
+        }
+      } catch {}
+    }
+
+    // 1. If Resend API Key is available, use Resend
+    if (apiKey) {
+      try {
+        let res = await fetch('https://api.resend.com/emails', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${this.resendApiKey}`,
+            'Authorization': `Bearer ${apiKey}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -42,6 +64,27 @@ export class EmailService {
             text: textContent,
           }),
         });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          console.warn(`[EmailService] Resend initial send error (${res.status}): ${errText}`);
+          if (from !== 'GymTech <onboarding@resend.dev>') {
+            res = await fetch('https://api.resend.com/emails', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                from: 'GymTech <onboarding@resend.dev>',
+                to: [options.to],
+                subject: options.subject,
+                html: options.html,
+                text: textContent,
+              }),
+            });
+          }
+        }
 
         if (res.ok) {
           const data = await res.json().catch(() => ({}));
@@ -293,6 +336,8 @@ export class EmailService {
     smtpHost: string;
     smtpPort: number;
     provider: string;
+    apiKey?: string;
+    fromEmail?: string;
   }): Promise<{ success: boolean; message: string }> {
     const html = `
 <!DOCTYPE html>
@@ -334,6 +379,8 @@ export class EmailService {
       to: params.to,
       subject: `[SMTP Test] Verification email for ${params.gymName || 'GymTech'}`,
       html,
+      from: params.fromEmail,
+      apiKey: params.apiKey,
     });
 
     return {

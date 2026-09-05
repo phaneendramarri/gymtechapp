@@ -208,8 +208,13 @@ adminRoutes.post('/communications/test-smtp', safeHandler(async (c) => {
   const { smtp, testRecipient } = parsed.data;
   const emailService = new EmailService(ctx.env);
   const result = await emailService.sendTestSmtpEmail({
-    to: testRecipient, gymName: 'GymTech Platform Central',
-    smtpHost: smtp.host || 'smtp.custom-relay.net', smtpPort: smtp.port || 587, provider: smtp.provider,
+    to: testRecipient,
+    gymName: 'GymTech Platform Central',
+    smtpHost: smtp.host || 'smtp.custom-relay.net',
+    smtpPort: smtp.port || 587,
+    provider: smtp.provider,
+    apiKey: smtp.password || ctx.env.RESEND_API_KEY,
+    fromEmail: smtp.fromEmail || (smtp.provider === 'RESEND' ? 'GymTech <onboarding@resend.dev>' : undefined),
   });
   // H-14: Audit platform admin SMTP test (no specific gym context)
   await auditSaas(ctx, 'communications.test_smtp', null, 'platform_settings', null, { after: { testRecipient } });
