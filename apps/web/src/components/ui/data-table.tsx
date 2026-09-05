@@ -18,6 +18,7 @@ import { motion, AnimatePresence, useReducedMotion } from "framer-motion"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -308,7 +309,7 @@ export function DataTable<T>({
                   <tr key={`sk-${i}`} className="gt-table-tr">
                     {Array.from({ length: totalColCount }).map((__, j) => (
                       <td key={j} className="gt-table-td">
-                        <div className="gt-skel h-4 w-full" />
+                        <Skeleton className="h-4 w-full" />
                       </td>
                     ))}
                   </tr>
@@ -474,9 +475,9 @@ export function DataTable<T>({
                   variant={action.destructive ? "destructive" : "outline"}
                   disabled={disabled}
                   onClick={() => action.onClick(selectedRows)}
-                  className="text-xs"
-                  icon={Icon ? <Icon className="size-3.5" /> : undefined}
+                  className="text-xs gap-1.5"
                 >
+                  {Icon && <Icon className="size-3.5" />}
                   {action.label}
                 </Button>
               )

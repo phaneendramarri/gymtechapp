@@ -25,7 +25,12 @@ export class AuthService {
   private readonly ISS: string;
   private readonly AUD = 'gymtech-api';
 
-  constructor(private db: D1Database, private jwtSecret: string, appUrl?: string) {
+  constructor(
+    private db: D1Database,
+    private jwtSecret: string,
+    appUrl?: string,
+    private denyListKV?: KVNamespace
+  ) {
     this.userRepo = new UserRepository(db);
     this.sessionRepo = new SessionRepository(db);
     this.ISS = appUrl ?? 'gymtech';
@@ -37,6 +42,29 @@ export class AuthService {
       aud: this.AUD,
       expiresInSeconds: ACCESS_TOKEN_EXPIRY_SECONDS,
     });
+  }
+
+  /**
+   * M-18: Shared session minting — creates access + refresh tokens and persists
+   * the session record. Used by both regular login and platform-admin login.
+   */
+  private async _mintSession(
+    sessionUser: SessionUser,
+    gymId: number | null
+  ): Promise<{ token: string; refreshToken: string }> {
+    const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
+    const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
+    const now = Math.floor(Date.now() / 1000);
+    await this.sessionRepo.create({
+      gymId: gymId ?? 0,
+      userId: sessionUser.id,
+      tokenHash: accessJti,
+      refreshTokenHash: refreshJti,
+      refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
+      issuedAt: now,
+      expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
+    });
+    return { token, refreshToken };
   }
 
   async login(email: string, passwordPlain: string): Promise<{ token: string; refreshToken: string; user: SessionUser; gym?: Gym | null }> {
@@ -66,8 +94,8 @@ export class AuthService {
     if (isLegacyHash(user.passwordHash)) {
       try {
         const newHash = await hashPassword(passwordPlain);
-        if (newHash.startsWith('$argon2id$')) {
-          await this.userRepo.upgradePasswordHash(user.id, user.gymId, newHash, 'argon2id');
+        if (newHash.startsWith('pbkdf2$')) {
+          await this.userRepo.upgradePasswordHash(user.id, user.gymId, newHash);
         }
       } catch (err) { console.error('Lazy rehash failed for user', user.id, err); }
     }
@@ -92,15 +120,8 @@ export class AuthService {
       permissions,
       roleId: user.roleId ?? null,
     };
-    const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
-    const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
-    const now = Math.floor(Date.now() / 1000);
-
-    await this.sessionRepo.create({
-      gymId: user.gymId, userId: user.id, tokenHash: accessJti, refreshTokenHash: refreshJti,
-      refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
-      issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
-    });
+    // M-18: Use shared session minting helper.
+    const { token, refreshToken } = await this._mintSession(sessionUser, user.gymId);
 
     return { token, refreshToken, user: sessionUser, gym };
   }
@@ -126,8 +147,8 @@ export class AuthService {
     if (isLegacyHash(admin.passwordHash)) {
       try {
         const newHash = await hashPassword(passwordPlain);
-        if (newHash.startsWith('$argon2id$')) {
-          await this.userRepo.upgradePlatformAdminPasswordHash(admin.id, newHash, 'argon2id');
+        if (newHash.startsWith('pbkdf2$')) {
+          await this.userRepo.upgradePlatformAdminPasswordHash(admin.id, newHash);
         }
       } catch (err) { console.error('Lazy rehash failed for platform admin', admin.id, err); }
     }
@@ -144,15 +165,8 @@ export class AuthService {
       permissions: ['*'], // PLATFORM_ADMIN bypasses all permission checks in middleware
       roleId: null,
     };
-    const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
-    const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
-    const now = Math.floor(Date.now() / 1000);
-
-    await this.sessionRepo.create({
-      gymId: 0, userId: admin.id, tokenHash: accessJti, refreshTokenHash: refreshJti,
-      refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
-      issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
-    });
+    // M-18: Use shared session minting helper.
+    const { token, refreshToken } = await this._mintSession(sessionUser, null);
 
     return { token, refreshToken, user: sessionUser };
   }
@@ -163,28 +177,58 @@ export class AuthService {
     if (!session) return null;
 
     const userRow = await this.userRepo.findById(session.userId as number);
-    if (!userRow) return null;
+    let sessionUser: SessionUser;
+    let gymId: number | null = null;
 
-    const permissions = await this.userRepo.getPermissionsForUser(userRow.id);
-    const sessionUser: SessionUser = {
-      id: userRow.id,
-      email: userRow.email,
-      name: userRow.name,
-      role: userRow.role as UserRole,
-      gymId: userRow.gymId,
-      isOwner: Boolean(userRow.isOwner),
-      permissions,
-      roleId: userRow.roleId ?? null,
-    };
+    if (userRow) {
+      if (userRow.status !== 'ACTIVE') return null;
+      const permissions = await this.userRepo.getPermissionsForUser(userRow.id);
+      sessionUser = {
+        id: userRow.id,
+        email: userRow.email,
+        name: userRow.name,
+        role: userRow.role as UserRole,
+        gymId: userRow.gymId,
+        isOwner: Boolean(userRow.isOwner),
+        permissions,
+        roleId: userRow.roleId ?? null,
+      };
+      gymId = userRow.gymId;
+    } else {
+      const adminRow = await this.db
+        .prepare(`SELECT * FROM platform_admins WHERE id = ? AND deleted_at IS NULL AND status = 'ACTIVE'`)
+        .bind(session.userId)
+        .first<any>();
+      if (!adminRow) return null;
+
+      sessionUser = {
+        id: adminRow.id,
+        email: adminRow.email,
+        name: adminRow.name,
+        role: 'PLATFORM_ADMIN' as UserRole,
+        gymId: null,
+        isOwner: false,
+        permissions: ['*'],
+        roleId: null,
+      };
+    }
 
     const { token, jti: newAccessJti } = await this._createAccessToken(sessionUser);
     const { token: newRefreshToken, jti: newRefreshJti } = await createRefreshToken(this.jwtSecret);
     const now = Math.floor(Date.now() / 1000);
 
+    // M-12: Revoke the old session immediately after rotating credentials.
+    // This invalidates the old refresh token so it cannot be replayed.
+    await this.sessionRepo.revokeByTokenHash(session.tokenHash);
+
     await this.sessionRepo.create({
-      gymId: userRow.gymId ?? 0, userId: userRow.id, tokenHash: newAccessJti, refreshTokenHash: newRefreshJti,
+      gymId: gymId ?? 0,
+      userId: sessionUser.id,
+      tokenHash: newAccessJti,
+      refreshTokenHash: newRefreshJti,
       refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
-      issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
+      issuedAt: now,
+      expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
     });
 
     return { token, refreshToken: newRefreshToken, user: sessionUser };
@@ -192,6 +236,15 @@ export class AuthService {
 
   async logout(jti: string): Promise<void> {
     await this.sessionRepo.revokeByTokenHash(jti);
+
+    // Phase 3.5d: Add jti to KV denylist so requireAuth/requireGym can reject
+    // the token immediately on subsequent requests without a DB round-trip.
+    // The TTL ensures the entry auto-expires when the token would have expired anyway.
+    if (this.denyListKV) {
+      await this.denyListKV.put(`denylist:${jti}`, '1', {
+        expirationTtl: ACCESS_TOKEN_EXPIRY_SECONDS,
+      });
+    }
   }
 
   async getCurrentUser(user: SessionUser): Promise<{ user: SessionUser; gym?: Gym | null }> {
@@ -202,7 +255,7 @@ export class AuthService {
     return { user, gym };
   }
 
-  async signMemberToken(member: { id: number; gymId: number; memberCode: string; phone: string; name: string }): Promise<string> {
+  async signMemberToken(member: { id: number; gymId: number; memberCode: string; phone: string; name: string }): Promise<{ token: string; jti: string }> {
     const sessionUser: SessionUser = {
       id: member.id,
       email: `${member.memberCode.toLowerCase()}@member.gymtech.app`,
@@ -213,8 +266,21 @@ export class AuthService {
       permissions: [], // Members have no dashboard permissions
       roleId: null,
     };
-    const { token } = await this._createAccessToken(sessionUser);
-    return token;
+    const { token, jti } = await this._createAccessToken(sessionUser);
+
+    // CR-5 fix: Insert session record so the token can be revoked via logout/revokeByTokenHash.
+    const now = Math.floor(Date.now() / 1000);
+    await this.sessionRepo.create({
+      gymId: member.gymId,
+      userId: member.id,
+      tokenHash: jti,
+      refreshTokenHash: undefined,
+      refreshTokenExpiresAt: undefined,
+      issuedAt: now,
+      expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
+    });
+
+    return { token, jti };
   }
 
   async verifyToken(token: string) {

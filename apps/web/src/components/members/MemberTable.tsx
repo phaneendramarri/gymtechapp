@@ -3,6 +3,8 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Users, Send, Snowflake, UserMinus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { DataTable, type DataTableColumn, type DataTableBulkAction, type DataTableRowAction } from '@/components/ui/data-table';
@@ -59,13 +61,13 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
         const initials = `${m.firstName?.[0] || 'M'}${m.lastName?.[0] || ''}`.toUpperCase()
         return (
           <div className="flex items-center gap-3 min-w-0">
-            <span className="gt-avatar" data-size="sm">
+            <Avatar size="sm">
               {m.photoUrl ? (
-                <img src={m.photoUrl} alt={m.firstName} className="size-full object-cover" />
+                <AvatarImage src={m.photoUrl} alt={m.firstName} />
               ) : (
-                initials
+                <AvatarFallback>{initials}</AvatarFallback>
               )}
-            </span>
+            </Avatar>
             <div className="flex flex-col min-w-0">
               <Link
                 to={`/members/${m.id}`}
@@ -93,25 +95,28 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
     {
       id: 'plan',
       header: 'Current Plan',
-      sortAccessor: (m) => m.planName || '',
+      sortAccessor: (m) => m.planName || m.plan_name || '',
       cell: (m) => {
-        if (!m.membershipEndDate) {
-          return <span className="text-xs text-meta">{m.planName || 'No plan'}</span>
+        const planName = m.planName || m.plan_name;
+        const endDate = m.membershipEndDate || m.membership_end_date;
+        const startDate = m.membershipStartDate || m.membership_start_date;
+        if (!endDate) {
+          return <span className="text-xs text-meta">{planName || 'No plan'}</span>
         }
-        const isExpired = m.membershipEndDate < nowSec
-        const daysRemaining = Math.ceil((m.membershipEndDate - nowSec) / 86400)
+        const isExpired = endDate < nowSec
+        const daysRemaining = Math.ceil((endDate - nowSec) / 86400)
         return (
           <div className="flex flex-col gap-1 text-xs">
-            <span className="font-medium text-ink">{m.planName || 'No Plan'}</span>
+            <span className="font-medium text-ink">{planName || 'No Plan'}</span>
             <span className="text-[10px] font-mono text-ink-3">
-              {m.membershipStartDate ? new Date(m.membershipStartDate * 1000).toLocaleDateString('en-IN') : '—'} → {new Date(m.membershipEndDate * 1000).toLocaleDateString('en-IN')}
+              {startDate ? new Date(startDate * 1000).toLocaleDateString('en-IN') : '—'} → {new Date(endDate * 1000).toLocaleDateString('en-IN')}
             </span>
             {isExpired ? (
-              <span className="gt-chip" data-tone="danger">EXPIRED</span>
+              <Badge variant="destructive">EXPIRED</Badge>
             ) : daysRemaining <= 7 ? (
-              <span className="gt-chip" data-tone="warn">Expiring {daysRemaining}d</span>
+              <Badge variant="secondary">Expiring {daysRemaining}d</Badge>
             ) : (
-              <span className="gt-chip" data-tone="ok">Active {daysRemaining}d</span>
+              <Badge variant="default">Active {daysRemaining}d</Badge>
             )}
           </div>
         )
@@ -122,7 +127,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       header: 'Status',
       sortAccessor: (m) => m.status,
       cell: (m) => {
-        const isExpired = m.membership_end_date ? m.membership_end_date < nowSec : false
+        const endDate = m.membershipEndDate || m.membership_end_date;
+        const isExpired = endDate ? endDate < nowSec : false
         const effectiveStatus = isExpired || m.status === 'EXPIRED' ? 'EXPIRED' : m.status
         return <StatusBadge status={effectiveStatus} size="sm" />
       },
@@ -130,29 +136,33 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
     {
       id: 'dues',
       header: 'Dues',
-      sortAccessor: (m) => m.membership_due_amount_paise || 0,
+      sortAccessor: (m) => m.membershipDueAmountPaise ?? m.membership_due_amount_paise ?? 0,
       numeric: true,
-      cell: (m) =>
-        m.membership_due_amount_paise > 0 ? (
+      cell: (m) => {
+        const dues = m.membershipDueAmountPaise ?? m.membership_due_amount_paise ?? 0;
+        return dues > 0 ? (
           <span className="text-sm font-semibold text-(--danger)">
-            {formatCurrency(m.membership_due_amount_paise)}
+            {formatCurrency(dues)}
           </span>
         ) : (
           <span className="text-meta">₹0</span>
-        ),
+        );
+      },
     },
     {
       id: 'joined',
       header: 'Joined',
-      sortAccessor: (m) => m.created_at || 0,
-      cell: (m) =>
-        m.created_at ? (
+      sortAccessor: (m) => m.joinedDate || m.joined_date || m.createdAt || m.created_at || 0,
+      cell: (m) => {
+        const ts = m.joinedDate || m.joined_date || m.createdAt || m.created_at;
+        return ts ? (
           <span className="text-[11px] font-mono text-muted-foreground">
-            {new Date(m.created_at * 1000).toLocaleDateString('en-IN')}
+            {new Date(ts * 1000).toLocaleDateString('en-IN')}
           </span>
         ) : (
           <span className="text-muted-foreground text-[11px]">—</span>
-        ),
+        );
+      },
     },
   ]
 

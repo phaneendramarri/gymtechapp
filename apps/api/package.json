@@ -15,10 +15,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext ts",
     "format": "prettier src --write",
-    "db:migrate:local": "wrangler d1 migrations apply gym-d1-prod --local -c ../../wrangler.jsonc",
+    "db:migrate:local": "wrangler d1 migrations apply gymtechapp --local -c ../../wrangler.jsonc",
     "db:migrate:staging": "wrangler d1 migrations apply gymtechapp-d1-staging --remote -c ../../wrangler.jsonc --env staging",
-    "db:migrate:production": "wrangler d1 migrations apply gymtechapp-d1-prod --remote -c ../../wrangler.jsonc --env production",
-    "db:seed:local": "wrangler d1 execute gym-d1-prod --local --file=./seed/seed_dev.sql -c ../../wrangler.jsonc",
+    "db:migrate:production": "wrangler d1 migrations apply gymtechapp --remote -c ../../wrangler.jsonc --env production",
+    "db:seed:local": "wrangler d1 execute gymtechapp --local --file=./seed/seed_production.sql -c ../../wrangler.jsonc",
     "db:schema:pull:local": "drizzle-kit pull --local",
     "db:generate": "drizzle-kit generate"
   },

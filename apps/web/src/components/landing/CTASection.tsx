@@ -13,7 +13,7 @@ export const CTASection: React.FC = () => {
   return (
     <section className="py-24 sm:py-32 px-4 sm:px-6 lg:px-8 bg-(--bg) border-t border-(--line)">
       <div className="max-w-3xl mx-auto text-center">
-        <p className="gt-kicker">{isDemo ? 'See it on your data' : 'Ready when you are'}</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">{isDemo ? 'See it on your data' : 'Ready when you are'}</p>
         <h2 className="text-display-serif-sm sm:text-display-serif text-ink mt-4">
           {isDemo
             ? 'See GymTech run in your gym in 20 minutes.'

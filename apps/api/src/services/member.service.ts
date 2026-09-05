@@ -9,6 +9,7 @@ import { NotificationService } from '../lib/notifications';
 import {
   calculateMembershipFinancials,
   calculateMembershipEndDate,
+  calculateFreezeExtension,
   isWithinLicenseLimit,
 } from '../lib/calculations';
 import { encryptFaceEmbedding, decryptFaceEmbedding } from '../lib/crypto';
@@ -90,9 +91,20 @@ export class MemberService {
 
     const memberCode = await this.memberRepo.getNextMemberCode();
     const joinedTimestamp = data.joinedDate ?? Math.floor(Date.now() / 1000);
+    const startTimestamp = joinedTimestamp;
+    const endTimestamp = calculateMembershipEndDate(startTimestamp, plan.durationMonths);
+    const now = Math.floor(Date.now() / 1000);
 
+    const fin = calculateMembershipFinancials({
+      planPrice: plan.pricePaise,
+      admissionFee: plan.admissionFeePaise ?? 0,
+      discountAmount: data.discountPaise ?? 0,
+      initialPaymentAmount: data.initialPaymentPaise ?? 0,
+    });
+
+    // Insert member
     const memberId = await this.memberRepo.create({
-      memberCode: memberCode,
+      memberCode,
       firstName: data.firstName.trim(),
       lastName: data.lastName?.trim() ?? null,
       email: data.email?.trim() ?? null,
@@ -111,18 +123,9 @@ export class MemberService {
       joinedDate: joinedTimestamp,
     });
 
-    const startTimestamp = joinedTimestamp;
-    const endTimestamp = calculateMembershipEndDate(startTimestamp, plan.durationMonths);
-
-    const fin = calculateMembershipFinancials({
-      planPrice: plan.pricePaise,
-      admissionFee: plan.admissionFeePaise ?? 0,
-      discountAmount: data.discountPaise ?? 0,
-      initialPaymentAmount: data.initialPaymentPaise ?? 0,
-    });
-
+    // Insert membership
     const membershipId = await this.membershipRepo.create({
-      memberId: memberId,
+      memberId,
       membershipPlanId: plan.id,
       startDate: startTimestamp,
       endDate: endTimestamp,
@@ -132,22 +135,24 @@ export class MemberService {
       paidAmountPaise: fin.paidAmount,
       dueAmountPaise: fin.dueAmount,
       createdByUserId: this.userId,
+      notes: `Initial membership registration for ${plan.name}`,
     });
 
+    // Record initial payment if paidAmount > 0
     let receiptNumber: string | undefined;
     if (fin.paidAmount > 0) {
       receiptNumber = await this.paymentRepo.getNextReceiptNumber();
       await this.paymentRepo.record({
-        memberId: memberId,
-        membershipId: membershipId,
-        receiptNumber: receiptNumber,
+        memberId,
+        membershipId,
+        paymentType: 'GYM',
+        receiptNumber,
         amountPaise: fin.paidAmount,
         paymentDate: startTimestamp,
         paymentMode: data.paymentMode ?? 'CASH',
         referenceId: data.referenceId ?? null,
         recordedByUserId: this.userId,
         notes: `Initial payment on registration for ${plan.name}`,
-        paymentType: 'GYM',
       });
     }
 
@@ -296,5 +301,68 @@ export class MemberService {
       member: { ...memberWithoutFace, faceEmbedding: decryptedFaceEmbedding },
       activeMembership, memberships, payments, attendance,
     };
+  }
+
+  /** H8 fix: freeze member + active membership in one transaction. */
+  async freezeMember(memberId: number, reason?: string): Promise<{ membershipId: number }> {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const member: any = await this.memberRepo.findById(memberId);
+    if (!member) throw new Error('Member not found');
+    if (member.status === 'FROZEN') throw new Error('Membership is already frozen');
+    if (member.status === 'CANCELLED') throw new Error('Cancelled memberships cannot be frozen');
+
+    const activeMs: any = await this.membershipRepo.findActiveByMemberId(memberId);
+    if (!activeMs) throw new Error('Only members with an active membership can be frozen');
+
+    await this.db.batch([
+      this.db.prepare(`UPDATE members SET status = 'FROZEN', updated_at = ? WHERE id = ? AND gym_id = ?`).bind(nowSec, memberId, this.gymId),
+      this.db.prepare(`UPDATE memberships SET status = 'FROZEN', frozen_at = ?, updated_at = ? WHERE id = ? AND gym_id = ?`).bind(nowSec, nowSec, activeMs.id, this.gymId),
+    ]);
+
+    await this.audit.recordGymEvent({
+      gymId: this.gymId,
+      actorUserId: this.userId,
+      actorRole: 'STAFF',
+      action: 'member.freeze',
+      entityType: 'member',
+      entityId: memberId,
+      afterState: { reason },
+    });
+
+    return { membershipId: activeMs.id };
+  }
+
+  /** H8 fix: unfreeze member + frozen membership in one transaction. */
+  async unfreezeMember(memberId: number): Promise<{ membershipId: number | null; extendedTo: number | null }> {
+    const nowSec = Math.floor(Date.now() / 1000);
+    const member: any = await this.memberRepo.findById(memberId);
+    if (!member) throw new Error('Member not found');
+    if (member.status !== 'FROZEN') throw new Error('Membership is not currently frozen');
+
+    const frozenMs: any = await this.db
+      .prepare(`SELECT * FROM memberships WHERE member_id = ? AND gym_id = ? AND status = 'FROZEN' ORDER BY end_date DESC LIMIT 1`)
+      .bind(memberId, this.gymId)
+      .first();
+    let extendedTo: number | null = null;
+    const stmts: D1PreparedStatement[] = [];
+    if (frozenMs) {
+      const { extendedTo: newEndDate } = calculateFreezeExtension(frozenMs.end_date, frozenMs.frozen_at || nowSec, nowSec);
+      extendedTo = newEndDate;
+      stmts.push(this.db.prepare(`UPDATE memberships SET status = 'ACTIVE', end_date = ?, frozen_at = NULL, updated_at = ? WHERE id = ? AND gym_id = ?`).bind(extendedTo, nowSec, frozenMs.id, this.gymId));
+    }
+    stmts.push(this.db.prepare(`UPDATE members SET status = 'ACTIVE', updated_at = ? WHERE id = ? AND gym_id = ?`).bind(nowSec, memberId, this.gymId));
+    if (stmts.length > 0) await this.db.batch(stmts);
+
+    await this.audit.recordGymEvent({
+      gymId: this.gymId,
+      actorUserId: this.userId,
+      actorRole: 'STAFF',
+      action: 'member.unfreeze',
+      entityType: 'member',
+      entityId: memberId,
+      afterState: { extendedTo },
+    });
+
+    return { membershipId: frozenMs?.id || null, extendedTo };
   }
 }

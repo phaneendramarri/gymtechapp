@@ -1,14 +1,14 @@
 /**
  * Hono composition root — single source of truth for routing.
  */
-import { Hono, type MiddlewareHandler } from 'hono';
+import { Hono, type MiddlewareHandler, type Context } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { requestId } from 'hono/request-id';
 
 import { contextMiddleware, type RequestContext } from './middleware/context';
 import { csrfMiddleware } from './middleware/csrf';
-import { rateLimitMiddleware, createRateLimitMiddleware } from './middleware/ratelimit';
+import { rateLimitMiddleware, createRateLimitMiddleware, type RateLimitTier } from './middleware/ratelimit';
 import { kvRateLimiterStore } from './lib/ratelimit';
 import type { TenantResolution } from './middleware/auth';
 
@@ -25,8 +25,12 @@ import { ptRoutes } from './routes/pt.routes';
 import { reportRoutes } from './routes/reports.routes';
 import { mediaRoutes } from './routes/media.routes';
 import { adminRoutes } from './routes/admin.routes';
+import { adminRoleRoutes } from './routes/admin/roles.routes';
+import { adminMenuRoutes } from './routes/admin/menus.routes';
+import { adminUserRoutes } from './routes/admin/users.routes';
 import { auditRoutes } from './routes/audit.routes';
 import { menuRoutes } from './routes/menu.routes';
+import { communicationsRoutes } from './routes/communications.routes';
 
 import type { Database } from './db/client';
 
@@ -53,6 +57,9 @@ export interface AppEnv {
   // Rate limiting — Workers KV namespace bound in wrangler.jsonc.
   // Falls back to in-memory store when absent (local dev / tests).
   RATELIMIT_KV?: KVNamespace;
+  // JWT denylist — Workers KV namespace for revoked jti tokens.
+  // When absent, revocation relies on DB check only (local dev / tests).
+  DENYLIST_KV?: KVNamespace;
   // Phase 4.2: AES-GCM key for encrypting face embeddings at rest.
   // When absent, face embeddings are stored as plain base64 (legacy/bulk-import path).
   FACE_EMBEDDING_KEY?: string;
@@ -97,11 +104,23 @@ app.use('/api/*', csrfMiddleware as unknown as MiddlewareHandler<{ Bindings: App
 // Rate limiting — KV-backed sliding window; falls back to in-memory when
 // RATELIMIT_KV is not bound. Applied before auth so attackers can be blocked
 // before consuming CPU on password hashing.
+// Tier derivation: auth routes use tier 'auth' (5 req/min), all others default 'read' (100 req/min).
 app.use('/api/*', (c, next) => {
   const kv = c.env?.RATELIMIT_KV;
   const store = kv ? kvRateLimiterStore(kv) : undefined;
-  // createRateLimitMiddleware accepts undefined and uses in-memory internally
-  const mw = createRateLimitMiddleware(store as any);
+  const getTier = (cc: Context<{ Bindings: AppEnv; Variables: AppVars }>): RateLimitTier => {
+    const path = cc.req.path;
+    // Auth routes get the stricter 'auth' tier (5 req/min).
+    if (path.startsWith('/api/auth/login') ||
+        path.startsWith('/api/auth/member-login') ||
+        path.startsWith('/api/auth/forgot-password') ||
+        path.startsWith('/api/auth/reset-password') ||
+        path.startsWith('/api/auth/phone-login')) {
+      return 'auth';
+    }
+    return 'read';
+  };
+  const mw = createRateLimitMiddleware(store as any, getTier);
   return mw(c, next);
 });
 
@@ -121,12 +140,18 @@ app.route('/api/plans', planRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/roles', roleRoutes);
 app.route('/api/settings', settingsRoutes);
+app.route('/api/notifications', settingsRoutes);
+app.route('/api/member', authRoutes);
 app.route('/api/pt', ptRoutes);
 app.route('/api/reports', reportRoutes);
 app.route('/api/v1/media', mediaRoutes);
 app.route('/api/admin', adminRoutes);
+app.route('/api/admin/roles', adminRoleRoutes);
+app.route('/api/admin/menus', adminMenuRoutes);
+app.route('/api/admin/users', adminUserRoutes);
 app.route('/api/audit-logs', auditRoutes);
 app.route('/api/menu', menuRoutes);
+app.route('/api/communications', communicationsRoutes);
 
 // SPA catch-all — fetch and serve index.html from Workers Static Assets (ASSETS)
 // so that BrowserRouter clean URLs (e.g. /login, /dashboard) work correctly.

@@ -172,7 +172,7 @@ export const GymOSFlow: React.FC = () => {
 
         {/* Header */}
         <motion.div {...fadeUp(0)} className="max-w-2xl mx-auto text-center mb-16">
-          <p className="gt-kicker">One software, end to end</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">One software, end to end</p>
           <h2 className="text-h1 sm:text-display-serif-sm text-ink mt-3">
             The gym operating system.
           </h2>

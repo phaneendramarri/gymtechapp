@@ -27,7 +27,6 @@ export const platformAdmins = sqliteTable('platform_admins', {
   failedLoginCount: integer('failed_login_count').notNull().default(0),
   lockedUntil: integer('locked_until'),
   lastLoginAt: integer('last_login_at'),
-  passwordAlgo: text('password_algo', { enum: ['sha256', 'argon2id'] }).notNull().default('sha256'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   deletedAt: integer('deleted_at'),
@@ -83,16 +82,21 @@ export const licenses = sqliteTable('licenses', {
   createdByAdminId: integer('created_by_admin_id'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
-});
+}, (t) => ({
+  // H-15: Unique constraint on license code — prevents duplicate codes.
+  licenseCodeUq: uniqueIndex('licenses_code_unique').on(t.code),
+}));
 
 // ============================================================
 // 4. roles (owner-defined, per-gym)
 // ============================================================
 export const roles = sqliteTable('roles', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id').notNull().references(() => gyms.id),
   name: text('name').notNull(),
   permissions: text('permissions').notNull().default('[]'), // JSON array of permission keys
+  // True for the gym's primary owner role — grants gym-level ownership privileges
+  isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
   isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
@@ -106,10 +110,11 @@ export const roles = sqliteTable('roles', {
 // 5. user_permissions (per-user permission overrides, in addition to role)
 // ============================================================
 export const userPermissions = sqliteTable('user_permissions', {
-  userId: integer('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  userId: integer('user_id').notNull().references(() => users.id),
   permissionKey: text('permission_key').notNull(),
   grantedBy: integer('granted_by').notNull(),
   grantedAt: integer('granted_at').notNull(),
+  deletedAt: integer('deleted_at'),
 }, (t) => ({
   pk: primaryKey({ columns: [t.userId, t.permissionKey] }),
 }));
@@ -132,7 +137,6 @@ export const users = sqliteTable('users', {
   permissions: text('permissions').notNull().default('{}'),
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
   lastLoginAt: integer('last_login_at'),
-  passwordAlgo: text('password_algo', { enum: ['sha256', 'argon2id'] }).notNull().default('sha256'),
   failedLoginCount: integer('failed_login_count').notNull().default(0),
   lockedUntil: integer('locked_until'),
   createdAt: integer('created_at').notNull(),
@@ -168,6 +172,7 @@ export const membershipPlans = sqliteTable('membership_plans', {
   admissionFeePaise: integer('admission_fee_paise').notNull().default(0),
   taxPercentage: real('tax_percentage').notNull().default(0),
   isActive: integer('is_active').notNull().default(1),
+  billingPeriod: text('billing_period', { enum: ['MONTHLY', 'YEARLY'] }).notNull().default('MONTHLY'), // L9/L10: revenue bucketing
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   deletedAt: integer('deleted_at'),
@@ -296,7 +301,7 @@ export const ptCollections = sqliteTable('pt_collections', {
 }));
 
 // ============================================================
-// 11. attendance
+// 11. attendance (soft-deletable — deleted_at added in migration 0002)
 // ============================================================
 export const attendance = sqliteTable('attendance', {
   id: integer('id').primaryKey(),
@@ -309,6 +314,7 @@ export const attendance = sqliteTable('attendance', {
   recordedByUserId: integer('recorded_by_user_id'),
   deviceInfo: text('device_info'),
   createdAt: integer('created_at').notNull(),
+  deletedAt: integer('deleted_at'),
 }, (t) => ({
   gymDateIdx: index('idx_attendance_gym_date').on(t.gymId, t.attendanceDate),
   gymMemberDateIdx: index('idx_attendance_gym_member_date').on(t.gymId, t.memberId, t.attendanceDate),
@@ -320,7 +326,7 @@ export const attendance = sqliteTable('attendance', {
 // ============================================================
 export const userSessions = sqliteTable('user_sessions', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id'), // nullable: platform admin sessions have null gymId; gym sessions have gymId
   userId: integer('user_id').notNull(),
   tokenHash: text('token_hash').notNull().unique(), // access token jti hash
   refreshTokenHash: text('refresh_token_hash'),    // refresh token jti hash (for rotation)
@@ -421,6 +427,7 @@ export const gymFeatures = sqliteTable('gym_features', {
 export const communicationLogs = sqliteTable('communication_logs', {
   id: integer('id').primaryKey(),
   gymId: integer('gym_id').notNull(),
+  memberId: integer('member_id'), // H-9: nullable FK; enables GDPR erasure of comm logs by member
   channel: text('channel', { enum: ['SMS', 'WHATSAPP', 'EMAIL'] }).notNull(),
   recipientPhone: text('recipient_phone'),
   recipientName: text('recipient_name'),
@@ -435,6 +442,7 @@ export const communicationLogs = sqliteTable('communication_logs', {
   retentionUntil: integer('retention_until'),
 }, (t) => ({
   gymIdx: index('idx_comm_logs_gym').on(t.gymId, t.createdAt),
+  memberIdx: index('idx_comm_logs_member').on(t.memberId), // H-9: fast lookup for GDPR erasure
 }));
 
 // ============================================================
@@ -471,6 +479,17 @@ export const menuItems = sqliteTable('menu_items', {
 }, (t) => ({
   groupOrderIdx: index('idx_menu_items_group_order').on(t.groupKey, t.order),
   activeIdx: index('idx_menu_items_active').on(t.isActive),
+}));
+
+// ============================================================
+// 21. counters (atomic sequence generator for receipts and member codes)
+// ============================================================
+export const counters = sqliteTable('counters', {
+  gymId: integer('gym_id').notNull(),
+  counterType: text('counter_type').notNull(),  // 'receipt' | 'member_code'
+  value: integer('value').notNull().default(0),
+}, (t) => ({
+  pk: primaryKey({ columns: [t.gymId, t.counterType] }),
 }));
 
 // ============================================================

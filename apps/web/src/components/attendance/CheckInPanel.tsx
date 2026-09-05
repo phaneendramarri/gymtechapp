@@ -19,6 +19,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import {
   extractSignatureFromUrl,
@@ -317,31 +318,21 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
             </CardDescription>
           </div>
 
-          {/* Mode Switcher Pills */}
-          <div className="flex gap-1 p-0.5 rounded-lg bg-secondary border border-border shrink-0">
-            <button
-              type="button"
-              onClick={() => setActiveMode('search')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeMode === 'search'
-                  ? 'bg-card text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <Search className="size-3.5" /> Manual Search
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveMode('face')}
-              className={`px-3 py-1.5 rounded-md text-xs font-semibold transition-all flex items-center gap-1.5 ${
-                activeMode === 'face'
-                  ? 'bg-card text-foreground shadow-xs'
-                  : 'text-muted-foreground hover:text-foreground'
-              }`}
-            >
-              <ScanFace className="size-3.5 text-primary" /> Face ID
-            </button>
-          </div>
+          {/* Mode Switcher Tabs */}
+          <Tabs
+            value={activeMode}
+            onValueChange={(val) => setActiveMode(val as 'search' | 'face')}
+            className="shrink-0"
+          >
+            <TabsList className="h-8">
+              <TabsTrigger value="search" className="gap-1.5 text-xs">
+                <Search className="size-3.5" /> Manual Search
+              </TabsTrigger>
+              <TabsTrigger value="face" className="gap-1.5 text-xs">
+                <ScanFace className="size-3.5 text-primary" /> Face ID
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
       </CardHeader>
 

@@ -1,8 +1,14 @@
+import { z } from 'zod';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, AlertCircle, Users } from 'lucide-react';
+import { Plus, AlertCircle, Users, Shield, Mail, Phone } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Dialog,
   DialogContent,
@@ -12,10 +18,11 @@ import {
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { CardGridSkeleton } from '@/components/shared/LoadingSkeleton';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
-import { GYM_FEATURE_LABELS } from '@gymtech/shared';
+import { CreateStaffRequestSchema, GYM_FEATURE_LABELS } from '@gymtech/shared';
 
 /** All possible menu permission keys */
 const ALL_PERMISSION_KEYS = [
@@ -34,8 +41,8 @@ const ALL_PERMISSION_KEYS = [
 export const StaffPage: React.FC = () => {
   const { user, gym } = useAuth();
   const queryClient = useQueryClient();
-  // Only the gym owner can add/edit users
-  const canManage = user?.isOwner === true;
+  // Only users with 'staff' permission can add/edit users
+  const canManage = user?.permissions?.includes('staff');
 
   const { data, isLoading } = useQuery({
     queryKey: ['staff'],
@@ -70,6 +77,14 @@ export const StaffPage: React.FC = () => {
     setError(null);
     setIsSubmitting(true);
     try {
+      // M-9: Validate form data against Zod schema before sending to API.
+      const parsed = CreateStaffRequestSchema.safeParse({ name, email, phone, password, role: 'STAFF', permissions: selectedPerms });
+      if (!parsed.success) {
+        setError(parsed.error.errors.map((e) => e.message).join(', '));
+        setIsSubmitting(false);
+        return;
+      }
+
       await api.createStaff({
         name,
         email,
@@ -105,11 +120,7 @@ export const StaffPage: React.FC = () => {
       }
     >
       {isLoading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <div key={i} className="gt-skel h-20" />
-          ))}
-        </div>
+        <CardGridSkeleton count={4} />
       ) : staff.length === 0 ? (
         <EmptyState
           icon={Users}
@@ -124,35 +135,59 @@ export const StaffPage: React.FC = () => {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {staff.map((s: any) => (
-            <li
-              key={s.id}
-              className="gt-card gt-card-interactive flex items-center gap-3 p-3"
-            >
-              <div className="h-9 w-9 rounded-full bg-(--surface-2) text-ink-2 flex items-center justify-center text-sm font-semibold shrink-0">
-                {(s.name?.[0] || '·').toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-ink truncate">{s.name}</p>
-                  {s.isOwner === 1 && (
-                    <span className="gt-chip gt-chip-iron text-[10px]">Owner</span>
+            <li key={s.id}>
+              <Card className="flex flex-col justify-between p-4 hover:border-primary/40 hover:shadow-sm transition-all h-full">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
+                    {(s.name?.[0] || '·').toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-ink truncate">{s.name}</p>
+                      {s.isOwner === 1 ? (
+                        <Badge variant="secondary" className="text-[10px] font-medium">Owner</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] text-ink-3">Staff</Badge>
+                      )}
+                      <Badge
+                        variant={s.status === 'ACTIVE' ? 'default' : 'outline'}
+                        className="ml-auto text-[10px]"
+                      >
+                        {s.status}
+                      </Badge>
+                    </div>
+                    <div className="flex flex-col gap-0.5 mt-1.5 text-xs text-ink-3">
+                      <span className="flex items-center gap-1.5 truncate font-mono">
+                        <Mail className="h-3 w-3 shrink-0" /> {s.email}
+                      </span>
+                      {s.phone && (
+                        <span className="flex items-center gap-1.5 truncate font-mono">
+                          <Phone className="h-3 w-3 shrink-0" /> {s.phone}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-3 border-t border-(--line) flex items-center gap-1.5 flex-wrap">
+                  <Shield className="h-3 w-3 text-ink-3 shrink-0" />
+                  <span className="text-[10px] font-medium text-ink-3 uppercase tracking-wider">Access:</span>
+                  {(s.permissions as string[] || []).length > 0 ? (
+                    (s.permissions as string[]).map((perm: string) => (
+                      <span
+                        key={perm}
+                        className="text-[10px] bg-(--surface-2) text-ink-2 px-1.5 py-0.5 rounded border border-(--line)"
+                      >
+                        {GYM_FEATURE_LABELS[perm as keyof typeof GYM_FEATURE_LABELS]?.name ?? perm}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-[10px] text-ink-3 italic">None specified</span>
                   )}
                 </div>
-                <p className="text-[11px] text-ink-3 mt-0.5 truncate font-mono">
-                  {s.email} · {s.phone || '—'}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-1 justify-end">
-                {/* Permissions are stored in user_permissions table; staff list query joins them */}
-                {(s.permissions as string[] || []).map((perm: string) => (
-                  <span key={perm} className="gt-chip gt-chip-muted text-[10px]">{perm}</span>
-                ))}
-              </div>
-              <span className={cn('gt-chip', s.status === 'ACTIVE' ? 'gt-chip-ok' : 'gt-chip-muted')}>
-                {s.status}
-              </span>
+              </Card>
             </li>
           ))}
         </ul>
@@ -172,77 +207,94 @@ export const StaffPage: React.FC = () => {
           )}
 
           <form onSubmit={handleAddStaff} className="flex flex-col gap-4">
-            <Field label="Full name *">
-              <input
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="staff-name">
+                Full name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="staff-name"
                 required
                 placeholder="e.g. Ramesh Patel"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="gt-input"
               />
-            </Field>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Email *">
-                <input
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="staff-email">
+                  Email <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="staff-email"
                   type="email"
                   required
                   placeholder="ramesh@gym.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="gt-input font-mono"
+                  className="font-mono"
                 />
-              </Field>
-              <Field label="Phone *">
-                <input
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="staff-phone">
+                  Phone <span className="text-destructive">*</span>
+                </Label>
+                <Input
+                  id="staff-phone"
                   type="tel"
                   required
                   placeholder="9876543210"
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="gt-input font-mono"
+                  className="font-mono"
                 />
-              </Field>
+              </div>
             </div>
 
-            <Field label="Temporary password *">
-              <input
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="staff-password">
+                Temporary password <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="staff-password"
                 type="password"
                 required
                 minLength={6}
                 placeholder="Min. 6 characters"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="gt-input"
               />
-            </Field>
+            </div>
 
-            <Field label="Menu access *">
-              <p className="text-[11px] text-ink-3 mb-2">Select every menu this user should be able to see.</p>
-              <div className="grid grid-cols-2 gap-2">
+            <div className="flex flex-col gap-1.5">
+              <Label>
+                Menu access <span className="text-destructive">*</span>
+              </Label>
+              <p className="text-[11px] text-ink-3 mb-1">Select every menu this user should be able to access.</p>
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto p-1">
                 {availablePerms.map((key) => {
                   const label = GYM_FEATURE_LABELS[key as keyof typeof GYM_FEATURE_LABELS]?.name ?? key;
+                  const isChecked = selectedPerms.includes(key);
                   return (
                     <label
                       key={key}
                       className={cn(
-                        'flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-xs',
-                        selectedPerms.includes(key)
-                          ? 'border-primary bg-(--surface-2) text-ink'
-                          : 'border-(--line) text-ink-3 hover:border-(--ink-3)'
+                        'flex items-center gap-2.5 p-2 rounded-md border cursor-pointer transition-colors text-xs select-none',
+                        isChecked
+                          ? 'border-primary bg-primary/5 text-ink font-medium'
+                          : 'border-(--line) text-ink-3 hover:border-border hover:bg-muted/30'
                       )}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedPerms.includes(key)}
-                        onChange={() => togglePerm(key)}
-                        className="accent-primary"
+                      <Checkbox
+                        checked={isChecked}
+                        onCheckedChange={() => togglePerm(key)}
                       />
-                      {label}
+                      <span>{label}</span>
                     </label>
                   );
                 })}
               </div>
-            </Field>
+            </div>
 
             <DialogFooter className="mt-2">
               <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
@@ -258,12 +310,3 @@ export const StaffPage: React.FC = () => {
     </AppShell>
   );
 };
-
-const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
-  <div className="flex flex-col gap-1.5">
-    <label className={cn('text-xs font-medium text-ink', label.endsWith(' *') && 'gt-label-required')}>
-      {label.replace(' *', '')}
-    </label>
-    {children}
-  </div>
-);

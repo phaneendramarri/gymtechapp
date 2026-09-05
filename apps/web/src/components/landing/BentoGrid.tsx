@@ -88,7 +88,7 @@ export const BentoGrid: React.FC = () => {
 
         {/* Header */}
         <motion.div {...fadeUp(0)} className="max-w-2xl mb-14">
-          <p className="gt-kicker">Everything you need</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Everything you need</p>
           <h2 className="text-h1 sm:text-display-serif-sm text-ink mt-3">
             One platform. Every daily task.
           </h2>

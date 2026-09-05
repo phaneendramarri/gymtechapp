@@ -1,10 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
-import { MessageCircle, Mail, AlertCircle, Save, Smartphone, ShieldCheck } from 'lucide-react';
+import { MessageCircle, Mail, AlertCircle, Save, Smartphone, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { api } from '@/lib/api';
 import { useToast } from '@/components/ui/toast';
 import { useAuth } from '@/lib/auth';
@@ -58,7 +61,6 @@ export const SettingsNotificationsPage: React.FC = () => {
       actions={
         <Button
           size="sm"
-          className="gt-btn-primary"
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending}
         >
@@ -89,85 +91,65 @@ export const SettingsNotificationsPage: React.FC = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
               {/* SMS Balance Card */}
-              <div className="rounded-xl border border-(--line) bg-(--surface) p-4 flex flex-col justify-between shadow-xs">
+              <Card className="p-4 flex flex-col justify-between shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center">
+                    <div className="h-9 w-9 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 flex items-center justify-center shrink-0">
                       <Smartphone className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-ink">SMS Balance</p>
-                      <p className="text-[11px] text-ink-3">Carrier standard SMS</p>
+                      <p className="text-sm font-semibold text-ink">SMS Balance</p>
+                      <p className="text-xs text-ink-3">Carrier standard SMS</p>
                     </div>
                   </div>
-                  <span className={cn(
-                    "text-xs font-mono font-bold px-2 py-0.5 rounded-md",
-                    smsBal.remaining > 50 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                    smsBal.remaining > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
-                    "bg-red-500/10 text-red-600 dark:text-red-400"
-                  )}>
+                  <Badge
+                    variant={smsBal.remaining > 50 ? 'secondary' : smsBal.remaining > 0 ? 'outline' : 'destructive'}
+                    className="font-mono"
+                  >
                     {smsBal.remaining} Left
-                  </span>
+                  </Badge>
                 </div>
 
-                <div className="mt-4">
-                  <div className="flex justify-between text-[11px] text-ink-3 font-mono mb-1">
+                <div className="mt-5 space-y-2">
+                  <div className="flex justify-between text-xs text-ink-3 font-mono">
                     <span>{smsBal.used} used</span>
                     <span>{smsBal.total} total quota</span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-(--surface-2) overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-300",
-                        smsPercent > 90 ? "bg-red-500" : smsPercent > 75 ? "bg-amber-500" : "bg-blue-500"
-                      )}
-                      style={{ width: `${smsPercent}%` }}
-                    />
-                  </div>
+                  <Progress value={smsPercent} className="h-2" />
                 </div>
-              </div>
+              </Card>
 
               {/* WhatsApp Balance Card */}
-              <div className="rounded-xl border border-(--line) bg-(--surface) p-4 flex flex-col justify-between shadow-xs">
+              <Card className="p-4 flex flex-col justify-between shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2.5">
-                    <div className="h-8 w-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                    <div className="h-9 w-9 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
                       <MessageCircle className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="text-xs font-semibold text-ink">WhatsApp Balance</p>
-                      <p className="text-[11px] text-ink-3">Interactive rich alerts</p>
+                      <p className="text-sm font-semibold text-ink">WhatsApp Balance</p>
+                      <p className="text-xs text-ink-3">Interactive rich alerts</p>
                     </div>
                   </div>
-                  <span className={cn(
-                    "text-xs font-mono font-bold px-2 py-0.5 rounded-md",
-                    waBal.remaining > 50 ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" :
-                    waBal.remaining > 0 ? "bg-amber-500/10 text-amber-600 dark:text-amber-400" :
-                    "bg-red-500/10 text-red-600 dark:text-red-400"
-                  )}>
+                  <Badge
+                    variant={waBal.remaining > 50 ? 'secondary' : waBal.remaining > 0 ? 'outline' : 'destructive'}
+                    className="font-mono"
+                  >
                     {waBal.remaining} Left
-                  </span>
+                  </Badge>
                 </div>
 
-                <div className="mt-4">
-                  <div className="flex justify-between text-[11px] text-ink-3 font-mono mb-1">
+                <div className="mt-5 space-y-2">
+                  <div className="flex justify-between text-xs text-ink-3 font-mono">
                     <span>{waBal.used} used</span>
                     <span>{waBal.total} total quota</span>
                   </div>
-                  <div className="h-2 w-full rounded-full bg-(--surface-2) overflow-hidden">
-                    <div
-                      className={cn(
-                        "h-full rounded-full transition-all duration-300",
-                        waPercent > 90 ? "bg-red-500" : waPercent > 75 ? "bg-amber-500" : "bg-emerald-500"
-                      )}
-                      style={{ width: `${waPercent}%` }}
-                    />
-                  </div>
+                  <Progress value={waPercent} className="h-2" />
                 </div>
-              </div>
+              </Card>
             </div>
 
-            <div className="mt-3 p-3 rounded-lg bg-primary/5 border border-primary/20 flex items-start gap-2.5">
+            <div className="mt-3 p-3.5 rounded-lg bg-primary/5 border border-primary/20 flex items-start gap-3">
               <ShieldCheck className="h-4 w-4 text-primary shrink-0 mt-0.5" />
               <p className="text-xs text-ink-2 leading-relaxed">
                 <strong>Platform-Managed Gateways:</strong> SMTP mail servers, SMS telco gateways, and WhatsApp Business APIs are securely managed by your GymTech Platform Super Admin. To top up message credits or adjust delivery channels, contact platform administration.
@@ -184,9 +166,9 @@ export const SettingsNotificationsPage: React.FC = () => {
                 name="WhatsApp Messaging"
                 desc="Direct member nudges with pre-formatted receipts and digital member pass links."
                 on={data?.whatsappServiceStatus === 'ACTIVE' ? (
-                  <span className="gt-chip gt-chip-ok">Active Relay</span>
+                  <Badge variant="default">Active Relay</Badge>
                 ) : (
-                  <span className="gt-chip gt-chip-muted">Super Admin Configured</span>
+                  <Badge variant="outline">Super Admin Configured</Badge>
                 )}
                 locked
               />
@@ -195,9 +177,9 @@ export const SettingsNotificationsPage: React.FC = () => {
                 name="SMS Dispatch"
                 desc="High-priority instant SMS text messages delivered straight to mobile numbers."
                 on={data?.smsServiceStatus === 'ACTIVE' ? (
-                  <span className="gt-chip gt-chip-ok">Active Relay</span>
+                  <Badge variant="default">Active Relay</Badge>
                 ) : (
-                  <span className="gt-chip gt-chip-muted">Super Admin Configured</span>
+                  <Badge variant="outline">Super Admin Configured</Badge>
                 )}
               />
               <ChannelRow
@@ -205,9 +187,9 @@ export const SettingsNotificationsPage: React.FC = () => {
                 name="Automated Email"
                 desc="Formal GST tax invoices, membership contracts, and welcome documentation."
                 on={data?.emailServiceStatus === 'ACTIVE' ? (
-                  <span className="gt-chip gt-chip-ok">Active Relay</span>
+                  <Badge variant="default">Active Relay</Badge>
                 ) : (
-                  <span className="gt-chip gt-chip-muted">Super Admin Configured</span>
+                  <Badge variant="outline">Super Admin Configured</Badge>
                 )}
               />
             </ul>

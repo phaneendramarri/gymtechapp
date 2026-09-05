@@ -112,7 +112,7 @@ export function ConfirmDialog({
             type="button"
             variant={destructive ? "destructive" : "default"}
             onClick={handleConfirm}
-            loading={isPending}
+            disabled={isPending}
           >
             {confirmLabel}
           </Button>

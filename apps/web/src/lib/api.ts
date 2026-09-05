@@ -33,6 +33,7 @@ import {
   PtCollectionRow,
   PtSummary,
   InvoiceData,
+  CommunicationLogsListResponse,
   NotificationSettingsRequest,
   NotificationSettingsResponse,
   TestSmtpRequest,
@@ -65,51 +66,124 @@ function readCsrfCookie(): string | null {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+/**
+ * H-16: Token refresh interceptor
+ * Stores refresh token in sessionStorage (more isolated than localStorage).
+ * On 401, attempts sliding-window refresh, retries original request once,
+ * then redirects to login only if refresh fails.
+ */
+const REFRESH_TOKEN_KEY = 'gymtech_refresh_token';
+// Shared promise dedupes concurrent refresh attempts while one is in-flight
+let _refreshPromise: Promise<string | null> | null = null;
+
+function getStoredRefreshToken(): string | null {
+  if (typeof sessionStorage === 'undefined') return null;
+  return sessionStorage.getItem(REFRESH_TOKEN_KEY);
+}
+
+function setStoredRefreshToken(token: string | null): void {
+  if (typeof sessionStorage === 'undefined') return;
+  if (token) sessionStorage.setItem(REFRESH_TOKEN_KEY, token);
+  else sessionStorage.removeItem(REFRESH_TOKEN_KEY);
+}
+
 class ApiClient {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    };
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    ...(options.headers as Record<string, string>),
+  };
 
-    // Echo the CSRF token on state-changing requests. The server requires
-    // it to match the `gym_csrf` cookie.
-    const method = (options.method || 'GET').toUpperCase();
-    if (!SAFE_METHODS.has(method)) {
-      const csrf = readCsrfCookie();
-      if (csrf) headers['X-CSRF-Token'] = csrf;
-    }
+  const method = (options.method || 'GET').toUpperCase();
+  if (!SAFE_METHODS.has(method)) {
+    const csrf = readCsrfCookie();
+    if (csrf) headers['X-CSRF-Token'] = csrf;
+  }
 
-    const res = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const doFetch = () =>
+    fetch(`${API_BASE_URL}${endpoint}`, {
       ...options,
       headers,
-      // Send cookies on same-origin and (for Vite proxy / same host dev) cross-origin.
       credentials: 'include',
     });
 
+  let res = await doFetch();
+
+  // H-16: On 401, attempt token refresh then retry original request once
+  if (res.status === 401) {
+    const refreshToken = getStoredRefreshToken();
+    if (refreshToken) {
+      // Reuse in-flight refresh if another request triggered it concurrently
+      if (!_refreshPromise) {
+        _refreshPromise = this.tryRefresh(refreshToken);
+      }
+      const newToken = await _refreshPromise;
+      _refreshPromise = null;
+      if (newToken) {
+        // Retry once with updated CSRF (cookie may have changed too)
+        if (!SAFE_METHODS.has(method)) {
+          const csrf = readCsrfCookie();
+          if (csrf) headers['X-CSRF-Token'] = csrf;
+        }
+        res = await doFetch();
+      }
+    }
+
+    // If still 401 or no refresh token → redirect to login
     if (res.status === 401) {
-      // The server has already cleared the session cookie. We just need to
-      // route the user back to the login screen.
+      setStoredRefreshToken(null);
       if (!window.location.hash.includes('/login') && window.location.hash !== '' && window.location.hash !== '#/') {
         window.location.hash = '#/login';
       }
     }
+  }
 
-    const data: any = await res.json().catch(() => ({}));
+  const data: any = await res.json().catch(() => ({}));
 
-    if (!res.ok) {
-      throw new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
+  if (!res.ok) {
+    const error = new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
+    Object.assign(error, data);
+    throw error;
+  }
+
+  return data as T;
+}
+
+  // H-16: Sliding-window refresh — returns new access token or null on failure.
+  // Uses the stored refresh token from sessionStorage; on success the new refresh
+  // token is saved back to sessionStorage for the next cycle.
+  private async tryRefresh(refreshToken: string): Promise<string | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ refreshToken }),
+      });
+      if (!res.ok) return null;
+      const data: any = await res.json().catch(() => ({}));
+      if (!data.token) return null;
+      if (data.refreshToken) setStoredRefreshToken(data.refreshToken);
+      return data.token as string;
+    } catch {
+      return null;
     }
-
-    return data as T;
   }
 
   // Auth
   async login(payload: LoginRequest): Promise<LoginResponse> {
-    return this.request<LoginResponse>('/api/auth/login', {
+    // Bypass the refresh interceptor on login — store refresh token from response.
+    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
       method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
       body: JSON.stringify(payload),
     });
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    // H-16: Persist refresh token for token-refresh interceptor
+    if (data.refreshToken) setStoredRefreshToken(data.refreshToken);
+    return data as LoginResponse;
   }
 
   async getMe(): Promise<MeResponse> {
@@ -129,9 +203,15 @@ class ApiClient {
   }
 
   async logout(): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>('/api/auth/logout', {
+    // Bypass interceptor — clear stored refresh token then hit logout
+    setStoredRefreshToken(null);
+    const res = await fetch(`${API_BASE_URL}/api/auth/logout`, {
       method: 'POST',
+      credentials: 'include',
     });
+    const data: any = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    return data as { success: boolean };
   }
 
   async resetPassword(payload: ResetPasswordRequest): Promise<ResetPasswordResponse> {
@@ -156,7 +236,7 @@ class ApiClient {
     attendance: any[];
     gym: { name: string; address?: string; phone?: string };
   }> {
-    return this.request('/api/member/portal');
+    return this.request('/api/auth/portal');
   }
 
   // Dashboard
@@ -171,7 +251,7 @@ class ApiClient {
    * back to the session's JWT gymId (regular gym users). When gymId is
    * provided (platform admin) the ?gymId= param is forwarded to requireGym.
    */
-  private gymParams(gymId?: number, extra?: Record<string, string | number | undefined>): URLSearchParams {
+  gymParams(gymId?: number, extra?: Record<string, string | number | undefined>): URLSearchParams {
     const q = new URLSearchParams();
     if (gymId) q.set('gymId', String(gymId));
     if (extra) {
@@ -192,6 +272,13 @@ class ApiClient {
 
     const qs = q.toString();
     return this.request<{ members: any[] }>(`/api/members${qs ? `?${qs}` : ''}`);
+  }
+
+  // L8: Single-query summary counts (avoids double-fetch)
+  async getMembersSummary(): Promise<{ counts: { total: number; active: number; expiring: number; frozen: number; blocked: number; expired: number } }> {
+    const q = this.gymParams();
+    q.set('summary', 'true');
+    return this.request<{ counts: { total: number; active: number; expiring: number; frozen: number; blocked: number; expired: number } }>(`/api/members?${q.toString()}`);
   }
 
   async createMember(payload: CreateMemberRequest, gymId?: number): Promise<CreateMemberResponse> {
@@ -279,6 +366,15 @@ class ApiClient {
     return this.request<{ payments: Payment[]; summary: any }>(`/api/payments${qs ? `?${qs}` : ''}`);
   }
 
+  async getCommunicationLogs(params?: { channel?: string; limit?: number; offset?: number }, gymId?: number): Promise<CommunicationLogsListResponse> {
+    const q = this.gymParams(gymId);
+    if (params?.channel) q.set('channel', params.channel);
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.offset) q.set('offset', String(params.offset));
+    const qs = q.toString();
+    return this.request<CommunicationLogsListResponse>(`/api/communications${qs ? `?${qs}` : ''}`);
+  }
+
   async recordPayment(payload: RecordPaymentRequest, gymId?: number): Promise<RecordPaymentResponse> {
     const q = this.gymParams(gymId);
     const qs = q.toString();
@@ -337,7 +433,7 @@ class ApiClient {
   async dispatchNotification(
     payload: SendNotificationRequest
   ): Promise<{ success: boolean; channel: string; remainingCredits: number; message: string; whatsappUrl?: string }> {
-    return this.request('/api/notifications/dispatch', {
+    return this.request('/api/settings/notifications/dispatch', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -554,6 +650,126 @@ class ApiClient {
     if (params?.entityType) q.set('entityType', params.entityType);
     const qs = q.toString();
     return this.request<{ events: any[]; total: number }>(`/api/audit-logs${qs ? `?${qs}` : ''}`);
+  }
+
+  // ----- Platform Admin -----
+
+  async getPlatformRoles(params?: { gymId?: number }): Promise<{ roles: any[] }> {
+    const q = new URLSearchParams();
+    if (params?.gymId) q.set('gymId', String(params.gymId));
+    const qs = q.toString();
+    return this.request<{ roles: any[] }>(`/api/admin/roles${qs ? `?${qs}` : ''}`);
+  }
+
+  async createPlatformRole(data: { gymId: number; name: string; permissions: string[]; isDefault?: boolean }): Promise<any> {
+    return this.request<any>('/api/admin/roles', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updatePlatformRole(id: number, data: { name?: string; permissions?: string[]; isDefault?: boolean }): Promise<any> {
+    return this.request<any>(`/api/admin/roles/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deletePlatformRole(id: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/admin/roles/${id}`, { method: 'DELETE' });
+  }
+
+  async restorePlatformRole(id: number): Promise<any> {
+    return this.request<any>(`/api/admin/roles/${id}/restore`, { method: 'POST' });
+  }
+
+  async getMenuGroups(): Promise<{ groups: any[] }> {
+    return this.request<{ groups: any[] }>('/api/admin/menus/groups');
+  }
+
+  async createMenuGroup(data: { key: string; label: string; icon?: string; order?: number }): Promise<any> {
+    return this.request<any>('/api/admin/menus/groups', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateMenuGroup(id: number, data: { label?: string; icon?: string; order?: number }): Promise<any> {
+    return this.request<any>(`/api/admin/menus/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteMenuGroup(id: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/admin/menus/groups/${id}`, { method: 'DELETE' });
+  }
+
+  async getMenuItems(params?: { groupKey?: string }): Promise<{ items: any[] }> {
+    const q = new URLSearchParams();
+    if (params?.groupKey) q.set('groupKey', params.groupKey);
+    const qs = q.toString();
+    return this.request<{ items: any[] }>(`/api/admin/menus/items${qs ? `?${qs}` : ''}`);
+  }
+
+  async createMenuItem(data: {
+    groupKey: string; key: string; label: string; href?: string; icon?: string;
+    order?: number; permissions?: string[]; featureKey?: string; adminOnly?: boolean;
+  }): Promise<any> {
+    return this.request<any>('/api/admin/menus/items', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  async updateMenuItem(id: number, data: {
+    label?: string; href?: string; icon?: string; order?: number;
+    permissions?: string[]; featureKey?: string; adminOnly?: boolean; isActive?: boolean;
+  }): Promise<any> {
+    return this.request<any>(`/api/admin/menus/items/${id}`, { method: 'PUT', body: JSON.stringify(data) });
+  }
+
+  async deleteMenuItem(id: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/admin/menus/items/${id}`, { method: 'DELETE' });
+  }
+
+  async restoreMenuGroup(id: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/admin/menus/groups/${id}/restore`, { method: 'POST' });
+  }
+
+  async restoreMenuItem(id: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/admin/menus/items/${id}/restore`, { method: 'POST' });
+  }
+
+  async getPlatformUsers(params?: { page?: number; limit?: number; search?: string; gymId?: number }): Promise<{ users: any[]; total: number }> {
+    const q = new URLSearchParams();
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.search) q.set('search', params.search);
+    if (params?.gymId) q.set('gymId', String(params.gymId));
+    const qs = q.toString();
+    return this.request<{ users: any[]; total: number }>(`/api/admin/users${qs ? `?${qs}` : ''}`);
+  }
+
+  async getPlatformUser(id: number): Promise<any> {
+    return this.request<any>(`/api/admin/users/${id}`);
+  }
+
+  async updatePlatformUserRole(id: number, roleId: number | null): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/admin/users/${id}/role`, {
+      method: 'PUT',
+      body: JSON.stringify({ roleId }),
+    });
+  }
+
+  async disablePlatformUser(id: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/admin/users/${id}/disable`, { method: 'PUT' });
+  }
+
+  async enablePlatformUser(id: number): Promise<{ success: boolean }> {
+    return this.request<{ success: boolean }>(`/api/admin/users/${id}/enable`, { method: 'PUT' });
+  }
+
+  async getAvailableRolesForUser(userId: number): Promise<{ roles: any[] }> {
+    return this.request<{ roles: any[] }>(`/api/admin/users/${userId}/available-roles`);
+  }
+
+  async createPlatformUser(data: {
+    gymId: number; name: string; email: string; phone?: string;
+    roleId?: number; password?: string;
+  }): Promise<{ id: number }> {
+    return this.request<{ id: number }>('/api/admin/users', { method: 'POST', body: JSON.stringify(data) });
   }
 }
 

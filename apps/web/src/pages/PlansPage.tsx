@@ -12,16 +12,21 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import { EmptyState } from '@/components/shared/EmptyState';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { formatCurrency } from '@/lib/utils';
+import { Card } from '@/components/ui/card';
 import { AlertCircle } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
+import { CreatePlanRequestSchema } from '@gymtech/shared';
+import { z } from 'zod';
 
 export const PlansPage: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const canManage = user?.isOwner;
+  const canManage = user?.permissions?.includes('plans');
 
   const { data, isLoading } = useQuery({
     queryKey: ['plans'],
@@ -46,12 +51,29 @@ export const PlansPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      // M-9: Validate form data against Zod schema before sending to API.
+      const parsed = CreatePlanRequestSchema.safeParse({
+        name,
+        durationMonths: Number(durationMonths),
+        pricePaise: Math.round(Number(priceRupees) * 100),
+        admissionFeePaise: Math.round(Number(admissionFeeRupees) * 100),
+        taxPercentage: 0,
+        billingPeriod: 'MONTHLY',
+        description: description || undefined,
+      });
+      if (!parsed.success) {
+        setError(parsed.error.errors.map((e) => e.message).join(', '));
+        setIsSubmitting(false);
+        return;
+      }
+
       await api.createPlan({
         name,
         durationMonths: Number(durationMonths),
         pricePaise: Math.round(Number(priceRupees) * 100),
         admissionFeePaise: Math.round(Number(admissionFeeRupees) * 100),
         taxPercentage: 0,
+        billingPeriod: 'MONTHLY',
         description: description || undefined,
       });
 
@@ -81,7 +103,7 @@ export const PlansPage: React.FC = () => {
       {isLoading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="gt-skel h-44" />
+            <Skeleton key={i} className="h-44" />
           ))}
         </div>
       ) : plans.length === 0 ? (
@@ -102,18 +124,18 @@ export const PlansPage: React.FC = () => {
           {plans.map((p: any) => {
             const monthly = (p.pricePaise / 100) / Math.max(1, p.durationMonths);
             return (
-              <article
+              <Card
                 key={p.id}
-                className="gt-card gt-card-interactive flex flex-col gap-4 p-6"
+                className="flex flex-col gap-4 p-6 cursor-pointer hover:border-(--ink-3) hover:shadow-sm transition-colors"
               >
                 <div className="flex items-start justify-between">
                   <div className="min-w-0">
                     <p className="text-eyebrow">Plan</p>
                     <h3 className="text-h2 text-ink mt-1 truncate">{p.name}</h3>
                   </div>
-                  <span className={p.isActive ? 'gt-chip gt-chip-ok' : 'gt-chip gt-chip-muted'}>
+                  <Badge variant={p.isActive ? 'default' : 'outline'}>
                     {p.isActive ? 'Active' : 'Inactive'}
-                  </span>
+                  </Badge>
                 </div>
 
                 <div>
@@ -142,7 +164,7 @@ export const PlansPage: React.FC = () => {
                   </span>
                   <span className="font-mono">ID {p.id}</span>
                 </div>
-              </article>
+              </Card>
             );
           })}
         </div>
@@ -216,7 +238,7 @@ export const PlansPage: React.FC = () => {
               <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button type="submit" size="sm" className="gt-btn-primary" disabled={isSubmitting}>
+              <Button type="submit" size="sm" disabled={isSubmitting}>
                 {isSubmitting ? 'Creating…' : 'Create plan'}
               </Button>
             </DialogFooter>

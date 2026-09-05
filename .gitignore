@@ -76,4 +76,5 @@ seed_*.sql
 *.seed.sql
 temp_*.sql
 *.dump.sql
+wrangler.jsonc
 

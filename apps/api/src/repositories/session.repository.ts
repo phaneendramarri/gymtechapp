@@ -11,7 +11,7 @@ export class SessionRepository {
   }
 
   async create(params: {
-    gymId: number;
+    gymId: number | null;
     userId: number;
     tokenHash: string;
     refreshTokenHash?: string;

@@ -32,6 +32,7 @@ export interface WorkerEnv {
 
 export default {
   async fetch(request: Request, env: WorkerEnv, ctx: ExecutionContext): Promise<Response> {
+    console.log('WORKER FETCH CALLED', request.method, new URL(request.url).pathname);
     const url = new URL(request.url);
 
     // API traffic is owned by Hono, full stop. We hand it the original

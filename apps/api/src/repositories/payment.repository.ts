@@ -1,18 +1,35 @@
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, isNull } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Payment, PaymentMode, PaymentWithDetails } from '@gymtech/shared';
-import { payments, members, users, memberships } from '../db/schema';
+import { payments, members, users, memberships, counters } from '../db/schema';
 
 export class PaymentRepository {
   private db: Database;
+  private d1: D1Database;
 
   constructor(db: Database | D1Database, private gymId: number) {
-    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+    if ((db as any).prepare) {
+      this.d1 = db as D1Database;
+      this.db = createDatabase(db as D1Database);
+    } else {
+      this.db = db as Database;
+      this.d1 = (db as any).$client || (db as any);
+    }
   }
 
   async list(params: { limit?: number; offset?: number; memberId?: number }): Promise<PaymentWithDetails[]> {
-    let query = this.db
+    const conditions = [
+      eq(payments.gymId, this.gymId),
+      isNull(payments.deletedAt),
+      isNull(members.deletedAt),
+    ];
+
+    if (params.memberId) {
+      conditions.push(eq(payments.memberId, params.memberId));
+    }
+
+    const rows = await this.db
       .select({
         id: payments.id,
         gymId: payments.gymId,
@@ -38,37 +55,44 @@ export class PaymentRepository {
       .from(payments)
       .innerJoin(members, eq(payments.memberId, members.id))
       .leftJoin(users, eq(payments.recordedByUserId, users.id))
-      .where(eq(payments.gymId, this.gymId))
+      .where(and(...conditions))
       .orderBy(desc(payments.paymentDate), desc(payments.createdAt))
       .limit(params.limit ?? 50)
-      .offset(params.offset ?? 0) as any;
+      .offset(params.offset ?? 0);
 
-    if (params.memberId) {
-      query = query.where(and(eq(payments.gymId, this.gymId), eq(payments.memberId, params.memberId)));
-    }
-
-    return (await query) as PaymentWithDetails[];
+    return rows as PaymentWithDetails[];
   }
 
   async count(params: { memberId?: number } = {}): Promise<number> {
+    const conditions = [
+      eq(payments.gymId, this.gymId),
+      isNull(payments.deletedAt),
+    ];
+    if (params.memberId) {
+      conditions.push(eq(payments.memberId, params.memberId));
+    }
+
     const [{ count }] = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(payments)
-      .where(params.memberId
-        ? and(eq(payments.gymId, this.gymId), eq(payments.memberId, params.memberId))
-        : eq(payments.gymId, this.gymId)
-      );
+      .where(and(...conditions));
     return count ?? 0;
   }
 
   async getNextReceiptNumber(): Promise<string> {
     const year = new Date().getFullYear();
-    const [{ total }] = await this.db
-      .select({ total: sql<number>`count(*)` })
-      .from(payments)
-      .where(eq(payments.gymId, this.gymId));
-    const count = (total || 0) + 1;
-    return `RCP-${year}-${String(count).padStart(4, '0')}`;
+    // H4 fix: use atomic upsert-returning to eliminate TOCTOU race between count and insert.
+    const result = await this.d1
+      .prepare(`
+        INSERT INTO counters (gym_id, counter_type, value)
+        VALUES (?, 'receipt', 1)
+        ON CONFLICT (gym_id, counter_type) DO UPDATE SET value = value + 1
+        RETURNING value AS next_val
+      `)
+      .bind(this.gymId)
+      .all<{ next_val: number }>();
+    const nextVal = result.results?.[0]?.next_val ?? 1;
+    return `RCP-${year}-${String(nextVal).padStart(4, '0')}`;
   }
 
   async record(data: {
@@ -119,6 +143,7 @@ export class PaymentRepository {
         and(
           eq(payments.gymId, this.gymId),
           eq(payments.status, 'COMPLETED' as any),
+          isNull(payments.deletedAt),
           sql`${payments.paymentDate} >= ${startOfMonth}`
         )
       );
@@ -130,6 +155,7 @@ export class PaymentRepository {
         and(
           eq(payments.gymId, this.gymId),
           eq(payments.status, 'COMPLETED' as any),
+          isNull(payments.deletedAt),
           sql`${payments.paymentDate} >= ${startOfToday}`
         )
       );
@@ -141,6 +167,7 @@ export class PaymentRepository {
         and(
           eq(memberships.gymId, this.gymId),
           eq(memberships.status, 'ACTIVE' as any),
+          isNull(memberships.deletedAt),
           sql`${memberships.dueAmountPaise} > 0`
         )
       );

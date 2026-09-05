@@ -12,15 +12,15 @@ import {
 describe('Auth & Cryptographic Security', () => {
   const secret = 'test-secret-key-12345678901234567890';
 
-  it('hashes passwords with Argon2id (PHC string, salted, non-deterministic)', async () => {
+  it('hashes passwords with PBKDF2-SHA256 (PHC string, salted, non-deterministic)', async () => {
     const hash1 = await hashPassword('admin123');
     const hash2 = await hashPassword('admin123');
     const hashOther = await hashPassword('other123');
 
-    // Argon2id output is non-deterministic (random salt) — but verifyPassword
+    // PBKDF2 output is non-deterministic (random salt) — but verifyPassword
     // must accept both.
     expect(hash1).not.toBe(hash2);
-    expect(hash1).toMatch(/^\$argon2id\$v=19\$/);
+    expect(hash1).toMatch(/^pbkdf2\$sha256:100000\$/);
     expect(hash1).not.toBe(hashOther);
     expect(await verifyPassword('admin123', hash1)).toBe(true);
     expect(await verifyPassword('admin123', hash2)).toBe(true);

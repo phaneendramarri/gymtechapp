@@ -12,7 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { PhotoCaptureUpload } from '@/components/ui/PhotoCaptureUpload';
+import { PhotoCaptureUpload } from './PhotoCaptureUpload';
 import { api } from '@/lib/api';
 import { Member, UpdateMemberRequest } from '@gymtech/shared';
 import { extractSignatureFromUrl, serializeFaceSignature } from '@/lib/face-matcher';

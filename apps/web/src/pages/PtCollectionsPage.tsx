@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Trophy, IndianRupee, Clock, CheckCircle2, Plus, Loader2 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
-import { StatCard } from '@/components/ui/StatCard';
+import { StatCard } from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';

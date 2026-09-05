@@ -1,11 +1,20 @@
 import React from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { fadeRiseVariants } from '@/lib/motion';
+
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@/components/ui/breadcrumb';
 
 export interface BreadcrumbItem {
   label: string;
@@ -30,12 +39,10 @@ export interface AppShellProps {
  * The GymTech OS shell.
  *
  * Layout:
- *  - Left rail (60px collapsed / 220px expanded) with primary nav
+ *  - Left rail (64px collapsed / 224px expanded) with primary nav
  *  - Top bar: search + gym switcher + user menu
- *  - Page header: eyebrow / title / description / actions
- *  - Body: max-w-7xl, generous padding
- *
- * No card-stack. Whitespace and a single hairline do the work.
+ *  - Page header: breadcrumb / title / description / actions
+ *  - Body: max-w-7xl, consistent padding
  */
 export const AppShell: React.FC<AppShellProps> = ({
   title,
@@ -73,7 +80,7 @@ export const AppShell: React.FC<AppShellProps> = ({
       : [];
 
   return (
-    <div className="min-h-screen flex w-full bg-bg text-ink">
+    <div className="min-h-screen flex w-full bg-background text-foreground selection:bg-primary/20">
       <AppSidebar
         collapsed={collapsed}
         onToggleCollapsed={toggle}
@@ -89,27 +96,32 @@ export const AppShell: React.FC<AppShellProps> = ({
 
         <div className="flex-1 flex flex-col min-h-0">
           {/* Page header — clean, horizontal layout */}
-          <header className="px-6 lg:px-10 pt-7 pb-5 border-b border-(--line)">
-            <div className="max-w-350 mx-auto flex items-center justify-between gap-6">
+          <header className="px-4 sm:px-6 lg:px-8 pt-6 pb-5 border-b border-border bg-card/30">
+            <div className="max-w-7xl mx-auto flex items-center justify-between gap-6">
               <div className="min-w-0 flex-1">
                 {/* Breadcrumb */}
                 {crumbs.length > 0 && (
-                  <nav className="flex items-center gap-1.5 text-micro text-ink-3 mb-2">
-                    {crumbs.map((c, i) => (
-                      <React.Fragment key={i}>
-                        {c.href ? (
-                          <a href={c.href} className="hover:text-ink transition-colors">
-                            {c.label}
-                          </a>
-                        ) : (
-                          <span className={cn(i === crumbs.length - 1 ? 'text-ink-2' : '')}>{c.label}</span>
-                        )}
-                        {i < crumbs.length - 1 && (
-                          <span className="text-(--line) select-none">/</span>
-                        )}
-                      </React.Fragment>
-                    ))}
-                  </nav>
+                  <Breadcrumb className="mb-2">
+                    <BreadcrumbList>
+                      {crumbs.map((c, i) => {
+                        const isLast = i === crumbs.length - 1;
+                        return (
+                          <React.Fragment key={i}>
+                            <BreadcrumbItem>
+                              {c.href && !isLast ? (
+                                <BreadcrumbLink asChild>
+                                  <Link to={c.href}>{c.label}</Link>
+                                </BreadcrumbLink>
+                              ) : (
+                                <BreadcrumbPage>{c.label}</BreadcrumbPage>
+                              )}
+                            </BreadcrumbItem>
+                            {!isLast && <BreadcrumbSeparator />}
+                          </React.Fragment>
+                        );
+                      })}
+                    </BreadcrumbList>
+                  </Breadcrumb>
                 )}
                 {/* Title row */}
                 <div className="flex items-center gap-4">
@@ -121,7 +133,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                       animate="animate"
                       exit="exit"
                       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-                      className="text-h2 text-ink leading-none truncate"
+                      className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground leading-tight truncate"
                     >
                       {title}
                     </motion.h1>
@@ -132,7 +144,9 @@ export const AppShell: React.FC<AppShellProps> = ({
                 </div>
                 {/* Description */}
                 {description && (
-                  <p className="text-meta mt-1.5 max-w-2xl truncate">{description}</p>
+                  <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl truncate leading-relaxed">
+                    {description}
+                  </p>
                 )}
               </div>
             </div>
@@ -147,8 +161,8 @@ export const AppShell: React.FC<AppShellProps> = ({
           >
             <div
               className={cn(
-                'max-w-350 mx-auto w-full',
-                flush ? '' : 'px-6 lg:px-10 py-8'
+                'max-w-7xl mx-auto w-full',
+                flush ? '' : 'px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
               )}
             >
               {children}
@@ -159,3 +173,4 @@ export const AppShell: React.FC<AppShellProps> = ({
     </div>
   );
 };
+

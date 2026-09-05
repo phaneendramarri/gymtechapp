@@ -1,4 +1,4 @@
-import { eq, and, desc } from 'drizzle-orm';
+import { eq, and, desc, isNull } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Membership } from '@gymtech/shared';
@@ -36,8 +36,8 @@ export class MembershipRepository {
         durationMonths: membershipPlans.durationMonths,
       })
       .from(memberships)
-      .innerJoin(membershipPlans, eq(memberships.membershipPlanId, membershipPlans.id))
-      .where(and(eq(memberships.memberId, memberId), eq(memberships.gymId, this.gymId)))
+      .leftJoin(membershipPlans, eq(memberships.membershipPlanId, membershipPlans.id))
+      .where(and(eq(memberships.memberId, memberId), eq(memberships.gymId, this.gymId), isNull(memberships.deletedAt)))
       .orderBy(desc(memberships.createdAt));
     return rows;
   }
@@ -67,8 +67,8 @@ export class MembershipRepository {
         durationMonths: membershipPlans.durationMonths,
       })
       .from(memberships)
-      .innerJoin(membershipPlans, eq(memberships.membershipPlanId, membershipPlans.id))
-      .where(and(eq(memberships.memberId, memberId), eq(memberships.gymId, this.gymId), eq(memberships.status, 'ACTIVE' as any)))
+      .leftJoin(membershipPlans, eq(memberships.membershipPlanId, membershipPlans.id))
+      .where(and(eq(memberships.memberId, memberId), eq(memberships.gymId, this.gymId), eq(memberships.status, 'ACTIVE' as any), isNull(memberships.deletedAt)))
       .orderBy(desc(memberships.endDate))
       .limit(1);
     return rows[0] ?? null;
@@ -78,7 +78,7 @@ export class MembershipRepository {
     const rows = await this.db
       .select()
       .from(memberships)
-      .where(and(eq(memberships.id, id), eq(memberships.gymId, this.gymId)))
+      .where(and(eq(memberships.id, id), eq(memberships.gymId, this.gymId), isNull(memberships.deletedAt)))
       .limit(1);
     return (rows[0] as Membership) ?? null;
   }
@@ -171,13 +171,14 @@ export class MembershipRepository {
       })
       .from(memberships)
       .innerJoin(members, eq(memberships.memberId, members.id))
-      .innerJoin(membershipPlans, eq(memberships.membershipPlanId, membershipPlans.id))
+      .leftJoin(membershipPlans, eq(memberships.membershipPlanId, membershipPlans.id))
       .where(
         and(
           eq(memberships.gymId, this.gymId),
           eq(memberships.status, 'ACTIVE' as any),
+          isNull(memberships.deletedAt),
           eq(members.gymId, this.gymId),
-          // simplified: filter in JS since Drizzle doesn't support between well
+          isNull(members.deletedAt),
         )
       );
     // Filter by date range in JS

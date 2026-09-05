@@ -206,4 +206,33 @@ export class LicenseService {
       channel,
     };
   }
+
+  /**
+   * Sweeps expired licenses and memberships for this gym.
+   * Invoked on hourly cron schedule.
+   */
+  async sweepExpiries(): Promise<{ expiredLicenses: number; expiredMemberships: number }> {
+    const nowSec = Math.floor(Date.now() / 1000);
+
+    const licRes = await this.db
+      .prepare(
+        `UPDATE licenses SET status = 'EXPIRED', updated_at = ?
+         WHERE gym_id = ? AND status = 'ACTIVE' AND expires_at < ?`
+      )
+      .bind(nowSec, this.gymId, nowSec)
+      .run();
+
+    const memRes = await this.db
+      .prepare(
+        `UPDATE memberships SET status = 'EXPIRED', updated_at = ?
+         WHERE gym_id = ? AND status = 'ACTIVE' AND end_date < ?`
+      )
+      .bind(nowSec, this.gymId, nowSec)
+      .run();
+
+    return {
+      expiredLicenses: licRes.meta?.changes ?? 0,
+      expiredMemberships: memRes.meta?.changes ?? 0,
+    };
+  }
 }

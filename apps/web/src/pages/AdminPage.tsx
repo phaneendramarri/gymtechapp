@@ -21,7 +21,7 @@ import {
   History,
 } from 'lucide-react';
 import { AdminShell } from '@/components/layout/AdminShell';
-import { StatCard } from '@/components/ui/StatCard';
+import { StatCard } from '@/components/shared/StatCard';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -850,7 +850,7 @@ export const AdminPage: React.FC = () => {
             </div>
             <Button
               size="sm"
-              className="gt-btn-primary gap-1.5"
+              className="gap-1.5"
               onClick={() => saveCommsMutation.mutate()}
               disabled={saveCommsMutation.isPending}
             >

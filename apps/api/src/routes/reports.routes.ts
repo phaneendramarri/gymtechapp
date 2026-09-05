@@ -65,9 +65,9 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
       SELECT p.receipt_number, p.payment_date, m.first_name, m.last_name, m.member_code,
              p.amount_paise, p.payment_mode, p.reference_id, p.status, u.name as recorded_by
       FROM payments p
-      JOIN members m ON m.id = p.member_id
+      JOIN members m ON m.id = p.member_id AND m.deleted_at IS NULL
       LEFT JOIN users u ON u.id = p.recorded_by_user_id
-      WHERE p.gym_id = ?
+      WHERE p.gym_id = ? AND p.deleted_at IS NULL
       ORDER BY p.payment_date DESC LIMIT 2000
     `).bind(ctx.gymId!).all();
     csv = toCsv(
@@ -83,8 +83,8 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
       SELECT m.member_code, m.first_name, m.last_name, m.phone, m.email, m.status, m.joined_date,
              mp.name as plan_name, ms.end_date, ms.due_amount_paise
       FROM members m
-      LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.gym_id = m.gym_id
-      LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
+      LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.gym_id = m.gym_id AND ms.deleted_at IS NULL
+      LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id AND mp.deleted_at IS NULL
       WHERE m.gym_id = ? AND m.deleted_at IS NULL
       GROUP BY m.id ORDER BY m.first_name ASC LIMIT 2000
     `).bind(ctx.gymId!).all();
@@ -102,8 +102,8 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
     const rows = await ctx.env.DB.prepare(`
       SELECT a.attendance_date, a.check_in_time, a.method, m.first_name, m.last_name, m.member_code
       FROM attendance a
-      JOIN members m ON m.id = a.member_id
-      WHERE a.gym_id = ?
+      JOIN members m ON m.id = a.member_id AND m.deleted_at IS NULL
+      WHERE a.gym_id = ? AND a.deleted_at IS NULL
       ORDER BY a.check_in_time DESC LIMIT 5000
     `).bind(ctx.gymId!).all();
     csv = toCsv(
@@ -118,9 +118,9 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
       SELECT m.member_code, m.first_name, m.last_name, m.phone, mp.name as plan_name,
              ms.end_date, ms.final_amount_paise, ms.paid_amount_paise, ms.due_amount_paise
       FROM memberships ms
-      JOIN members m ON m.id = ms.member_id
-      LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-      WHERE ms.gym_id = ? AND ms.due_amount_paise > 0 AND m.deleted_at IS NULL
+      JOIN members m ON m.id = ms.member_id AND m.deleted_at IS NULL
+      LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id AND mp.deleted_at IS NULL
+      WHERE ms.gym_id = ? AND ms.due_amount_paise > 0 AND ms.deleted_at IS NULL
       ORDER BY ms.due_amount_paise DESC LIMIT 2000
     `).bind(ctx.gymId!).all();
     csv = toCsv(

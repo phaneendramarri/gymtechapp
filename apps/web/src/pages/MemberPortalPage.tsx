@@ -19,8 +19,9 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { StatusBadge } from '@/components/shared/StatusBadge';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
-import { MemberQrCode } from '@/components/ui/MemberQrCode';
+import { MemberQrCode } from '@/components/members/MemberQrCode';
 import { Logo } from '@/components/shared/Logo';
+import { ErrorState } from '@/components/shared/ErrorState';
 
 export const MemberPortalPage: React.FC = () => {
   const navigate = useNavigate();
@@ -71,18 +72,15 @@ export const MemberPortalPage: React.FC = () => {
   if (error || !member) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background p-4">
-        <Card className="max-w-md w-full p-6 text-center border-border">
-          <div className="size-12 rounded-full bg-destructive/10 text-destructive mx-auto flex items-center justify-center mb-3">
-            <AlertCircle className="size-6" />
-          </div>
-          <h3 className="font-display text-lg font-bold text-foreground">Session Error</h3>
-          <p className="text-xs text-muted-foreground mt-1 mb-5">
-            {(error as any)?.message || 'Unable to retrieve member session. Please log in again.'}
-          </p>
-          <Button onClick={handleLogout} className="w-full bg-primary text-primary-foreground font-bold text-xs h-9">
-            Sign In Again
-          </Button>
-        </Card>
+        <div className="max-w-md w-full">
+          <ErrorState
+            title="Session Error"
+            description={(error as any)?.message || 'Unable to retrieve member session. Please sign in again.'}
+            onRetry={handleLogout}
+            backHref="/login"
+            backLabel="Sign in"
+          />
+        </div>
       </div>
     );
   }

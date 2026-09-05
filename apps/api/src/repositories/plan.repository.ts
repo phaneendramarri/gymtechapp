@@ -37,7 +37,7 @@ export class PlanRepository {
   }
 
   async create(
-    data: Omit<GymMembershipPlan, 'id' | 'createdAt' | 'updatedAt' | 'gymId'>
+    data: Omit<GymMembershipPlan, 'id' | 'createdAt' | 'updatedAt' | 'gymId'> & { billingPeriod?: 'MONTHLY' | 'YEARLY' }
   ): Promise<number> {
     const now = Math.floor(Date.now() / 1000);
     const row = await this.db
@@ -50,6 +50,7 @@ export class PlanRepository {
         pricePaise: data.pricePaise,
         admissionFeePaise: data.admissionFeePaise ?? 0,
         taxPercentage: data.taxPercentage ?? 0,
+        billingPeriod: data.billingPeriod, // L9/L10: revenue bucketing
         isActive: data.isActive,
         createdAt: now,
         updatedAt: now,

@@ -7,9 +7,11 @@ import { ThemeProvider } from './lib/theme';
 import { AuthProvider } from './lib/auth';
 import { ToastProvider } from './components/ui/toast';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
+import { RequireGymFeature } from './components/layout/RequireGymFeature';
 
 import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
+import { ErrorBoundary } from './components/layout/ErrorBoundary';
 
 // Lazy-loaded pages — each becomes a separate chunk, loaded on demand.
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then(m => ({ default: m.DashboardPage })));
@@ -28,10 +30,23 @@ const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m 
 const MemberPortalPage = lazy(() => import('./pages/MemberPortalPage').then(m => ({ default: m.MemberPortalPage })));
 const PtCollectionsPage = lazy(() => import('./pages/PtCollectionsPage').then(m => ({ default: m.PtCollectionsPage })));
 const AuditLogsPage = lazy(() => import('./pages/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
+const CommunicationsPage = lazy(() => import('./pages/CommunicationsPage').then(m => ({ default: m.CommunicationsPage })));
+const RolesManagementPage = lazy(() => import('./pages/platform/RolesManagementPage').then(m => ({ default: m.RolesManagementPage })));
+const MenuManagementPage = lazy(() => import('./pages/platform/MenuManagementPage').then(m => ({ default: m.MenuManagementPage })));
+const PlatformUsersPage = lazy(() => import('./pages/platform/PlatformUsersPage').then(m => ({ default: m.PlatformUsersPage })));
 const AboutPage = lazy(() => import('./pages/AboutPage').then(m => ({ default: m.AboutPage })));
 const ContactPage = lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
 const TermsPage = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
+
+// M-11: Wrap lazy-loaded page components with ErrorBoundary so crashes in one
+// page don't take down the entire app.
+const withErrorBoundary = (page: React.ComponentType): React.ComponentType =>
+  () => (
+    <ErrorBoundary>
+      {React.createElement(page)}
+    </ErrorBoundary>
+  );
 
 // Minimal route-loading skeleton — avoids layout shift vs a full-page spinner.
 const RouteSkeleton: React.FC = () => (
@@ -54,28 +69,26 @@ const queryClient = new QueryClient({
   },
 });
 
-export const App: React.FC = () => {
+const AppRoutes: React.FC = () => {
+  const location = useLocation();
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <ToastProvider>
-          <BrowserRouter>
-            <Suspense fallback={<RouteSkeleton />}>
-              <AnimatePresence mode="wait" initial={false}>
-                <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
-                  {/* Public Routes — loaded immediately */}
-                  <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
-                  <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
-                  <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
+    <Suspense fallback={<RouteSkeleton />}>
+      <AnimatePresence mode="wait" initial={false}>
+        <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
+          {/* Public Routes — loaded immediately */}
+          <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+          <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+          <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
 
                   {/* Gym Owner & Staff Routes — lazy loaded */}
                   <Route
                     path="/dashboard"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="dashboard">
-                          <DashboardPage />
+                        <ProtectedRoute>
+                          <RequireGymFeature requiredFeature="dashboard">
+                            <ErrorBoundary><DashboardPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -84,8 +97,10 @@ export const App: React.FC = () => {
                     path="/members"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="members" requiredPermissions={['members']}>
-                          <MembersPage />
+                        <ProtectedRoute requiredPermissions={['members']}>
+                          <RequireGymFeature requiredFeature="members">
+                            <ErrorBoundary><MembersPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -94,8 +109,10 @@ export const App: React.FC = () => {
                     path="/members/new"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="members" requiredPermissions={['members']}>
-                          <NewMemberPage />
+                        <ProtectedRoute requiredPermissions={['members']}>
+                          <RequireGymFeature requiredFeature="members">
+                            <ErrorBoundary><NewMemberPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -104,8 +121,10 @@ export const App: React.FC = () => {
                     path="/members/:id"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="members" requiredPermissions={['members']}>
-                          <MemberDetailPage />
+                        <ProtectedRoute requiredPermissions={['members']}>
+                          <RequireGymFeature requiredFeature="members">
+                            <ErrorBoundary><MemberDetailPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -114,8 +133,10 @@ export const App: React.FC = () => {
                     path="/members/:id/renew"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="members" requiredPermissions={['members']}>
-                          <RenewMemberPage />
+                        <ProtectedRoute requiredPermissions={['members']}>
+                          <RequireGymFeature requiredFeature="members">
+                            <ErrorBoundary><RenewMemberPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -124,8 +145,10 @@ export const App: React.FC = () => {
                     path="/payments"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="payments" requiredPermissions={['payments']}>
-                          <PaymentsPage />
+                        <ProtectedRoute requiredPermissions={['payments']}>
+                          <RequireGymFeature requiredFeature="payments">
+                            <ErrorBoundary><PaymentsPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -134,8 +157,10 @@ export const App: React.FC = () => {
                     path="/pt-collections"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="pt_collections" requiredPermissions={['pt_collections']}>
-                          <PtCollectionsPage />
+                        <ProtectedRoute requiredPermissions={['pt_collections']}>
+                          <RequireGymFeature requiredFeature="pt_collections">
+                            <ErrorBoundary><PtCollectionsPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -144,8 +169,10 @@ export const App: React.FC = () => {
                     path="/attendance"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="attendance" requiredPermissions={['attendance']}>
-                          <AttendancePage />
+                        <ProtectedRoute requiredPermissions={['attendance']}>
+                          <RequireGymFeature requiredFeature="attendance">
+                            <ErrorBoundary><AttendancePage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -154,8 +181,10 @@ export const App: React.FC = () => {
                     path="/plans"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="plans" requiredPermissions={['plans']}>
-                          <PlansPage />
+                        <ProtectedRoute requiredPermissions={['plans']}>
+                          <RequireGymFeature requiredFeature="plans">
+                            <ErrorBoundary><PlansPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -164,8 +193,10 @@ export const App: React.FC = () => {
                     path="/staff"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="staff" requiredPermissions={['staff']}>
-                          <StaffPage />
+                        <ProtectedRoute requiredPermissions={['staff']}>
+                          <RequireGymFeature requiredFeature="staff">
+                            <ErrorBoundary><StaffPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -174,8 +205,10 @@ export const App: React.FC = () => {
                     path="/reports"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="reports" requiredPermissions={['reports']}>
-                          <ReportsPage />
+                        <ProtectedRoute requiredPermissions={['reports']}>
+                          <RequireGymFeature requiredFeature="reports">
+                            <ErrorBoundary><ReportsPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -184,8 +217,10 @@ export const App: React.FC = () => {
                     path="/settings/notifications"
                     element={
                       <PageTransition>
-                        <ProtectedRoute requiredFeature="settings" requiredPermissions={['settings']}>
-                          <SettingsNotificationsPage />
+                        <ProtectedRoute requiredPermissions={['settings']}>
+                          <RequireGymFeature requiredFeature="settings">
+                            <ErrorBoundary><SettingsNotificationsPage /></ErrorBoundary>
+                          </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -195,7 +230,49 @@ export const App: React.FC = () => {
                     element={
                       <PageTransition>
                         <ProtectedRoute requiredPermissions={['audit_logs']}>
-                          <AuditLogsPage />
+                          <ErrorBoundary><AuditLogsPage /></ErrorBoundary>
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/communications"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredPermissions={['settings']}>
+                          <ErrorBoundary><CommunicationsPage /></ErrorBoundary>
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+
+                  {/* Platform Super Admin Routes */}
+                  <Route
+                    path="/platform/roles"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requireSuperAdmin={true}>
+                          <ErrorBoundary><RolesManagementPage /></ErrorBoundary>
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/platform/menus"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requireSuperAdmin={true}>
+                          <ErrorBoundary><MenuManagementPage /></ErrorBoundary>
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
+                    path="/platform/users"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requireSuperAdmin={true}>
+                          <ErrorBoundary><PlatformUsersPage /></ErrorBoundary>
                         </ProtectedRoute>
                       </PageTransition>
                     }
@@ -264,7 +341,18 @@ export const App: React.FC = () => {
                 </Routes>
               </AnimatePresence>
             </Suspense>
-          </BrowserRouter>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>

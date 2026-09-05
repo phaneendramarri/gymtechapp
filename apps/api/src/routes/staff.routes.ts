@@ -70,7 +70,7 @@ staffRoutes.delete('/:id', requireGym, requireFeature('staff'), requirePermissio
   const before = await userRepo.findById(id);
   if (!before || before.gymId !== ctx.gymId!) return jsonErr('Staff member not found in this gym', 404);
   await userRepo.softDelete(id, ctx.gymId!);
-  await auditGym(ctx, 'staff.soft_delete', 'user', id, { before });
+  await auditGym(ctx, 'staff.soft_delete', 'user', id, { before, after: { id, email: before.email, role: before.role, status: 'ARCHIVED' } });
   return jsonOk({ success: true, message: 'Staff member archived successfully.' });
 }));
 
@@ -80,6 +80,7 @@ staffRoutes.post('/:id/restore', requireGym, requireFeature('staff'), requirePer
   const userRepo = new UserRepository(ctx.db);
   const success = await userRepo.restore(id, ctx.gymId!);
   if (!success) return jsonErr('Staff member not found in archive', 404);
-  await auditGym(ctx, 'staff.restore', 'user', id, {});
+  const restored = await userRepo.findById(id);
+  await auditGym(ctx, 'staff.restore', 'user', id, { after: restored ? { id, email: restored.email, role: restored.role, status: restored.status } : { id } });
   return jsonOk({ success: true, message: 'Staff member restored successfully.' });
 }));

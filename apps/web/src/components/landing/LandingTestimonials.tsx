@@ -87,7 +87,7 @@ export const LandingTestimonials: React.FC = () => {
     <section className="py-20 border-t border-(--line) bg-(--surface-2)/30">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center mb-10">
-          <p className="gt-kicker">
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
             Loved by operators
           </p>
           <h2 className="text-h1 sm:text-display-serif-sm text-ink mt-3">

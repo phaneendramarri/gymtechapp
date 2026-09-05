@@ -10,7 +10,7 @@ import {
 import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
-import { calculateFreezeExtension } from '../lib/calculations';
+
 import { MemberRepository } from '../repositories/member.repository';
 import { PlanRepository } from '../repositories/plan.repository';
 import { MemberService } from '../services/member.service';
@@ -29,8 +29,18 @@ memberRoutes.get('/', requireGym, safeHandler(async (c) => {
   const ctx = getCtx(c);
   const search = c.req.query('search') || undefined;
   const status = c.req.query('status') || undefined;
+  const summaryOnly = c.req.query('summary') === 'true';
   const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'members');
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
+
+  if (summaryOnly) {
+    // L8: Return only summary counts — single query instead of double-fetch
+    const now = Math.floor(Date.now() / 1000);
+    const sevenDays = now + 7 * 24 * 3600;
+    const counts = await memberRepo.countSummary({ now, sevenDays });
+    return jsonOk({ counts });
+  }
+
   const [members, total] = await Promise.all([
     memberRepo.list({ search, status, limit, offset }),
     memberRepo.countTotal({ search, status }),
@@ -99,7 +109,7 @@ memberRoutes.post('/bulk-import', requireGym, safeHandler(async (c) => {
 }));
 
 // ----- Get by id -----
-memberRoutes.get('/:id', requireGym, safeHandler(async (c) => {
+memberRoutes.get('/:id', requireGym, requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const id = paramId(c.req.param() as Record<string, string>);
@@ -258,58 +268,34 @@ memberRoutes.post('/:id/freeze', requireGym, requirePermission('members', 'freez
   const parsed = FreezeMemberRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid freeze payload');
 
-  const member: any = await ctx.env.DB.prepare(`SELECT * FROM members WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`).bind(id, ctx.gymId!).first();
-  if (!member) return jsonErr('Member not found', 404);
-  if (member.status === 'FROZEN') return jsonErr('Membership is already frozen', 409);
-  if (member.status === 'CANCELLED') return jsonErr('Cancelled memberships cannot be frozen', 409);
-
-  const nowSec = Math.floor(Date.now() / 1000);
-  const activeMs: any = await ctx.env.DB.prepare(`SELECT * FROM memberships WHERE member_id = ? AND gym_id = ? AND status = 'ACTIVE' AND end_date > ? ORDER BY end_date DESC LIMIT 1`).bind(id, ctx.gymId!, nowSec).first();
-  if (!activeMs) return jsonErr('Only members with an active membership can be frozen', 409);
-
-  await ctx.env.DB.batch([
-    ctx.env.DB.prepare(`UPDATE members SET status = 'FROZEN', updated_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(id, ctx.gymId!),
-    ctx.env.DB.prepare(`UPDATE memberships SET status = 'FROZEN', frozen_at = ?, updated_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(nowSec, activeMs.id, ctx.gymId!),
-  ]);
-
-  await auditGymFromCtx(
-    c,
-    'member.freeze',
-    'member',
-    id,
-    { metadata: { reason: parsed.data.reason } }
-  );
-
-  return jsonOk({ success: true, status: 'FROZEN', membershipId: activeMs.id, message: 'Membership paused. Remaining days are preserved.' });
+  const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id);
+  try {
+    const { membershipId } = await memberService.freezeMember(id, parsed.data?.reason);
+    return jsonOk({ success: true, status: 'FROZEN', membershipId, message: 'Membership paused. Remaining days are preserved.' });
+  } catch (e: any) {
+    if (e.message === 'Member not found') return jsonErr('Member not found', 404);
+    if (e.message === 'Membership is already frozen') return jsonErr('Membership is already frozen', 409);
+    if (e.message === 'Cancelled memberships cannot be frozen') return jsonErr('Cancelled memberships cannot be frozen', 409);
+    if (e.message === 'Only members with an active membership can be frozen') return jsonErr('Only members with an active membership can be frozen', 409);
+    return jsonErr(e.message, 400);
+  }
 }));
 
 // ----- Unfreeze -----
 memberRoutes.post('/:id/unfreeze', requireGym, requirePermission('members', 'unfreeze'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
-  const member: any = await ctx.env.DB.prepare(`SELECT * FROM members WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`).bind(id, ctx.gymId!).first();
-  if (!member) return jsonErr('Member not found', 404);
-  if (member.status !== 'FROZEN') return jsonErr('Membership is not currently frozen', 409);
 
-  const nowSec = Math.floor(Date.now() / 1000);
-  const frozenMs: any = await ctx.env.DB.prepare(`SELECT * FROM memberships WHERE member_id = ? AND gym_id = ? AND status = 'FROZEN' ORDER BY end_date DESC LIMIT 1`).bind(id, ctx.gymId!).first();
-  let extendedTo: number | null = null;
-  if (frozenMs) {
-    const { extendedTo: newEndDate } = calculateFreezeExtension(frozenMs.end_date, frozenMs.frozen_at || nowSec, nowSec);
-    extendedTo = newEndDate;
-    await ctx.env.DB.prepare(`UPDATE memberships SET status = 'ACTIVE', end_date = ?, frozen_at = NULL, updated_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(extendedTo, frozenMs.id, ctx.gymId!).run();
+  const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id);
+  try {
+    const { membershipId, extendedTo } = await memberService.unfreezeMember(id);
+    return jsonOk({
+      success: true, status: 'ACTIVE', membershipId, extendedTo,
+      message: extendedTo ? `Membership reactivated. New expiry: ${new Date(extendedTo * 1000).toLocaleDateString('en-IN')}.` : 'Member reactivated.',
+    });
+  } catch (e: any) {
+    if (e.message === 'Member not found') return jsonErr('Member not found', 404);
+    if (e.message === 'Membership is not currently frozen') return jsonErr('Membership is not currently frozen', 409);
+    return jsonErr(e.message, 400);
   }
-  await ctx.env.DB.prepare(`UPDATE members SET status = 'ACTIVE', updated_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(id, ctx.gymId!).run();
-await auditGymFromCtx(
-    c,
-    'member.unfreeze',
-    'member',
-    id,
-    { metadata: { extendedTo } }
-  );
-
-  return jsonOk({
-    success: true, status: 'ACTIVE', membershipId: frozenMs?.id || null, extendedTo,
-    message: extendedTo ? `Membership reactivated. New expiry: ${new Date(extendedTo * 1000).toLocaleDateString('en-IN')}.` : 'Member reactivated.',
-  });
 }));

@@ -14,10 +14,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { PhotoCaptureUpload } from '@/components/ui/PhotoCaptureUpload';
+import { PhotoCaptureUpload } from '@/components/members/PhotoCaptureUpload';
 import { api } from '@/lib/api';
-import { CreateMemberResponse } from '@gymtech/shared';
+import { CreateMemberRequestSchema, CreateMemberResponse } from '@gymtech/shared';
 import { extractSignatureFromUrl, serializeFaceSignature } from '@/lib/face-matcher';
 import { formatCurrency } from '@/lib/utils';
 
@@ -89,6 +90,32 @@ export const NewMemberPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
+      // M-9: Validate form data against Zod schema before sending to API.
+      const parsed = CreateMemberRequestSchema.safeParse({
+        firstName,
+        lastName: lastName || undefined,
+        phone,
+        email: email || undefined,
+        gender,
+        dateOfBirth: dateOfBirth || undefined,
+        joinedDate,
+        photoUrl: photoUrl || undefined,
+        faceEmbedding: undefined,
+        address: address || undefined,
+        emergencyContactName: emergencyContactName || undefined,
+        emergencyContactPhone: emergencyContactPhone || undefined,
+        planId: planId!,
+        discountPaise: Math.round((Number(discountAmount) || 0) * 100),
+        initialPaymentPaise: Math.round((Number(initialPaymentAmount) || 0) * 100),
+        paymentMode,
+        referenceId: referenceId || undefined,
+      });
+      if (!parsed.success) {
+        setError(parsed.error.errors.map((e) => e.message).join(', '));
+        setIsSubmitting(false);
+        return;
+      }
+
       let faceEmbedding: string | undefined = undefined;
       if (photoUrl) {
         try {
@@ -147,9 +174,9 @@ export const NewMemberPage: React.FC = () => {
                 Capture personal details, assign a membership plan, and log the initial fee
               </p>
             </div>
-            <span className="gt-tag self-start sm:self-auto" data-tone="iron">
+            <Badge variant="secondary" className="self-start sm:self-auto">
               <Sparkles className="size-3.5 mr-1" /> Quick Enrollment
-            </span>
+            </Badge>
           </div>
         </div>
 

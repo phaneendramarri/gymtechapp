@@ -8,9 +8,10 @@ import { Logo } from '@/components/shared/Logo';
 
 interface LandingNavbarProps {
   isScrolled: boolean;
+  activeSection?: string;
 }
 
-export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled }) => {
+export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, activeSection }) => {
   const { user } = useAuth();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -30,10 +31,22 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled }) => {
 
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-8 text-[13px] text-ink-2 tracking-wide">
-          <a href="#product" className="hover:text-ink transition-colors">Product</a>
-          <a href="#how-it-works" className="hover:text-ink transition-colors">How it works</a>
-          <a href="#pricing" className="hover:text-ink transition-colors">Pricing</a>
-          <a href="#faq" className="hover:text-ink transition-colors">FAQ</a>
+          {[
+            { id: 'product', label: 'Product' },
+            { id: 'how-it-works', label: 'How it works' },
+            { id: 'pricing', label: 'Pricing' },
+            { id: 'faq', label: 'FAQ' },
+          ].map(({ id, label }) => (
+            <a
+              key={id}
+              href={`#${id}`}
+              className={`transition-colors ${
+                activeSection === id ? 'text-(--iron) font-medium' : 'hover:text-ink'
+              }`}
+            >
+              {label}
+            </a>
+          ))}
         </nav>
 
         {/* Actions */}

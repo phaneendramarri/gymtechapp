@@ -6,6 +6,7 @@ import {
   ResetPasswordRequestSchema,
   MemberLoginRequestSchema,
 } from '@gymtech/shared';
+import { MemberRepository } from '../repositories/member.repository';
 import { AuthService } from '../services/auth.service';
 import { EmailService } from '../services/email.service';
 import { AuditService, extractClientInfo } from '../services/audit.service';
@@ -31,20 +32,19 @@ authRoutes.post('/login', safeHandler(async (c) => {
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid credentials payload');
 
   if (parsed.data.turnstileToken && ctx.env.TURNSTILE_SECRET_KEY) {
-    try {
-      const ip = c.req.header('cf-connecting-ip') || undefined;
-      await verifyTurnstileToken(
-        parsed.data.turnstileToken,
-        ctx.env.TURNSTILE_SECRET_KEY,
-        ip,
-        (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv,
-        {
-          expectedAction: 'login',
-          expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
-        }
-      );
-    } catch (e) {
-      console.warn('Turnstile verification bypassed:', e);
+    const ip = c.req.header('cf-connecting-ip') || undefined;
+    const result = await verifyTurnstileToken(
+      parsed.data.turnstileToken,
+      ctx.env.TURNSTILE_SECRET_KEY,
+      ip,
+      (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv,
+      {
+        expectedAction: 'login',
+        expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
+      }
+    );
+    if (!result.success) {
+      return jsonErr('Bot verification failed. Please try again.', 403);
     }
   }
 
@@ -107,6 +107,7 @@ authRoutes.post('/platform-login', safeHandler(async (c) => {
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid credentials payload');
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const client = extractClientInfo(c.req.raw);
+
   try {
     const res = await authService.loginPlatformAdmin(parsed.data.email, parsed.data.password);
     const audit = new AuditService(ctx.env.DB);
@@ -186,7 +187,7 @@ authRoutes.post('/forgot-password', safeHandler(async (c) => {
   }
 
   const token = `${crypto.randomUUID().replace(/-/g, '')}${crypto.randomUUID().replace(/-/g, '')}`;
-  // Opaque high-entropy tokens are HMAC'd, not Argon2id'd (random salt would
+  // Opaque high-entropy tokens are HMAC'd, not PBKDF2'd (random salt would
   // make lookup non-deterministic, and slow KDFs are wasted on entropy we
   // already have).
   const tokenHash = await hashOpaqueToken(token, ctx.env.JWT_SECRET);
@@ -232,7 +233,7 @@ authRoutes.post('/reset-password', safeHandler(async (c) => {
 
   const newHash = await hashPassword(newPassword);
   await ctx.env.DB.batch([
-    ctx.env.DB.prepare(`UPDATE users SET password_hash = ?, password_algo = 'argon2id', updated_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(newHash, user.id, resetRecord.gym_id),
+    ctx.env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(newHash, user.id, resetRecord.gym_id),
     ctx.env.DB.prepare(`UPDATE user_password_resets SET used_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(resetRecord.id, resetRecord.gym_id),
   ]);
 
@@ -249,51 +250,56 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid login details');
 
   if (parsed.data.turnstileToken && ctx.env.TURNSTILE_SECRET_KEY) {
-    try {
-      const ip = c.req.header('cf-connecting-ip') || undefined;
-      await verifyTurnstileToken(
-        parsed.data.turnstileToken,
-        ctx.env.TURNSTILE_SECRET_KEY,
-        ip,
-        (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv,
-        {
-          expectedAction: 'member_login',
-          expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
-        }
-      );
-    } catch (e) {
-      console.warn('Member Turnstile verification bypassed:', e);
+    const ip = c.req.header('cf-connecting-ip') || undefined;
+    const result = await verifyTurnstileToken(
+      parsed.data.turnstileToken,
+      ctx.env.TURNSTILE_SECRET_KEY,
+      ip,
+      (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv,
+      {
+        expectedAction: 'member_login',
+        expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
+      }
+    );
+    if (!result.success) {
+      return jsonErr('Bot verification failed. Please try again.', 403);
     }
   }
 
-  const ident = parsed.data.identifier.trim();
-  const code = parsed.data.codeOrPin.trim();
+  const { gymSlug, identifier: ident, codeOrPin: code } = parsed.data;
+  const trimIdent = ident.trim();
+  const trimCode = code.trim();
+
+  // Resolve gymId from gymSlug first so the member query is tenant-scoped.
+  const gymRow = await ctx.env.DB
+    .prepare(`SELECT id, name, slug FROM gyms WHERE slug = ? AND deleted_at IS NULL LIMIT 1`)
+    .bind(gymSlug)
+    .first<{ id: number; name: string; slug: string }>();
+  if (!gymRow) return jsonErr('Invalid gym identifier', 400);
+
   const member: any = await ctx.env.DB.prepare(`
     SELECT m.*, g.name as gym_name, g.slug as gym_slug
     FROM members m JOIN gyms g ON g.id = m.gym_id
-    WHERE (m.member_code = ? OR m.phone = ? OR m.email = ?) AND m.deleted_at IS NULL
+    WHERE m.gym_id = ? AND (m.member_code = ? OR m.phone = ? OR m.email = ?) AND m.deleted_at IS NULL
     LIMIT 1
-  `).bind(ident, ident, ident).first();
+  `).bind(gymRow.id, trimIdent, trimIdent, trimIdent).first();
 
   if (!member) return jsonErr('No member account found with this phone number or member code', 404);
 
-  const memberCodeMatches = member.member_code.toUpperCase() === code.toUpperCase();
-  const phoneMatches = member.phone.endsWith(code) || member.phone === code;
-  const identMatchesCode = member.member_code.toUpperCase() === ident.toUpperCase();
+  const memberCodeMatches = member.member_code.toUpperCase() === trimCode.toUpperCase();
+  const phoneMatches = member.phone.endsWith(trimCode) || member.phone === trimCode;
+  const identMatchesCode = member.member_code.toUpperCase() === trimIdent.toUpperCase();
 
   if (!memberCodeMatches && !phoneMatches && !identMatchesCode) {
     return jsonErr('Invalid verification credential.', 401);
   }
 
-  const activeMembership: any = await ctx.env.DB.prepare(`
-    SELECT ms.*, mp.name as plan_name
-    FROM memberships ms LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-    WHERE ms.member_id = ? AND ms.gym_id = ?
-    ORDER BY ms.end_date DESC LIMIT 1
-  `).bind(member.id, member.gym_id).first();
+  // M-17: Use shared repository helper instead of inline query.
+  const memberRepo = new MemberRepository(ctx.env.DB, member.gym_id);
+  const activeMembership = await memberRepo.getActiveMembership(member.id);
 
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
-  const token = await authService.signMemberToken({
+  const { token } = await authService.signMemberToken({
     id: member.id, gymId: member.gym_id, memberCode: member.member_code,
     phone: member.phone, name: `${member.first_name} ${member.last_name || ''}`.trim(),
   });
@@ -320,7 +326,16 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
 authRoutes.get('/portal', safeHandler(async (c) => {
   const ctx = getCtx(c);
   const authHeader = c.req.header('Authorization') || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  let token = authHeader.replace(/^Bearer\s+/i, '').trim();
+
+  if (!token) {
+    const cookieHeader = c.req.header('Cookie') || '';
+    const match = cookieHeader.match(/gym_token=([^;]+)/);
+    if (match) {
+      token = decodeURIComponent(match[1].trim());
+    }
+  }
+
   if (!token) return jsonErr('Unauthorized: Member token required', 401);
 
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
@@ -355,7 +370,7 @@ authRoutes.get('/portal', safeHandler(async (c) => {
 
 authRoutes.post('/logout', requireAuth, safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL, ctx.env.DENYLIST_KV);
   // Revoke the session from DB so the access token can never be used again
   if (ctx.user?.jti) {
     await authService.logout(ctx.user.jti);

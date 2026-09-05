@@ -81,7 +81,7 @@ export const PricingSection: React.FC = () => {
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
         <motion.div {...fadeUp(0)} className="max-w-2xl mx-auto text-center mb-16">
-          <p className="gt-kicker">Pricing</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Pricing</p>
           <h2 className="text-h1 sm:text-display-serif-sm text-ink mt-3">
             Simple, honest pricing.
           </h2>

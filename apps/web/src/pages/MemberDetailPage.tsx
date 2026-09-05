@@ -26,6 +26,10 @@ import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+
+import { ErrorState } from '@/components/shared/ErrorState';
+import { DetailSkeleton } from '@/components/shared/LoadingSkeleton';
 
 export const MemberDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -40,7 +44,7 @@ export const MemberDetailPage: React.FC = () => {
   const canRecord =
     user?.isOwner || user?.permissions?.includes('members');
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['member', id],
     queryFn: () => api.getMemberDetail(memberId),
     enabled: !!memberId,
@@ -61,21 +65,22 @@ export const MemberDetailPage: React.FC = () => {
 
   if (isLoading) {
     return (
-      <AppShell title="Member" breadcrumb="Members">
-        <div className="flex flex-col gap-6">
-          <Skeleton className="h-24" />
-          <Skeleton className="h-64" />
-        </div>
+      <AppShell title="Loading Member..." breadcrumb="Members">
+        <DetailSkeleton className="py-2" />
       </AppShell>
     );
   }
 
   if (error || !data) {
     return (
-      <AppShell title="Member not found" breadcrumb="Members">
-        <div className="p-6 rounded-md border border-(--danger)/30 bg-danger-soft text-(--danger) text-sm">
-          We couldn't find this member. They may have been deleted.
-        </div>
+      <AppShell title="Member Not Found" breadcrumb="Members">
+        <ErrorState
+          title="Member record not found"
+          description={(error as Error)?.message || "We couldn't retrieve this member record. It may have been archived, removed, or the link is invalid."}
+          onRetry={() => refetch()}
+          backHref="/members"
+          backLabel="Back to Members Directory"
+        />
       </AppShell>
     );
   }
@@ -152,7 +157,7 @@ export const MemberDetailPage: React.FC = () => {
             disabled={isSendingWa}
             size="sm"
             variant="outline"
-            className="gt-btn gt-btn-secondary h-9 gap-1.5"
+            className="h-9 gap-1.5"
             title="Dispatch WhatsApp message (1 credit deducted)"
           >
             <MessageCircle className="h-3.5 w-3.5 text-emerald-600" />
@@ -163,14 +168,14 @@ export const MemberDetailPage: React.FC = () => {
             disabled={isSendingSms}
             size="sm"
             variant="outline"
-            className="gt-btn gt-btn-secondary h-9 gap-1.5"
+            className="h-9 gap-1.5"
             title="Dispatch SMS alert (1 credit deducted)"
           >
             <Smartphone className="h-3.5 w-3.5 text-blue-600" />
             {isSendingSms ? 'Sending…' : 'Send SMS'}
           </Button>
           {canRecord && (
-            <Button onClick={() => setIsPaymentOpen(true)} size="sm" className="gt-btn-primary">
+            <Button onClick={() => setIsPaymentOpen(true)} size="sm">
               <Receipt className="h-3.5 w-3.5" /> Record payment
             </Button>
           )}
@@ -192,22 +197,19 @@ export const MemberDetailPage: React.FC = () => {
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span
-                    className={cn(
-                      'gt-chip',
-                      isFrozen ? 'gt-chip-info' :
-                      member.status === 'BLOCKED' ? 'gt-chip-danger' :
-                      member.status === 'EXPIRED' ? 'gt-chip-warn' :
-                      'gt-chip-ok'
-                    )}
+                  <Badge
+                    variant={isFrozen ? 'secondary' :
+                      member.status === 'BLOCKED' ? 'destructive' :
+                      member.status === 'EXPIRED' ? 'destructive' :
+                      'default'
+                    }
                   >
-                    <span className="gt-dot h-1 w-1" style={{ background: 'currentColor' }} />
                     {member.status}
-                  </span>
+                  </Badge>
                   {activeMembership && (
-                    <span className="gt-chip gt-chip-muted">
+                    <Badge variant="secondary">
                       {activeMembership.planName || 'Active plan'}
-                    </span>
+                    </Badge>
                   )}
                 </div>
 
@@ -321,16 +323,15 @@ export const MemberDetailPage: React.FC = () => {
                         {new Date(m.endDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                       </p>
                     </div>
-                    <span
-                      className={cn(
-                        'gt-chip',
-                        m.status === 'ACTIVE' ? 'gt-chip-ok' :
-                        m.status === 'FROZEN' ? 'gt-chip-info' :
-                        m.status === 'CANCELLED' ? 'gt-chip-muted' : 'gt-chip-warn'
-                      )}
+                    <Badge
+                      variant={
+                        m.status === 'ACTIVE' ? 'default' :
+                        m.status === 'FROZEN' ? 'secondary' :
+                        m.status === 'CANCELLED' ? 'outline' : 'secondary'
+                      }
                     >
                       {m.status}
-                    </span>
+                    </Badge>
                     <p className="text-sm num text-ink">{formatCurrency(m.finalAmountPaise)}</p>
                   </li>
                 ))}
@@ -359,7 +360,7 @@ export const MemberDetailPage: React.FC = () => {
                         {' · '}{p.paymentMode}
                       </p>
                     </div>
-                    <span className="gt-chip gt-chip-muted font-mono text-[10px]">{p.receiptNumber}</span>
+                    <Badge variant="outline" className="font-mono text-[10px]">{p.receiptNumber}</Badge>
                   </li>
                 ))}
               </ul>
@@ -377,7 +378,7 @@ export const MemberDetailPage: React.FC = () => {
                     key={a.id}
                     className="grid grid-cols-[auto_1fr_auto] items-center gap-3 py-3 border-t border-(--line-2) first:border-t-0"
                   >
-                    <span className="gt-dot gt-dot-positive h-1.5 w-1.5" />
+                    <span className="size-1.5 rounded-full bg-(--positive)" />
                     <div className="min-w-0">
                       <p className="text-sm text-ink">{a.method} check-in</p>
                       <p className="text-[11px] text-ink-3 mt-0.5">

@@ -11,13 +11,34 @@ import { FooterSection } from '@/components/landing/FooterSection';
 
 export const LandingPage: React.FC = () => {
   const [isScrolled, setIsScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState('');
 
   useEffect(() => {
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };
     window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
+
+    const sections = ['product', 'how-it-works', 'pricing', 'faq'];
+    const observers: IntersectionObserver[] = [];
+
+    sections.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const observer = new IntersectionObserver(
+        ([entry]) => {
+          if (entry.isIntersecting) setActiveSection(id);
+        },
+        { rootMargin: '-20% 0px -60% 0px', threshold: 0 }
+      );
+      observer.observe(el);
+      observers.push(observer);
+    });
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      observers.forEach((o) => o.disconnect());
+    };
   }, []);
 
   const jsonLd = {
@@ -47,7 +68,7 @@ export const LandingPage: React.FC = () => {
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <LandingNavbar isScrolled={isScrolled} />
+      <LandingNavbar isScrolled={isScrolled} activeSection={activeSection} />
 
       <main className="flex-1 flex flex-col">
         <HeroSection />

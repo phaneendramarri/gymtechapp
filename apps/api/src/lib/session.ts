@@ -32,7 +32,7 @@ export interface UserSessionPayload {
 }
 
 // Re-export the password hashing API. The implementation lives in
-// `lib/password.ts` (Argon2id with legacy SHA-256 support).
+// `lib/password.ts` (PBKDF2-SHA256 with legacy SHA-256 support).
 // Existing call-sites can keep importing `hashPassword` from `lib/session`.
 
 /** How long an access token is valid (seconds). */

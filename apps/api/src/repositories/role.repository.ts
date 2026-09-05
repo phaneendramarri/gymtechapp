@@ -104,4 +104,21 @@ export class RoleRepository {
       return [];
     }
   }
+
+  async listAll(): Promise<Role[]> {
+    return this.db
+      .select()
+      .from(roles)
+      .where(isNull(roles.deletedAt))
+      .orderBy(roles.gymId, roles.createdAt);
+  }
+
+  async restore(id: number): Promise<boolean> {
+    const now = Math.floor(Date.now() / 1000);
+    await this.db
+      .update(roles)
+      .set({ deletedAt: null, updatedAt: now })
+      .where(eq(roles.id, id));
+    return true;
+  }
 }

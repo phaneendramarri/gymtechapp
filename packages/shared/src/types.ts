@@ -74,7 +74,6 @@ export interface PlatformAdmin {
   id: number
   email: string
   passwordHash: string
-  passwordAlgo: 'sha256' | 'argon2id'
   name: string
   status: 'ACTIVE' | 'DISABLED'
   lastLoginAt: number | null
@@ -143,7 +142,6 @@ export interface User {
   email: string
   phone: string | null
   passwordHash: string
-  passwordAlgo: 'sha256' | 'argon2id'
   roleId: number | null
   role: string // legacy display string (e.g. 'STAFF', 'OWNER'); use roleId for permissions
   status: 'ACTIVE' | 'DISABLED'
@@ -310,7 +308,6 @@ export interface Attendance {
   gymId: number
   memberId: number
   checkInTime: number
-  checkOutTime: number | null
   attendanceDate: number
   method: AttendanceMethod
   recordedByUserId: number | null
@@ -441,7 +438,7 @@ export interface DashboardMetrics {
   recentPayments: Payment[]
   todayCheckIns?: AttendanceListItem[]
   weeklyAttendance?: { day: string; date: string; count: number; avg: number }[]
-  monthlyRevenueTrend?: { month: string; revenue: number; renewals: number; newJoins: number }[]
+  monthlyRevenueTrend?: { month: string; revenue: number; renewals: number; newJoins: number; monthlyRevenue: number; yearlyRevenue: number }[]
   atRiskMembers?: {
     id: number
     name: string

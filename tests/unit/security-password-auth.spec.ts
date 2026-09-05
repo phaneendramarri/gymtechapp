@@ -15,13 +15,13 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
   const SECRET_B = 'another_unrelated_secret_key_for_tamper_testing_987';
 
   describe('Password Hashing', () => {
-    it('hashes new passwords with Argon2id (PHC, non-deterministic)', async () => {
+    it('hashes new passwords with PBKDF2-SHA256 (PHC, non-deterministic)', async () => {
       const p1 = await hashPassword('AdminPass@123');
       const p2 = await hashPassword('AdminPass@123');
-      // Argon2id uses a random salt → different ciphertext each call
+      // PBKDF2 uses a random salt → different ciphertext each call
       expect(p1).not.toBe(p2);
-      // PHC format starts with $argon2id$
-      expect(p1).toMatch(/^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
+      // PHC format starts with pbkdf2$sha256:100000$
+      expect(p1).toMatch(/^pbkdf2\$sha256:100000\$/);
       // But verifyPassword accepts both
       expect(await verifyPassword('AdminPass@123', p1)).toBe(true);
       expect(await verifyPassword('AdminPass@123', p2)).toBe(true);
@@ -29,7 +29,7 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
       expect(await verifyPassword('AdminPass@124', p1)).toBe(false);
     });
 
-    it('produces different Argon2id digests for different passwords', async () => {
+    it('produces different PBKDF2 digests for different passwords', async () => {
       const p1 = await hashPassword('AdminPass@123');
       const p2 = await hashPassword('AdminPass@124');
       expect(p1).not.toBe(p2);

@@ -1,13 +1,12 @@
 // filepath: apps/api/src/routes/payments.routes.ts
 import { Hono } from 'hono';
 import { RecordPaymentRequestSchema } from '@gymtech/shared';
-import { requireGym, requireFeature } from '../middleware/auth';
+import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { splitGstInclusiveAmount } from '../lib/calculations';
 import { PaymentRepository } from '../repositories/payment.repository';
 import { MemberRepository } from '../repositories/member.repository';
-import { MembershipRepository } from '../repositories/membership.repository';
 import { NotificationService } from '../lib/notifications';
 import { auditGymFromCtx } from '../services/audit.service';
 import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
@@ -15,7 +14,7 @@ import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } fr
 export const paymentRoutes = new Hono();
 
 // List payments
-paymentRoutes.get('/', requireGym, requireFeature('payments'), safeHandler(async (c) => {
+paymentRoutes.get('/', requireGym, requireFeature('payments'), requirePermission('payments'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'payments');
   const memberId = c.req.query('memberId');
@@ -24,15 +23,13 @@ paymentRoutes.get('/', requireGym, requireFeature('payments'), safeHandler(async
   const [payments, total, summary] = await Promise.all([
     paymentRepo.list({ limit, offset, memberId: memberIdNum }),
     paymentRepo.count({ memberId: memberIdNum }),
-    (!ctx.user?.permissions?.includes('*') && !ctx.user?.permissions?.includes('payments'))
-      ? Promise.resolve({ monthlyRevenue: 0, pendingDues: 0 })
-      : paymentRepo.getSummaryMetrics(),
+    paymentRepo.getSummaryMetrics(),
   ]);
   return jsonOk({ items: payments, total, limit, offset, hasMore: offset + payments.length < total, summary });
 }));
 
 // Record payment
-paymentRoutes.post('/', requireGym, requireFeature('payments'), safeHandler(async (c) => {
+paymentRoutes.post('/', requireGym, requireFeature('payments'), requirePermission('payments'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const body = await c.req.json().catch(() => ({}));
@@ -48,19 +45,49 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), safeHandler(asyn
 
   const receiptNumber = await paymentRepo.getNextReceiptNumber();
   const paymentDate = parsed.data.paymentDate ? Math.floor(new Date(parsed.data.paymentDate).getTime() / 1000) : Math.floor(Date.now() / 1000);
+  const now = Math.floor(Date.now() / 1000);
 
-  const paymentId = await paymentRepo.record({
-    memberId: parsed.data.memberId, membershipId: parsed.data.membershipId ?? null,
-    receiptNumber: receiptNumber, amountPaise: parsed.data.amountPaise,
-    paymentDate: paymentDate, paymentMode: parsed.data.paymentMode,
-    referenceId: parsed.data.referenceId ?? null, recordedByUserId: ctx.user!.id,
-    notes: parsed.data.notes ?? null, paymentType: 'GYM',
-  });
-
+  // H-7: Record payment and update membership payment progress atomically.
+  // If either fails, the entire operation rolls back — no orphaned records.
+  const stmts = [
+    ctx.env.DB
+      .prepare(
+        `INSERT INTO payments (gym_id, member_id, membership_id, payment_type, receipt_number,
+         amount_paise, payment_date, payment_mode, reference_id, status, recorded_by_user_id,
+         notes, created_at, updated_at)
+         VALUES (?, ?, ?, 'GYM', ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?)`
+      )
+      .bind(
+        ctx.gymId, parsed.data.memberId, parsed.data.membershipId ?? null,
+        receiptNumber, parsed.data.amountPaise, paymentDate, parsed.data.paymentMode,
+        parsed.data.referenceId ?? null, ctx.user!.id,
+        parsed.data.notes ?? null, now, now
+      ),
+  ];
   if (parsed.data.membershipId) {
-    const membershipRepo = new MembershipRepository(ctx.env.DB, ctx.gymId!);
-    await membershipRepo.updatePaymentProgress(parsed.data.membershipId, parsed.data.amountPaise);
+    stmts.push(
+      ctx.env.DB
+        .prepare(
+          `UPDATE memberships
+             SET paid_amount_paise = paid_amount_paise + ?,
+                 due_amount_paise = CASE
+                                     WHEN due_amount_paise - ? < 0 THEN 0
+                                     ELSE due_amount_paise - ?
+                                   END,
+                 updated_at = ?
+             WHERE id = ? AND gym_id = ?`
+        )
+        .bind(parsed.data.amountPaise, parsed.data.amountPaise, parsed.data.amountPaise, now, parsed.data.membershipId, ctx.gymId)
+    );
   }
+  await ctx.env.DB.batch(stmts);
+
+  // Fetch the just-inserted payment ID using the unique receipt number.
+  const paymentRow = await ctx.env.DB
+    .prepare('SELECT id FROM payments WHERE gym_id = ? AND receipt_number = ?')
+    .bind(ctx.gymId, receiptNumber)
+    .first<{ id: number }>();
+  const paymentId = paymentRow!.id;
 
   const notif = new NotificationService(tenant.gym.name);
   const whatsappUrl = notif.generateWhatsAppUrl({

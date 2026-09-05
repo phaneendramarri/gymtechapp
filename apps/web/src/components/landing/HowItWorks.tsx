@@ -35,7 +35,7 @@ export const HowItWorks: React.FC = () => {
     <section id="how-it-works" className="py-24 sm:py-32 bg-(--bg) border-t border-(--line)">
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div {...fadeUp(0)} className="max-w-2xl mx-auto text-center mb-14">
-          <p className="gt-kicker">Day 1, ready by 6 PM</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Day 1, ready by 6 PM</p>
           <h2 className="text-h1 sm:text-display-serif-sm text-ink mt-3">
             Onboarded in an afternoon.
           </h2>

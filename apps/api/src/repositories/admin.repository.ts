@@ -10,7 +10,7 @@ import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import { hashPassword } from '../lib/session';
 import { LicenseRepository } from './license.repository';
-import { licenses, gyms, users, members, membershipPlans, gymFeatures } from '../db/schema';
+import { licenses, gyms, users, members, membershipPlans, gymFeatures, roles } from '../db/schema';
 
 export class AdminRepository {
   private licenseRepo: LicenseRepository;
@@ -112,15 +112,27 @@ export class AdminRepository {
     }).returning({ id: gyms.id });
     const gymId = gymRow[0]!.id;
 
-    // 2. Owner user
+    // 2. Owner role
+    const ownerRoleRow = await this.db.insert(roles).values({
+      gymId,
+      name: 'OWNER',
+      permissions: '[]',
+      isOwner: true,
+      isDefault: false,
+      createdAt: now,
+      updatedAt: now,
+    }).returning({ id: roles.id });
+    const ownerRoleId = ownerRoleRow[0]!.id;
+
+    // 3. Owner user (references the OWNER role)
     const userRow = await this.db.insert(users).values({
       gymId,
       name: data.ownerName.trim(),
       email: data.ownerEmail.toLowerCase().trim(),
       phone: data.ownerPhone.trim(),
       passwordHash,
-      passwordAlgo: 'argon2id',
       role: 'OWNER',
+      roleId: ownerRoleId,
       status: 'ACTIVE',
       permissions: '{}',
       isOwner: true,
@@ -129,7 +141,7 @@ export class AdminRepository {
     }).returning({ id: users.id });
     const userId = userRow[0]!.id;
 
-    // 3. License
+    // 4. License
     await this.db.insert(licenses).values({
       gymId,
       name: data.licenseName,
@@ -151,7 +163,7 @@ export class AdminRepository {
       updatedAt: now,
     });
 
-    // 4. Seed starter membership plans
+    // 5. Seed starter membership plans
     const starterPlans = [
       { name: 'Monthly General', durationMonths: 1, pricePaise: 150000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
       { name: 'Quarterly Fitness', durationMonths: 3, pricePaise: 400000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
@@ -171,7 +183,7 @@ export class AdminRepository {
       });
     }
 
-    // 5. Seed default features
+    // 6. Seed default features
     const defaultFeatures = [
       'dashboard', 'members', 'attendance', 'payments',
       'pt_collections', 'plans', 'staff', 'reports', 'settings',
@@ -265,7 +277,6 @@ export class AdminRepository {
     if (patch.status !== undefined) sets.status = patch.status;
     if (patch.passwordPlain) {
       sets.passwordHash = await hashPassword(patch.passwordPlain);
-      sets.passwordAlgo = 'argon2id';
     }
     if (Object.keys(sets).length === 0) return;
     sets.updatedAt = Math.floor(Date.now() / 1000);

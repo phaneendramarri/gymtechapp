@@ -29,7 +29,7 @@ planRoutes.post('/', requireGym, requireFeature('plans'), requirePermission('pla
     name: parsed.data.name, description: parsed.data.description ?? null,
     durationMonths: parsed.data.durationMonths, pricePaise: parsed.data.pricePaise,
     admissionFeePaise: parsed.data.admissionFeePaise, taxPercentage: parsed.data.taxPercentage,
-    isActive: 1, deletedAt: null,
+    billingPeriod: parsed.data.billingPeriod, isActive: 1, deletedAt: null,
   });
   const created = await planRepo.findById(id);
   await auditGym(ctx, 'plan.create', 'membership_plan', id, { after: created });
@@ -56,6 +56,7 @@ planRoutes.put('/:id', requireGym, requireFeature('plans'), requirePermission('p
   if (parsed.data.pricePaise !== undefined) patch.price_paise = parsed.data.pricePaise;
   if (parsed.data.admissionFeePaise !== undefined) patch.admission_fee_paise = parsed.data.admissionFeePaise;
   if (parsed.data.taxPercentage !== undefined) patch.tax_percentage = parsed.data.taxPercentage;
+  if (parsed.data.billingPeriod !== undefined) patch.billing_period = parsed.data.billingPeriod;
 
   await planRepo.update(id, patch);
   const after = await planRepo.findById(id);

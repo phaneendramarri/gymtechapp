@@ -1,163 +1,167 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "gymtech",
-  "main": "apps/api/src/worker.ts",
-  "compatibility_date": "2025-02-14",
-  "compatibility_flags": ["nodejs_compat"],
-
-  // Single Worker serves both the Hono API (/api/*) and the React SPA (/*).
-  // The Worker source (apps/api/src/app.ts) hands non-API requests off to
-  // env.ASSETS, which is bound to the Vite build output below.
-  "assets": {
-    "directory": "apps/web/dist",
-    "binding": "ASSETS",
-    "not_found_handling": "single-page-application"
-  },
-
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "gymtechapp-d1-prod",
-      "database_id": "40085164-2694-439c-b27e-98f175c8128b",
-      "migrations_dir": "apps/api/migrations"
-    }
-  ],
-
-  // R2 binding is intentionally NOT used. Member photos, plan artwork,
-  // and other media are stored in Filebase (S3-compatible). See
-  // apps/api/src/lib/filebase.ts and media.routes.ts.
-  //
-  // To configure Filebase:
-  //   1. Create a bucket at https://filebase.com
-  //   2. Set non-secret vars below (or use `wrangler secret put` for the
-  //      access keys):
-  //        FILEBASE_ENDPOINT         — e.g. "https://s3.filebase.com"
-  //        FILEBASE_REGION           — Filebase region, e.g. "us-east-1"
-  //        FILEBASE_BUCKET           — bucket name
-  //   3. Add secrets:
-  //        wrangler secret put FILEBASE_ACCESS_KEY_ID
-  //        wrangler secret put FILEBASE_SECRET_ACCESS_KEY
-  //
-  // All object keys are tenant-namespaced as `${gymId}/${objectKey}` to
-  // guarantee per-tenant isolation.
-
-  // Non-secret config. Secrets go to `wrangler secret put`:
-  //   JWT_SECRET, RESEND_API_KEY, TURNSTILE_SECRET_KEY,
-  //   FILEBASE_ACCESS_KEY_ID, FILEBASE_SECRET_ACCESS_KEY.
-  // For multi-env deployments, prefer wrangler environments
-  // (`wrangler deploy --env staging`) and override `CORS_ORIGINS` /
-  // `APP_URL` per env. Local dev defaults stay permissive.
-  "vars": {
-    "APP_ENV": "production",
-    "CORS_ORIGINS": "https://gymtech.app,https://www.gymtech.app",
-    "EMAIL_FROM": "GymTech <notifications@gymtech.app>",
-    "APP_URL": "https://gymtech.app",
-    "FILEBASE_ENDPOINT": "https://s3.filebase.com",
-    "FILEBASE_REGION": "us-east-1",
-    "FILEBASE_BUCKET": "gymtech-media"
-  },
-
-  "observability": {
-    "enabled": true
-  },
-
-  // KV namespace for rate limiting. Created via:
-  //   wrangler kv:namespace create "RATELIMIT_KV"
-  //   wrangler kv:namespace create "RATELIMIT_KV" --preview
-  // Then set the `id` and `preview_id` below. The deploy workflow refuses
-  // to run if either still equals the placeholder sentinel. For local dev
-  // the rate-limit middleware transparently falls back to an in-memory
-  // store, so an unbound namespace is fine for `pnpm dev`.
-  "kv_namespaces": [
-    {
-      "binding": "RATELIMIT_KV",
-      "id": "ee99d4c399094a2390402bda0bfa4849",
-      "preview_id": "76852dc6a1ef4a7f81f75d705f7d7072"
-    }
-  ],
-
-
-  // ─────────────────────────────────────────────────────────────────
-  // Environments
-  //
-  // Each `env.<name>` block OVERRIDES the top-level fields above.
-  // Anything you don't override here falls through to the top-level
-  // config (assets binding, compatibility flags, triggers, etc.).
-  //
-  // Naming convention: keep Worker names unique per env so the URL
-  // makes the environment obvious.
-  //
-  // How Wrangler picks the env:
-  //   wrangler dev                         → top-level config (no env)
-  //   wrangler dev --env staging           → uses env.staging block
-  //   wrangler deploy --env production     → uses env.production block
-  //   wrangler deploy                      → uses top-level (no env)
-  //
-  // In CI we always pass `--env <name>` explicitly so there is no
-  // ambiguity. The deploy script in package.json encodes this.
-  // ─────────────────────────────────────────────────────────────────
-
-  "env": {
-    "staging": {
-      "name": "gymtech-staging",
-      "vars": {
-        "APP_ENV": "staging",
-        "CORS_ORIGINS": "https://staging.gymtech.app",
-        "APP_URL": "https://staging.gymtech.app"
-        // FILEBASE_* values fall through to top-level (same bucket,
-        // but the staging Worker uses a separate prefix in code if needed).
-      },
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "gymtechapp-d1-staging",
-          "database_id": "REPLACE_WITH_STAGING_D1_DATABASE_ID",
-          "migrations_dir": "apps/api/migrations"
-        }
-      ],
-      "kv_namespaces": [
-        {
-          "binding": "RATELIMIT_KV",
-          "id": "REPLACE_WITH_STAGING_KV_NAMESPACE_ID",
-          "preview_id": "REPLACE_WITH_STAGING_KV_PREVIEW_NAMESPACE_ID"
-        }
-      ]
-      // secrets live in Cloudflare's secret store per name, e.g.
-      //   wrangler secret put JWT_SECRET --env staging
-    },
-
-    "production": {
-      "name": "gymtech",
-      "vars": {
-        "APP_ENV": "production",
-        "CORS_ORIGINS": "https://gymtech.app,https://www.gymtech.app",
-        "EMAIL_FROM": "GymTech <notifications@gymtech.app>",
-        "APP_URL": "https://gymtech.app",
-        "FILEBASE_ENDPOINT": "https://s3.filebase.com",
-        "FILEBASE_REGION": "us-east-1",
-        "FILEBASE_BUCKET": "gymtech-media"
-      },
-      "d1_databases": [
-        {
-          "binding": "DB",
-          "database_name": "gymtechapp-d1-prod",
-          "database_id": "40085164-2694-439c-b27e-98f175c8128b",
-          "migrations_dir": "apps/api/migrations"
-        }
-      ],
-      "kv_namespaces": [
-        {
-          "binding": "RATELIMIT_KV",
-          "id": "ee99d4c399094a2390402bda0bfa4849",
-          "preview_id": "76852dc6a1ef4a7f81f75d705f7d7072"
-        }
-      ]
-      // secrets:
-      //   wrangler secret put JWT_SECRET --env production
-      //   wrangler secret put RESEND_API_KEY --env production
-      //   wrangler secret put TURNSTILE_SECRET_KEY --env production
-      //   wrangler secret put FILEBASE_ACCESS_KEY_ID --env production
-      //   wrangler secret put FILEBASE_SECRET_ACCESS_KEY --env production
-    }
-  }
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "gymtech",
+	"main": "apps/api/src/worker.ts",
+	"compatibility_date": "2025-02-14",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	// Single Worker serves both the Hono API (/api/*) and the React SPA (/*).
+	// The Worker source (apps/api/src/app.ts) hands non-API requests off to
+	// env.ASSETS, which is bound to the Vite build output below.
+	"assets": {
+		"directory": "apps/web/dist",
+		"binding": "ASSETS",
+		"not_found_handling": "single-page-application"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "gymtechapp",
+			"database_id": "883a2b75-179b-49df-b31e-cc2194364e86",
+			"migrations_dir": "apps/api/migrations"
+		}
+	],
+	// R2 binding is intentionally NOT used. Member photos, plan artwork,
+	// and other media are stored in Filebase (S3-compatible). See
+	// apps/api/src/lib/filebase.ts and media.routes.ts.
+	//
+	// To configure Filebase:
+	//   1. Create a bucket at https://filebase.com
+	//   2. Set non-secret vars below (or use `wrangler secret put` for the
+	//      access keys):
+	//        FILEBASE_ENDPOINT         — e.g. "https://s3.filebase.com"
+	//        FILEBASE_REGION           — Filebase region, e.g. "us-east-1"
+	//        FILEBASE_BUCKET           — bucket name
+	//   3. Add secrets:
+	//        wrangler secret put FILEBASE_ACCESS_KEY_ID
+	//        wrangler secret put FILEBASE_SECRET_ACCESS_KEY
+	//
+	// All object keys are tenant-namespaced as `${gymId}/${objectKey}` to
+	// guarantee per-tenant isolation.
+	// Non-secret config. Secrets go to `wrangler secret put`:
+	//   JWT_SECRET, RESEND_API_KEY, TURNSTILE_SECRET_KEY,
+	//   FILEBASE_ACCESS_KEY_ID, FILEBASE_SECRET_ACCESS_KEY.
+	// For multi-env deployments, prefer wrangler environments
+	// (`wrangler deploy --env staging`) and override `CORS_ORIGINS` /
+	// `APP_URL` per env. Local dev defaults stay permissive.
+	"vars": {
+		"APP_ENV": "production",
+		"CORS_ORIGINS": "https://gymtech.app,https://www.gymtech.app",
+		"EMAIL_FROM": "GymTech <notifications@gymtech.app>",
+		"APP_URL": "https://gymtech.app",
+		"FILEBASE_ENDPOINT": "https://s3.filebase.com",
+		"FILEBASE_REGION": "us-east-1",
+		"FILEBASE_BUCKET": "gymtech-media"
+	},
+	"observability": {
+		"enabled": true
+	},
+	// KV namespace for rate limiting. Created via:
+	//   wrangler kv:namespace create "RATELIMIT_KV"
+	//   wrangler kv:namespace create "RATELIMIT_KV" --preview
+	// Then set the `id` and `preview_id` below. The deploy workflow refuses
+	// to run if either still equals the placeholder sentinel. For local dev
+	// the rate-limit middleware transparently falls back to an in-memory
+	// store, so an unbound namespace is fine for `pnpm dev`.
+	"kv_namespaces": [
+		{
+			"binding": "RATELIMIT_KV",
+			"id": "715f6385f67e44eca40acfd0131931c7"
+		},
+		{
+			"binding": "DENYLIST_KV",
+			"id": "fda88bd39f88438e8b18f7444731031d",
+			"remote": true
+		}
+	],
+	// ─────────────────────────────────────────────────────────────────
+	// Environments
+	//
+	// Each `env.<name>` block OVERRIDES the top-level fields above.
+	// Anything you don't override here falls through to the top-level
+	// config (assets binding, compatibility flags, triggers, etc.).
+	//
+	// Naming convention: keep Worker names unique per env so the URL
+	// makes the environment obvious.
+	//
+	// How Wrangler picks the env:
+	//   wrangler dev                         → top-level config (no env)
+	//   wrangler dev --env staging           → uses env.staging block
+	//   wrangler deploy --env production     → uses env.production block
+	//   wrangler deploy                      → uses top-level (no env)
+	//
+	// In CI we always pass `--env <name>` explicitly so there is no
+	// ambiguity. The deploy script in package.json encodes this.
+	// ─────────────────────────────────────────────────────────────────
+	"env": {
+		"staging": {
+			"name": "gymtech-staging",
+			"vars": {
+				"APP_ENV": "staging",
+				"CORS_ORIGINS": "https://staging.gymtech.app",
+				"APP_URL": "https://staging.gymtech.app"
+				// FILEBASE_* values fall through to top-level (same bucket,
+				// but the staging Worker uses a separate prefix in code if needed).
+			},
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "gymtechapp-d1-staging",
+					"database_id": "REPLACE_WITH_STAGING_D1_DATABASE_ID",
+					"migrations_dir": "apps/api/migrations"
+				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "RATELIMIT_KV",
+					"id": "REPLACE_WITH_STAGING_KV_NAMESPACE_ID",
+					"preview_id": "REPLACE_WITH_STAGING_KV_PREVIEW_NAMESPACE_ID"
+				},
+				{
+					"binding": "DENYLIST_KV",
+					"id": "REPLACE_WITH_STAGING_DENYLIST_KV_NAMESPACE_ID",
+					"preview_id": "REPLACE_WITH_STAGING_DENYLIST_KV_PREVIEW_NAMESPACE_ID"
+				}
+			]
+			// secrets live in Cloudflare's secret store per name, e.g.
+			//   wrangler secret put JWT_SECRET --env staging
+		},
+		"production": {
+			"name": "gymtech",
+			"vars": {
+				"APP_ENV": "production",
+				"CORS_ORIGINS": "https://gymtech.app,https://www.gymtech.app",
+				"EMAIL_FROM": "GymTech <notifications@gymtech.app>",
+				"APP_URL": "https://gymtech.app",
+				"FILEBASE_ENDPOINT": "https://s3.filebase.com",
+				"FILEBASE_REGION": "us-east-1",
+				"FILEBASE_BUCKET": "gymtech-media"
+			},
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "gymtechapp",
+					"database_id": "883a2b75-179b-49df-b31e-cc2194364e86",
+					"migrations_dir": "apps/api/migrations"
+				}
+			],
+			"kv_namespaces": [
+				{
+					"binding": "RATELIMIT_KV",
+					"id": "715f6385f67e44eca40acfd0131931c7"
+				},
+				{
+					"binding": "DENYLIST_KV",
+					"id": "fda88bd39f88438e8b18f7444731031d"
+				}
+			]
+			// secrets:
+			//   wrangler secret put JWT_SECRET --env production
+			//   wrangler secret put RESEND_API_KEY --env production
+			//   wrangler secret put TURNSTILE_SECRET_KEY --env production
+			//   wrangler secret put FILEBASE_ACCESS_KEY_ID --env production
+			//   wrangler secret put FILEBASE_SECRET_ACCESS_KEY --env production
+		}
+	}
 }

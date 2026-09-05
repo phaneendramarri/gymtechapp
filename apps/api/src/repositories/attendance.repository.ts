@@ -1,4 +1,4 @@
-import { eq, and } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Attendance, AttendanceMethod, AttendanceListItem } from '@gymtech/shared';
@@ -24,6 +24,18 @@ export class AttendanceRepository {
   }): Promise<{ alreadyCheckedIn: boolean; attendanceId: number }> {
     const today = todayYyyymmdd();
 
+    // M-6: Guard against check-in for soft-deleted or blocked members.
+    // Use .get() for single-row result (returns undefined if no row matches).
+    const memberRow = await this.db
+      .select({ status: members.status, deletedAt: members.deletedAt })
+      .from(members)
+      .where(and(eq(members.id, data.memberId), eq(members.gymId, this.gymId)))
+      .get();
+    if (!memberRow || memberRow.deletedAt !== null || memberRow.status === 'BLOCKED') {
+      throw new Error('Member is not active or has been archived');
+    }
+
+    // Use .get() for single-row result. Also filter deleted_at for cross-gym isolation.
     const existing = await this.db
       .select({ id: attendance.id })
       .from(attendance)
@@ -31,11 +43,11 @@ export class AttendanceRepository {
         and(
           eq(attendance.gymId, this.gymId),
           eq(attendance.memberId, data.memberId),
-          eq(attendance.attendanceDate, today)
+          eq(attendance.attendanceDate, today),
+          isNull(attendance.deletedAt)
         )
       )
-      .limit(1)
-      .then((rows) => rows[0]);
+      .get();
 
     if (existing) {
       return { alreadyCheckedIn: true, attendanceId: existing.id };
@@ -65,7 +77,6 @@ export class AttendanceRepository {
         gymId: attendance.gymId,
         memberId: attendance.memberId,
         checkInTime: attendance.checkInTime,
-        checkOutTime: attendance.checkOutTime,
         attendanceDate: attendance.attendanceDate,
         method: attendance.method,
         recordedByUserId: attendance.recordedByUserId,
@@ -79,7 +90,7 @@ export class AttendanceRepository {
       })
       .from(attendance)
       .innerJoin(members, eq(attendance.memberId, members.id))
-      .where(and(eq(attendance.gymId, this.gymId), eq(attendance.attendanceDate, today)))
+      .where(and(eq(attendance.gymId, this.gymId), eq(attendance.attendanceDate, today), isNull(attendance.deletedAt)))
       .orderBy(attendance.checkInTime);
     return rows as AttendanceListItem[];
   }
@@ -88,7 +99,7 @@ export class AttendanceRepository {
     const rows = await this.db
       .select()
       .from(attendance)
-      .where(and(eq(attendance.gymId, this.gymId), eq(attendance.memberId, memberId)))
+      .where(and(eq(attendance.gymId, this.gymId), eq(attendance.memberId, memberId), isNull(attendance.deletedAt)))
       .orderBy(attendance.checkInTime)
       .limit(limit);
     return rows as Attendance[];
@@ -96,10 +107,10 @@ export class AttendanceRepository {
 
   async countToday(): Promise<number> {
     const today = todayYyyymmdd();
-    const [{ count }] = await this.db
-      .select({ count: attendance.id })
+    const rows = await this.db
+      .select({ count: sql<number>`count(*)` })
       .from(attendance)
-      .where(and(eq(attendance.gymId, this.gymId), eq(attendance.attendanceDate, today)));
-    return count ?? 0;
+      .where(and(eq(attendance.gymId, this.gymId), eq(attendance.attendanceDate, today), isNull(attendance.deletedAt)));
+    return rows[0]?.count ?? 0;
   }
 }

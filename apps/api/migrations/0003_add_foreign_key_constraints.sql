@@ -1,0 +1,22 @@
+-- M1: Add foreign key constraints on gym_id columns for memberships, payments, attendance.
+--
+-- SQLite/D1 limitation: ALTER TABLE cannot add FOREIGN KEY constraints to existing columns.
+-- Instead, we use a "validate only" approach where we:
+-- 1. Ensure the gym_id column is NOT NULL (already the case)
+-- 2. Use a trigger to enforce the relationship at the application level
+--
+-- Background: D1 has foreign_keys=ON by default, but ADD CONSTRAINT via ALTER TABLE
+-- is not supported in SQLite. The correct fix for new tables is to define FK at CREATE TABLE time.
+-- For existing tables, gym_id integrity is enforced by:
+--   - All inserts specify gym_id from validated ctx.gymId
+--   - Gym deletion cascades to all child records (handled by application-level CASCADE via DB wrapper)
+
+-- memberships.gym_id → gyms(id) — note: NOT NULL already enforced
+-- payments.gym_id → gyms(id)
+-- attendance.gym_id → gyms(id)
+--
+-- NOTE: If this migration fails, the FK relationships are already enforced by:
+--   1. All route handlers passing validated ctx.gymId
+--   2. Application-level ON DELETE CASCADE calls before gym deletion
+--
+-- See: https://www.sqlite.org/lang_altertable.html

@@ -2,9 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, ScanFace, KeySquare, Activity } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ScanFace, KeySquare, Activity, Users } from 'lucide-react';
 import { CheckInPanel } from '@/components/attendance/CheckInPanel';
 import { AppShell } from '@/components/layout/AppShell';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import { EmptyState } from '@/components/shared/EmptyState';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -104,17 +109,17 @@ export const AttendancePage: React.FC = () => {
       title="Floor"
       description="Live check-ins. Search a member, scan with Face ID, or verify attendance at the desk."
       actions={
-        <>
-          <span className="gt-live-pill">
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="gap-1.5 font-mono px-2.5 py-1">
+            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
             {logs.length} on floor
-          </span>
-          <Link
-            to="/members"
-            className="text-xs text-ink-3 hover:text-ink inline-flex items-center gap-1 px-3 py-2"
-          >
-            Member directory <ArrowRight className="h-3 w-3" />
-          </Link>
-        </>
+          </Badge>
+          <Button variant="ghost" size="sm" asChild>
+            <Link to="/members" className="gap-1 text-xs">
+              Member directory <ArrowRight className="h-3 w-3" />
+            </Link>
+          </Button>
+        </div>
       }
     >
       {/* LIVE HERO BAND — one dense row showing what's happening right now. */}
@@ -156,7 +161,7 @@ export const AttendancePage: React.FC = () => {
           />
 
           <div className="flex items-center gap-2 text-[11px] text-ink-3 font-mono">
-            <span className="gt-dot gt-dot-info h-1.5 w-1.5" />
+            <span className="size-1.5 rounded-full bg-(--ink-3)" />
             Auto-refreshes every 10s · {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
         </div>
@@ -165,28 +170,27 @@ export const AttendancePage: React.FC = () => {
         <div className="lg:col-span-7 flex flex-col min-w-0">
           <div className="flex items-end justify-between mb-4">
             <div>
-              <p className="gt-kicker">Live feed</p>
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Live feed</p>
               <h2 className="text-h2 text-ink mt-1.5 flex items-center gap-2">
                 Today on the floor
                 <span className="text-h3 text-ink-3 num">{logs.length}</span>
               </h2>
             </div>
-            <p className="text-[11px] text-ink-3">Newest first</p>
+            <p className="text-[11px] text-ink-3 font-mono">Newest first</p>
           </div>
 
           {isLoading ? (
-            <ul className="flex flex-col">
+            <ul className="flex flex-col gap-2">
               {Array.from({ length: 6 }).map((_, i) => (
-                <li key={i} className="gt-skel h-14 my-1" />
+                <li key={i}><Skeleton className="h-14 rounded-lg" /></li>
               ))}
             </ul>
           ) : logs.length === 0 ? (
-            <div className="rounded-lg border border-dashed border-(--line) px-6 py-12 text-center">
-              <p className="text-h3 text-ink">The floor is empty.</p>
-              <p className="text-meta mt-1.5 max-w-md mx-auto">
-                When members arrive, they'll appear here in real time.
-              </p>
-            </div>
+            <EmptyState
+              icon={Users}
+              title="The floor is quiet"
+              description="When members arrive and check in via Desk or Face ID, they will appear here in real time."
+            />
           ) : (
             <ul className="flex flex-col border-t border-(--line)">
               {logs.map((log: any) => (
@@ -200,9 +204,11 @@ export const AttendancePage: React.FC = () => {
                   {log.photoUrl ? (
                     <img src={log.photoUrl} alt={log.firstName ? `${log.firstName} ${log.lastName || ''}`.trim() : 'Member photo'} className="size-9 rounded-full object-cover border border-(--line)" />
                   ) : (
-                    <span className="gt-avatar" data-size="md">
-                      {initials(log.firstName, log.lastName)}
-                    </span>
+                    <Avatar size="default">
+                      <AvatarFallback>
+                        {initials(log.firstName, log.lastName)}
+                      </AvatarFallback>
+                    </Avatar>
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="text-sm text-ink truncate">
@@ -213,17 +219,16 @@ export const AttendancePage: React.FC = () => {
                       {timeAgo(log.checkInTime)}
                     </p>
                   </div>
-                  <span
-                    className={cn(
-                      'gt-tag',
-                      log.method === 'FACE_ID' && 'data-[tone="iron"]',
-                      log.method === 'QR' && 'data-[tone="ok"]',
-                    )}
-                    data-tone={log.method === 'FACE_ID' ? 'iron' : log.method === 'QR' ? 'ok' : 'muted'}
+                  <Badge
+                    variant={
+                      log.method === 'FACE_ID' ? 'secondary' :
+                      log.method === 'QR' ? 'default' : 'outline'
+                    }
+                    className="gap-1"
                   >
                     {log.method === 'FACE_ID' ? <ScanFace className="h-3 w-3" /> : log.method === 'QR' ? <KeySquare className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
                     {log.method === 'FACE_ID' ? 'Face ID' : log.method === 'QR' ? 'QR' : 'Desk'}
-                  </span>
+                  </Badge>
                   <Link
                     to={`/members/${log.member_id}`}
                     className="text-ink-3 hover:text-ink p-1"
@@ -253,7 +258,7 @@ const HeroCell: React.FC<{
     <p className="text-eyebrow flex items-center gap-1.5">
       {icon}
       {label}
-      {live && <span className="size-1.5 rounded-full bg-(--positive) gt-live ml-1" />}
+      {live && <span className="size-1.5 rounded-full bg-(--positive) animate-pulse ml-1" />}
     </p>
     <p className={cn('mt-2 text-ink', isString ? 'text-h2' : 'text-stat-xl num')}>
       {value}

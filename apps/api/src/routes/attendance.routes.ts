@@ -37,12 +37,8 @@ attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), saf
     return jsonErr('Cannot check in an inactive, blocked, or archived member', 403);
   }
 
-  const activeMembership: any = await ctx.env.DB.prepare(`
-    SELECT ms.*, mp.name as plan_name
-    FROM memberships ms LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-    WHERE ms.member_id = ? AND ms.gym_id = ? AND ms.status = 'ACTIVE'
-    ORDER BY ms.end_date DESC LIMIT 1
-  `).bind(member.id, ctx.gymId!).first();
+  // M-17: Use shared repository helper instead of inline query.
+  const activeMembership = await memberRepo.getActiveMembership(member.id);
 
   const nowSec = Math.floor(Date.now() / 1000);
   const isExpired = !activeMembership || activeMembership.end_date < nowSec;

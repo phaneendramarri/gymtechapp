@@ -12,6 +12,9 @@ import { useAuth } from '@/lib/auth';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Sparkline } from '@/components/shared/Sparkline';
 
+import { StatCard } from '@/components/shared/StatCard';
+import { CardGridSkeleton, TableSkeleton } from '@/components/shared/LoadingSkeleton';
+
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
@@ -21,8 +24,7 @@ const fadeUp = (delay = 0) => ({
 export const PaymentsPage: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const canCollect =
-    user?.isOwner || user?.permissions?.includes('payments');
+  const canCollect = user?.permissions?.includes('payments');
 
   const { data, isLoading } = useQuery({
     queryKey: ['payments'],
@@ -64,74 +66,91 @@ export const PaymentsPage: React.FC = () => {
   return (
     <AppShell
       title="Payments"
-      description="Every rupee in, every rupee outstanding. Search, filter, issue receipts."
+      description="Every rupee collected and outstanding. Search ledger, filter records, and issue instant receipts."
       actions={
         <>
           <Button
             variant="outline"
             size="sm"
             onClick={() => window.open('/api/reports/export?type=payments', '_blank')}
+            className="border-border gap-1.5"
           >
-            <ArrowDownToLine className="h-3.5 w-3.5" /> Export
+            <ArrowDownToLine className="h-3.5 w-3.5" />
+            <span>Export CSV</span>
           </Button>
           {canCollect && (
-            <Button size="sm" className="gt-btn-primary" onClick={() => setDialogOpen(true)}>
-              <Plus className="h-3.5 w-3.5" /> Collect payment
+            <Button size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5 font-semibold">
+              <Plus className="h-3.5 w-3.5" />
+              <span>Collect payment</span>
             </Button>
           )}
         </>
       }
     >
-      {/* Strip KPIs */}
-      <motion.section
-        {...fadeUp(0)}
-        className="grid grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-6 pb-8 border-b border-(--line)"
-      >
-        <StripKpi
-          eyebrow="Today"
-          value={formatCurrency(today)}
-          icon={<Calendar className="h-3.5 w-3.5" />}
-          hint="across all members"
-        />
-        <StripKpi
-          eyebrow="This month"
-          value={formatCurrency(mtd)}
-          icon={<CreditCard className="h-3.5 w-3.5" />}
-          spark={monthBuckets}
-        />
-        <StripKpi
-          eyebrow="Avg ticket"
-          value={payments.length ? formatCurrency(mtd / payments.length * 30) : '—'}
-          icon={<TrendingUp className="h-3.5 w-3.5" />}
-          hint="last 30 days"
-        />
-        <StripKpi
-          eyebrow="Pending dues"
-          value={formatCurrency(dues)}
-          tone="warn"
-          icon={<AlertTriangle className="h-3.5 w-3.5" />}
-          hint={`across ${members.length} members`}
-        />
-      </motion.section>
-
-      {/* Ledger */}
-      <motion.section {...fadeUp(0.05)} className="pt-8">
-        <div className="flex items-end justify-between mb-4">
-          <div>
-            <p className="text-eyebrow">Ledger</p>
-            <h2 className="text-h2 text-ink mt-1.5">
-              Recent payments <span className="text-h3 text-ink-3 num">{payments.length}</span>
-            </h2>
-          </div>
+      {isLoading ? (
+        <div className="space-y-8 py-2">
+          <CardGridSkeleton count={4} cols={4} />
+          <TableSkeleton rows={5} columns={6} />
         </div>
+      ) : (
+        <>
+          {/* Stat Cards */}
+          <motion.section
+            {...fadeUp(0)}
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pb-6"
+          >
+            <StatCard
+              title="Today's Collection"
+              value={formatCurrency(today * 100)}
+              subtitle="Received today"
+              icon={<Calendar className="h-4 w-4" />}
+              variant="default"
+            />
+            <StatCard
+              title="This Month"
+              value={formatCurrency(mtd * 100)}
+              subtitle="Month-to-date total"
+              icon={<CreditCard className="h-4 w-4" />}
+              variant="accent"
+              sparkline={monthBuckets}
+            />
+            <StatCard
+              title="Avg Collection Ticket"
+              value={payments.length ? formatCurrency(Math.round((mtd / payments.length) * 30 * 100)) : '—'}
+              subtitle="Estimated 30d run rate"
+              icon={<TrendingUp className="h-4 w-4" />}
+              variant="ok"
+            />
+            <StatCard
+              title="Pending Dues"
+              value={formatCurrency(dues * 100)}
+              subtitle={`Outstanding (${members.length} members)`}
+              icon={<AlertTriangle className="h-4 w-4" />}
+              variant={dues > 0 ? "err" : "ok"}
+            />
+          </motion.section>
 
-        <PaymentTable
-          payments={payments}
-          isLoading={isLoading}
-          onOpenInvoice={(id) => setInvoicePaymentId(id)}
-          onRecordPayment={() => setDialogOpen(true)}
-        />
-      </motion.section>
+          {/* Ledger */}
+          <motion.section {...fadeUp(0.05)} className="pt-4">
+            <div className="flex items-end justify-between mb-4">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">Ledger</p>
+                <h2 className="text-xl font-bold tracking-tight text-foreground mt-0.5 flex items-center gap-2">
+                  <span>Recent Payments</span>
+                  <span className="text-sm font-normal text-muted-foreground font-mono">({payments.length})</span>
+                </h2>
+              </div>
+            </div>
+
+            <PaymentTable
+              payments={payments}
+              isLoading={isLoading}
+              onOpenInvoice={(id) => setInvoicePaymentId(id)}
+              onRecordPayment={() => setDialogOpen(true)}
+            />
+          </motion.section>
+        </>
+      )}
 
       <InvoiceDialog
         paymentId={invoicePaymentId}
@@ -148,33 +167,3 @@ export const PaymentsPage: React.FC = () => {
     </AppShell>
   );
 };
-
-const StripKpi: React.FC<{
-  eyebrow: string;
-  value: string;
-  icon: React.ReactNode;
-  hint?: string;
-  tone?: 'default' | 'warn';
-  spark?: number[];
-}> = ({ eyebrow, value, icon, hint, tone = 'default', spark }) => (
-  <div>
-    <div className="flex items-center gap-1.5 text-eyebrow">
-      {icon}
-      <span>{eyebrow}</span>
-    </div>
-    <p
-      className={cn(
-        'text-stat-xl mt-2 num',
-        tone === 'warn' && 'text-(--warning)'
-      )}
-    >
-      {value}
-    </p>
-    {hint && <p className="text-[11px] text-ink-3 mt-1">{hint}</p>}
-    {spark && spark.length > 0 && (
-      <div className="mt-3 -mb-1">
-        <Sparkline data={spark} width={180} height={28} strokeClassName="stroke-ink-2" fillClassName="fill-ink-3/5" />
-      </div>
-    )}
-  </div>
-);

@@ -8,7 +8,6 @@ interface ProtectedRouteProps {
   allowMember?: boolean;
   /** Required permission keys — user must have ALL of them (AND logic). Owner bypasses all. */
   requiredPermissions?: string[];
-  requiredFeature?: string;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -16,9 +15,8 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireSuperAdmin = false,
   allowMember = false,
   requiredPermissions,
-  requiredFeature,
 }) => {
-  const { user, gym, isLoading } = useAuth();
+  const { user, isLoading } = useAuth();
 
   if (isLoading) {
     return (
@@ -43,12 +41,6 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   const isPlatformAdmin = user.role === 'PLATFORM_ADMIN' || (user.role as string) === 'SUPER_ADMIN';
 
   if (requireSuperAdmin && !isPlatformAdmin) {
-    return <Navigate to="/dashboard" replace />;
-  }
-
-  // Feature authorization guard — gates on gym plan features (e.g. PT disabled)
-  // PLATFORM_ADMIN bypasses feature gates so they can view any gym's data
-  if (requiredFeature && gym?.enabledFeatures && !gym.enabledFeatures.includes(requiredFeature as any) && !isPlatformAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
 

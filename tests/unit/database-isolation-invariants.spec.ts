@@ -7,31 +7,40 @@ import { MemberRepository } from '../../apps/api/src/repositories/member.reposit
 import { LicenseRepository } from '../../apps/api/src/repositories/license.repository';
 
 describe('Multi-Tenant Database Isolation Invariants', () => {
+  /**
+   * Creates a mock DB that supports both Drizzle query builder (this.db.select...)
+   * and raw D1 (this.d1.prepare...). The mock has .prepare so createDatabase wraps it,
+   * but capture methods are stored on the d1 object itself so they're accessible
+   * via repo.db (the wrapped version) since createDatabase uses the d1 reference.
+   *
+   * For Drizzle's .get() path (limit(1) without fields): stmt.bind().all().then(r => r.results[0])
+   * So .all() must return { results: [mappedRow] } where mappedRow has { status, deletedAt }.
+   */
   function createMockDb() {
-    let capturedQuery = '';
-    let capturedBindings: any[] = [];
+    const capturedQuery = { sql: '', bindings: [] as any[] };
 
     const mockDb: any = {
-      prepare: vi.fn((query: string) => {
-        capturedQuery = query;
+      query: {},
+      prepare: (query: string) => {
+        capturedQuery.sql = query;
         return {
-          bind: vi.fn((...bindings: any[]) => {
-            capturedBindings = bindings;
+          bind: (...bindings: any[]) => {
+            capturedQuery.bindings = bindings;
             return {
-              all: vi.fn().mockResolvedValue({ results: [] }),
-              first: vi.fn().mockResolvedValue(null),
-              run: vi.fn().mockResolvedValue({ success: true, meta: { last_row_id: 1 } }),
-              raw: vi.fn(async () => {
-                if (/returning/i.test(capturedQuery)) return [[1]];
-                if (/count\(/i.test(capturedQuery)) return [[0]];
-                return [];
-              }),
+              // raw as property (not method): Drizzle's mapResultRow calls rawFn[0], rawFn[1]
+              // for column values. Must return D1 column-value array format.
+              get raw() { return () => [['ACTIVE', null]]; },
+              all: () => Promise.resolve({ results: [] }),
+              get: () => Promise.resolve(undefined),
+              first: () => Promise.resolve(undefined),
+              run: () => Promise.resolve({ success: true, meta: { last_row_id: 1 } }),
             };
-          }),
+          },
         };
-      }),
-      getLastQuery: () => capturedQuery,
-      getLastBindings: () => capturedBindings,
+      },
+      // Stored directly on the mock so createDatabase-wrapped version can access them
+      getLastQuery: () => capturedQuery.sql,
+      getLastBindings: () => capturedQuery.bindings,
     };
 
     return mockDb;
@@ -133,7 +142,8 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new PaymentRepository(mockDb, GYM_ALPHA);
       await repo.getNextReceiptNumber();
 
-      expect(mockDb.getLastQuery()).toMatch(/payments.*gym_id["\s]*=\s*\?/i);
+      // H4 fix: now uses atomic counters table instead of count(*) on payments
+      expect(mockDb.getLastQuery()).toMatch(/counters/i);
       expect(mockDb.getLastBindings()).toEqual([GYM_ALPHA]);
     });
 

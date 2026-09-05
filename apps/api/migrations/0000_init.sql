@@ -1,29 +1,18 @@
--- ============================================================================
--- GYM SAAS D1 MIGRATION 0000 — Multi-tenant v3 schema (consolidated)
--- ============================================================================
--- Single migration for fresh installs. Contains every table and column.
---
--- Tenancy model:
---   - One database, many gyms. gym_id is the tenant isolation key.
---   - gym-owned tables have gym_id and use composite foreign keys so the
---     database engine itself rejects cross-tenant inserts.
---   - Tenant-aware uniques: UNIQUE(gym_id, <col>) instead of global.
---   - Numeric primary keys. TEXT enums (legends live in shared/constants.ts).
---   - All money in integer paise. All timestamps in unixepoch seconds.
---   - DATE helpers (e.g. attendance_date) stored as YYYYMMDD integers for
---     fast equality lookups without date functions.
+﻿-- ============================================================================
+-- GYM SAAS D1 MIGRATION 0000 — Single-file schema for fresh installs
+-- Contains complete schema + seed data.
+-- All tables use argon2id for passwords (no sha256 fallback).
 -- ============================================================================
 
 PRAGMA foreign_keys = ON;
 
 -- ============================================================================
--- 1. platform_admins  (SUPER_ADMIN login identities - no gym_id)
+-- 1. platform_admins  (Super Admin login - no gym_id, argon2id only)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS platform_admins (
     id                  INTEGER PRIMARY KEY,
     email               TEXT NOT NULL UNIQUE,
     password_hash       TEXT NOT NULL,
-    password_algo       TEXT NOT NULL DEFAULT 'argon2id' CHECK (password_algo IN ('sha256', 'argon2id')),
     name                TEXT NOT NULL,
     status              TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED')),
     failed_login_count  INTEGER NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
@@ -61,7 +50,6 @@ CREATE INDEX IF NOT EXISTS idx_gyms_status ON gyms(status, deleted_at);
 
 -- ============================================================================
 -- 3. licenses  (one per gym - plan metadata lives here directly)
---    No separate saas_plans table — each gym's plan is a self-contained row.
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS licenses (
     id                INTEGER PRIMARY KEY,
@@ -100,7 +88,6 @@ CREATE TABLE IF NOT EXISTS users (
     email               TEXT NOT NULL,
     phone               TEXT,
     password_hash       TEXT NOT NULL,
-    password_algo       TEXT NOT NULL DEFAULT 'argon2id' CHECK (password_algo IN ('sha256', 'argon2id')),
     role                TEXT NOT NULL CHECK (role IN ('OWNER','MANAGER','STAFF','TRAINER','MEMBER')),
     status              TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED')),
     permissions         TEXT NOT NULL DEFAULT '{}',
@@ -119,7 +106,22 @@ CREATE INDEX IF NOT EXISTS idx_users_gym_role ON users(gym_id, role);
 CREATE INDEX IF NOT EXISTS idx_users_gym_status ON users(gym_id, status, deleted_at);
 
 -- ============================================================================
--- 5. gym_settings  (per-gym JSON config blob)
+-- 5. user_permissions  (flat permission-key model)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS user_permissions (
+    user_id         INTEGER NOT NULL,
+    permission_key  TEXT NOT NULL,
+    granted_by      INTEGER,
+    granted_at      INTEGER NOT NULL DEFAULT (unixepoch()),
+    PRIMARY KEY (user_id, permission_key),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (granted_by) REFERENCES users(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_permissions_user ON user_permissions(user_id);
+
+-- ============================================================================
+-- 6. gym_settings  (per-gym JSON config blob)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS gym_settings (
     gym_id          INTEGER PRIMARY KEY,
@@ -130,7 +132,7 @@ CREATE TABLE IF NOT EXISTS gym_settings (
 );
 
 -- ============================================================================
--- 6. membership_plans  (gym-level catalog - sold to members)
+-- 7. membership_plans  (gym-level catalog - sold to members)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS membership_plans (
     id                  INTEGER PRIMARY KEY,
@@ -154,7 +156,7 @@ CREATE INDEX IF NOT EXISTS idx_membership_plans_gym_active
     ON membership_plans(gym_id, is_active, deleted_at);
 
 -- ============================================================================
--- 7. members  (gym customers)
+-- 8. members  (gym customers)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS members (
     id                         INTEGER PRIMARY KEY,
@@ -174,7 +176,7 @@ CREATE TABLE IF NOT EXISTS members (
     emergency_contact_name     TEXT,
     emergency_contact_phone    TEXT,
     health_notes               TEXT,
-    status                     TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE','BLOCKED','EXPIRED','FROZEN','ERASED')),
+    status                     TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE','BLOCKED','EXPIRED','FROZEN','CANCELLED')),
     joined_date                INTEGER NOT NULL,
     biometric_consent_given   INTEGER NOT NULL DEFAULT 0,
     biometric_consent_at       INTEGER,
@@ -192,7 +194,7 @@ CREATE INDEX IF NOT EXISTS idx_members_gym_status ON members(gym_id, status, del
 CREATE INDEX IF NOT EXISTS idx_members_gym_name ON members(gym_id, last_name, first_name);
 
 -- ============================================================================
--- 8. memberships  (member ↔ plan instance)
+-- 9. memberships  (member plan instance)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS memberships (
     id                  INTEGER PRIMARY KEY,
@@ -224,7 +226,7 @@ CREATE INDEX IF NOT EXISTS idx_memberships_gym_status_dates ON memberships(gym_i
 CREATE INDEX IF NOT EXISTS idx_memberships_gym_end_date ON memberships(gym_id, end_date);
 
 -- ============================================================================
--- 9. payments  (GYM type money collection)
+-- 10. payments  (GYM type money collection)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS payments (
     id                    INTEGER PRIMARY KEY,
@@ -254,7 +256,7 @@ CREATE INDEX IF NOT EXISTS idx_payments_gym_member_date ON payments(gym_id, memb
 CREATE INDEX IF NOT EXISTS idx_payments_gym_status_date ON payments(gym_id, status, payment_date);
 
 -- ============================================================================
--- 10. pt_collections  (PERSONAL_TRAINING payments + commission splits)
+-- 11. pt_collections  (PERSONAL_TRAINING payments + commission splits)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS pt_collections (
     id                    INTEGER PRIMARY KEY,
@@ -283,7 +285,7 @@ CREATE INDEX IF NOT EXISTS idx_pt_collections_gym_date ON pt_collections(gym_id,
 CREATE INDEX IF NOT EXISTS idx_pt_collections_gym_trainer ON pt_collections(gym_id, trainer_id, commission_status);
 
 -- ============================================================================
--- 11. attendance
+-- 12. attendance
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS attendance (
     id                  INTEGER PRIMARY KEY,
@@ -305,7 +307,7 @@ CREATE INDEX IF NOT EXISTS idx_attendance_gym_member_date ON attendance(gym_id, 
 CREATE INDEX IF NOT EXISTS idx_attendance_gym_checkin ON attendance(gym_id, check_in_time);
 
 -- ============================================================================
--- 12. user_sessions  (server-side session records)
+-- 13. user_sessions  (server-side session records)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_sessions (
     id                      INTEGER PRIMARY KEY,
@@ -318,15 +320,14 @@ CREATE TABLE IF NOT EXISTS user_sessions (
     user_agent              TEXT,
     issued_at               INTEGER NOT NULL,
     expires_at              INTEGER NOT NULL,
-    revoked_at              INTEGER,
-    FOREIGN KEY (gym_id, user_id) REFERENCES users(gym_id, id) ON DELETE CASCADE
+    revoked_at              INTEGER
 );
 
 CREATE INDEX IF NOT EXISTS idx_user_sessions_gym_user ON user_sessions(gym_id, user_id);
 CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at);
 
 -- ============================================================================
--- 13. user_password_resets
+-- 14. user_password_resets
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS user_password_resets (
     id          INTEGER PRIMARY KEY,
@@ -340,7 +341,7 @@ CREATE TABLE IF NOT EXISTS user_password_resets (
 );
 
 -- ============================================================================
--- 14. audit_events  (gym-scoped audit log)
+-- 15. audit_events  (gym-scoped audit log)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS audit_events (
     id            INTEGER PRIMARY KEY,
@@ -365,7 +366,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_gym_action_created ON audit_events(gym_id, 
 CREATE INDEX IF NOT EXISTS idx_audit_gym_entity ON audit_events(gym_id, entity_type, entity_id);
 
 -- ============================================================================
--- 15. saas_audit_events  (platform-level audit log - no gym_id)
+-- 16. saas_audit_events  (platform-level audit log - no gym_id)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS saas_audit_events (
     id                INTEGER PRIMARY KEY,
@@ -387,7 +388,7 @@ CREATE INDEX IF NOT EXISTS idx_saas_audit_admin_created ON saas_audit_events(act
 CREATE INDEX IF NOT EXISTS idx_saas_audit_gym_created ON saas_audit_events(affected_gym_id, created_at);
 
 -- ============================================================================
--- 16. platform_settings  (Super Admin global gateway configs)
+-- 17. platform_settings  (Super Admin global gateway configs)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS platform_settings (
     key         TEXT PRIMARY KEY,
@@ -396,7 +397,7 @@ CREATE TABLE IF NOT EXISTS platform_settings (
 );
 
 -- ============================================================================
--- 17. gym_features  (Super Admin per-gym feature permissions)
+-- 18. gym_features  (Super Admin per-gym feature permissions)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS gym_features (
     gym_id      INTEGER NOT NULL,
@@ -410,7 +411,7 @@ CREATE TABLE IF NOT EXISTS gym_features (
 CREATE INDEX IF NOT EXISTS idx_gym_features_lookup ON gym_features(gym_id, is_enabled);
 
 -- ============================================================================
--- 18. communication_logs  (Granular quota consumption audit)
+-- 19. communication_logs  (Granular quota consumption audit)
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS communication_logs (
     id                INTEGER PRIMARY KEY,
@@ -432,36 +433,110 @@ CREATE TABLE IF NOT EXISTS communication_logs (
 CREATE INDEX IF NOT EXISTS idx_comm_logs_gym ON communication_logs(gym_id, created_at);
 
 -- ============================================================================
--- Seed: bootstrap a single SUPER_ADMIN and a single starter gym for first run.
--- Idempotent — safe to re-apply.
+-- 20. menu_groups  (sidebar navigation groups)
 -- ============================================================================
-INSERT OR IGNORE INTO platform_admins (id, email, password_hash, password_algo, name, status, created_at, updated_at)
-VALUES (1, 'admin@gymtech.app', '__SET_VIA_ENV__', 'argon2id', 'Platform Admin', 'ACTIVE', unixepoch(), unixepoch());
+CREATE TABLE IF NOT EXISTS menu_groups (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    key        TEXT NOT NULL UNIQUE,
+    label      TEXT NOT NULL,
+    icon       TEXT NOT NULL,
+    "order"    INTEGER NOT NULL DEFAULT 0,
+    is_active  INTEGER NOT NULL DEFAULT 1,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
 
-INSERT OR IGNORE INTO gyms (id, name, slug, phone, status, created_at, updated_at)
-VALUES (1, 'GymTech Demo Gym', 'demo', '9999999999', 'ACTIVE', unixepoch(), unixepoch());
+-- ============================================================================
+-- 21. menu_items  (sidebar navigation items)
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS menu_items (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_key     TEXT NOT NULL,
+    key           TEXT NOT NULL UNIQUE,
+    label         TEXT NOT NULL,
+    href          TEXT,
+    icon          TEXT,
+    "order"       INTEGER NOT NULL DEFAULT 0,
+    permissions   TEXT NOT NULL DEFAULT '[]',
+    feature_key   TEXT,
+    admin_only    INTEGER NOT NULL DEFAULT 0,
+    is_active     INTEGER NOT NULL DEFAULT 1,
+    created_at    INTEGER NOT NULL,
+    updated_at    INTEGER NOT NULL,
+    FOREIGN KEY (group_key) REFERENCES menu_groups(key) ON DELETE CASCADE
+);
 
+CREATE INDEX IF NOT EXISTS idx_menu_items_group_order ON menu_items(group_key, "order");
+CREATE INDEX IF NOT EXISTS idx_menu_items_active ON menu_items(is_active);
+
+-- ============================================================================
+-- SEED DATA
+-- Idempotent -- safe to re-apply.
+-- Password for all accounts: Password123!
+-- Hash: $argon2id$v=19$m=19456,t=2,p=1$Z3ltdGVjaHNhbHQwMDAwMDE$cC1Nhfqdtu65rVMxXM13yV5/kKgF5p9haplsZdEYUIs
+-- ============================================================================
+
+-- Platform Root Gym (id=0) for platform admin sessions
+INSERT OR IGNORE INTO gyms (id, name, slug, phone, email, status, created_at, updated_at)
+VALUES (0, 'Platform Administration', 'platform-admin', '0000000000', 'admin@gymtech.app', 'ACTIVE', unixepoch(), unixepoch());
+
+-- Super Admin
+INSERT OR IGNORE INTO platform_admins (id, email, password_hash, name, status, created_at, updated_at)
+VALUES (1, 'admin@gymtech.app', '$argon2id$v=19$m=19456,t=2,p=1$Z3ltdGVjaHNhbHQwMDAwMDE$cC1Nhfqdtu65rVMxXM13yV5/kKgF5p9haplsZdEYUIs', 'Super Admin', 'ACTIVE', unixepoch(), unixepoch());
+
+-- Default Gym
+INSERT OR IGNORE INTO gyms (id, name, slug, phone, email, address, city, state, pincode, currency, status, created_at, updated_at)
+VALUES (1, 'GymTech Fitness Club', 'gymtech-club', '9876543210', 'contact@gymtech.app', 'Plot 10, HITEC City', 'Hyderabad', 'Telangana', '500081', 'INR', 'ACTIVE', unixepoch(), unixepoch());
+
+-- License for Gym 1 (Enterprise Unlimited)
 INSERT OR IGNORE INTO licenses (
     id, gym_id, name, code, price_paise, billing_period,
     max_members, max_owners, max_managers, max_staff_total,
-    max_sms, max_whatsapp, max_email, started_at, expires_at, status,
-    created_at, updated_at
+    max_sms, max_whatsapp, max_email, features,
+    started_at, expires_at, status, created_at, updated_at
 ) VALUES (
-    1, 1, 'Demo', 'DEMO', 0, 'MONTHLY',
-    1000, 1, 5, 10, 0, 0, 0, unixepoch(), unixepoch() + 31536000, 'ACTIVE',
-    unixepoch(), unixepoch()
+    1, 1, 'Enterprise Unlimited', 'ENTERPRISE', 4999900, 'YEARLY',
+    10000, 5, 20, 50, 10000, 10000, 10000,
+    '{"reports": true, "qr_attendance": true, "whatsapp_links": true, "pt_collections": true, "biometric": true}',
+    unixepoch(), unixepoch() + 315360000, 'ACTIVE', unixepoch(), unixepoch()
 );
 
-INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at)
-SELECT 1, key, 1, unixepoch()
-FROM (
-    SELECT 'dashboard' as key
-    UNION SELECT 'members'
-    UNION SELECT 'attendance'
-    UNION SELECT 'payments'
-    UNION SELECT 'pt_collections'
-    UNION SELECT 'plans'
-    UNION SELECT 'staff'
-    UNION SELECT 'reports'
-    UNION SELECT 'settings'
-);
+-- Gym Features
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'dashboard', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'members', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'attendance', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'payments', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'pt_collections', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'plans', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'staff', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'reports', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'settings', 1, unixepoch());
+INSERT OR IGNORE INTO gym_features (gym_id, feature_key, is_enabled, updated_at) VALUES (1, 'audit_logs', 1, unixepoch());
+
+-- Gym Owner
+INSERT OR IGNORE INTO users (id, gym_id, name, email, phone, password_hash, role, status, permissions, created_at, updated_at)
+VALUES (1, 1, 'Gym Owner', 'owner@gymtech.app', '9876543210', '$argon2id$v=19$m=19456,t=2,p=1$Z3ltdGVjaHNhbHQwMDAwMDE$cC1Nhfqdtu65rVMxXM13yV5/kKgF5p9haplsZdEYUIs', 'OWNER', 'ACTIVE', '{}', unixepoch(), unixepoch());
+
+-- Owner Permissions
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'dashboard', 1, unixepoch());
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'members', 1, unixepoch());
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'attendance', 1, unixepoch());
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'payments', 1, unixepoch());
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'pt_collections', 1, unixepoch());
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'plans', 1, unixepoch());
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'reports', 1, unixepoch());
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'settings', 1, unixepoch());
+INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (1, 'audit_logs', 1, unixepoch());
+
+-- Menu Groups
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('members',    'Members',          'Users',       10, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('attendance', 'Attendance',       'CalendarCheck',20, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('payments',  'Payments',         'CreditCard',  30, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('pt',        'PT Collections',   'Trophy',      40, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('plans',     'Plans',            'Tag',         50, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('staff',     'Staff & Roles',    'UserCog',     60, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('reports',   'Reports',          'BarChart3',   70, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('settings',  'Settings',         'Settings',    80, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('audit',     'Audit Logs',       'History',     90, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('portal',    'Member Portal',    'IdCard',     100, 1, unixepoch(), unixepoch());
+INSERT OR IGNORE INTO menu_groups (key, label, icon, "order", is_active, created_at, updated_at) VALUES ('platform',  'Platform',         'Server',     200, 1, unixepoch(), unixepoch());

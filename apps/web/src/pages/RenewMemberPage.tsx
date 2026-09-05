@@ -67,11 +67,17 @@ export const RenewMemberPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+
+    if (!planId) {
+      setError('Please select a membership plan.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
       const res = await api.renewMembership(parseInt(id!, 10), {
-        planId: planId!,
+        planId,
         startDate: startDate || undefined,
         discountPaise: Math.round((Number(discountAmount) || 0) * 100),
         paymentPaise: Math.round((Number(paymentAmount) || 0) * 100),

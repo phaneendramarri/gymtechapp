@@ -39,6 +39,8 @@ export interface LoginResponse {
 }
 
 export const MemberLoginRequestSchema = z.object({
+  // gymSlug is required to scope the lookup to a specific gym tenant.
+  gymSlug: z.string().min(1, 'Gym slug is required'),
   identifier: z.string().min(3, 'Phone number or member code is required'),
   codeOrPin: z.string().min(1, 'Member code or verification credential is required'),
   turnstileToken: z.string().optional(),
@@ -148,6 +150,7 @@ export const CreatePlanRequestSchema = z.object({
   pricePaise: z.number().int().min(0, 'Price must be non-negative'),
   admissionFeePaise: z.number().int().min(0).default(0),
   taxPercentage: z.number().min(0).max(100).default(0),
+  billingPeriod: z.enum(['MONTHLY', 'YEARLY']).default('MONTHLY'), // L9/L10: revenue bucketing
 });
 export type CreatePlanRequest = z.infer<typeof CreatePlanRequestSchema>;
 
@@ -163,6 +166,7 @@ export const UpdatePlanRequestSchema = z.object({
   pricePaise: z.number().int().min(0).optional(),
   admissionFeePaise: z.number().int().min(0).optional(),
   taxPercentage: z.number().min(0).max(100).optional(),
+  billingPeriod: z.enum(['MONTHLY', 'YEARLY']).optional(), // L9/L10: revenue bucketing
 });
 export type UpdatePlanRequest = z.infer<typeof UpdatePlanRequestSchema>;
 
@@ -483,6 +487,35 @@ export interface ChannelBalance {
   remaining: number;
 }
 
+// ==========================================
+// 11. COMMUNICATIONS / SMS / WHATSAPP LOGS
+// ==========================================
+
+export const CommunicationLogRowSchema = z.object({
+  id: z.number().int().positive(),
+  gymId: z.number().int().positive(),
+  channel: z.enum(['SMS', 'WHATSAPP', 'EMAIL']),
+  recipientPhone: z.string().nullable(),
+  recipientName: z.string().nullable(),
+  messageType: z.string(),
+  creditsDeducted: z.number().int().min(0),
+  remainingBalance: z.number().int().min(0),
+  dispatchedById: z.number().int().positive().nullable(),
+  ip: z.string().nullable(),
+  createdAt: z.number().int().positive(),
+  lawfulBasis: z.string().nullable(),
+  retentionUntil: z.number().int().positive().nullable(),
+});
+export type CommunicationLogRow = z.infer<typeof CommunicationLogRowSchema>;
+
+export const CommunicationLogsListResponseSchema = z.object({
+  logs: z.array(CommunicationLogRowSchema),
+  total: z.number().int().min(0),
+  limit: z.number().int().positive(),
+  offset: z.number().int().min(0),
+});
+export type CommunicationLogsListResponse = z.infer<typeof CommunicationLogsListResponseSchema>;
+
 export interface NotificationSettingsResponse {
   reminderDays: number;
   welcomeEnabled: boolean;
@@ -549,4 +582,156 @@ export const RestoreRecordRequestSchema = z.object({
   reason: z.string().optional(),
 });
 export type RestoreRecordRequest = z.infer<typeof RestoreRecordRequestSchema>;
+
+// ==========================================
+// 15. PLATFORM ADMIN — ROLES & MENUS
+// ==========================================
+
+export const MenuGroupSchema = z.object({
+  id: z.number().int().positive(),
+  key: z.string(),
+  label: z.string(),
+  icon: z.string(),
+  order: z.number().int(),
+  isActive: z.boolean(),
+});
+export type MenuGroup = z.infer<typeof MenuGroupSchema>;
+
+export const MenuItemSchema = z.object({
+  id: z.number().int().positive(),
+  groupKey: z.string(),
+  key: z.string(),
+  label: z.string(),
+  href: z.string().nullable(),
+  icon: z.string().nullable(),
+  order: z.number().int(),
+  permissions: z.array(z.string()),
+  featureKey: z.string().nullable(),
+  adminOnly: z.boolean(),
+  isActive: z.boolean(),
+  createdAt: z.number().int().positive(),
+  updatedAt: z.number().int().positive(),
+});
+export type MenuItem = z.infer<typeof MenuItemSchema>;
+
+export const PlatformRoleSchema = z.object({
+  id: z.number().int().positive(),
+  gymId: z.number().int().positive(),
+  name: z.string(),
+  permissions: z.array(z.string()),
+  isDefault: z.boolean(),
+  createdAt: z.number().int().positive(),
+  updatedAt: z.number().int().positive(),
+  deletedAt: z.number().int().positive().nullable(),
+});
+export type PlatformRole = z.infer<typeof PlatformRoleSchema>;
+
+export const AdminRoleListResponseSchema = z.object({
+  roles: z.array(PlatformRoleSchema),
+});
+export type AdminRoleListResponse = z.infer<typeof AdminRoleListResponseSchema>;
+
+export const AdminMenuGroupsResponseSchema = z.object({
+  groups: z.array(MenuGroupSchema),
+});
+export type AdminMenuGroupsResponse = z.infer<typeof AdminMenuGroupsResponseSchema>;
+
+export const AdminMenuItemsResponseSchema = z.object({
+  items: z.array(MenuItemSchema),
+});
+export type AdminMenuItemsResponse = z.infer<typeof AdminMenuItemsResponseSchema>;
+
+export const CreateMenuGroupRequestSchema = z.object({
+  key: z.string().min(1).max(50),
+  label: z.string().min(1).max(100),
+  icon: z.string().default('Folder'),
+  order: z.number().int().default(0),
+});
+export type CreateMenuGroupRequest = z.infer<typeof CreateMenuGroupRequestSchema>;
+
+export const UpdateMenuGroupRequestSchema = z.object({
+  label: z.string().min(1).max(100).optional(),
+  icon: z.string().optional(),
+  order: z.number().int().optional(),
+});
+export type UpdateMenuGroupRequest = z.infer<typeof UpdateMenuGroupRequestSchema>;
+
+export const CreateMenuItemRequestSchema = z.object({
+  groupKey: z.string().min(1),
+  key: z.string().min(1).max(100),
+  label: z.string().min(1).max(100),
+  href: z.string().optional(),
+  icon: z.string().optional(),
+  order: z.number().int().default(0),
+  permissions: z.array(z.string()).default([]),
+  featureKey: z.string().optional(),
+  adminOnly: z.boolean().default(false),
+});
+export type CreateMenuItemRequest = z.infer<typeof CreateMenuItemRequestSchema>;
+
+export const UpdateMenuItemRequestSchema = z.object({
+  label: z.string().min(1).max(100).optional(),
+  href: z.string().optional().nullable(),
+  icon: z.string().optional().nullable(),
+  order: z.number().int().optional(),
+  permissions: z.array(z.string()).optional(),
+  featureKey: z.string().optional().nullable(),
+  adminOnly: z.boolean().optional(),
+  isActive: z.boolean().optional(),
+});
+export type UpdateMenuItemRequest = z.infer<typeof UpdateMenuItemRequestSchema>;
+
+// Platform user management
+export const PlatformUserSchema = z.object({
+  id: z.number().int().positive(),
+  gymId: z.number().int().positive(),
+  gymName: z.string().nullable(),
+  name: z.string(),
+  email: z.string(),
+  phone: z.string().nullable(),
+  roleId: z.number().int().nullable(),
+  roleName: z.string().nullable(),
+  role: z.string(),
+  status: z.enum(['ACTIVE', 'DISABLED']),
+  isOwner: z.boolean(),
+  lastLoginAt: z.number().int().nullable(),
+  createdAt: z.number().int().positive(),
+  updatedAt: z.number().int().positive(),
+  disabledAt: z.number().int().nullable(),
+});
+export type PlatformUser = z.infer<typeof PlatformUserSchema>;
+
+export const PlatformUserListResponseSchema = z.object({
+  users: z.array(PlatformUserSchema),
+  total: z.number().int().min(0),
+});
+export type PlatformUserListResponse = z.infer<typeof PlatformUserListResponseSchema>;
+
+export const UpdateUserRoleRequestSchema = z.object({
+  roleId: z.number().int().positive().nullable(),
+});
+export type UpdateUserRoleRequest = z.infer<typeof UpdateUserRoleRequestSchema>;
+
+export const AdminRoleSchema = z.object({
+  id: z.number().int().positive(),
+  gymId: z.number().int().positive(),
+  name: z.string(),
+  permissions: z.array(z.string()),
+  isDefault: z.boolean(),
+  createdAt: z.number().int().positive(),
+  updatedAt: z.number().int().positive(),
+});
+export type AdminRole = z.infer<typeof AdminRoleSchema>;
+
+export const AdminRoleResponseSchema = z.object({
+  id: z.number().int().positive(),
+  gymId: z.number().int().positive(),
+  name: z.string(),
+  permissions: z.array(z.string()),
+  isDefault: z.boolean(),
+  createdAt: z.number().int().positive(),
+  updatedAt: z.number().int().positive(),
+  deletedAt: z.number().int().positive().nullable(),
+});
+export type AdminRoleResponse = z.infer<typeof AdminRoleResponseSchema>;
 

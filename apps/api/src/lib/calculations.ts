@@ -66,7 +66,7 @@ export function isCheckInBlocked(params: {
     params.membershipEndDate === null ||
     params.membershipEndDate < params.nowSec ||
     params.membershipStatus === 'EXPIRED';
-  const isFrozenOrCancelled = params.memberStatus === 'FROZEN' || params.memberStatus === 'CANCELLED';
+  const isFrozenOrCancelled = params.memberStatus === 'FROZEN' || params.memberStatus === 'CANCELLED' || params.memberStatus === 'BLOCKED';
   return isExpired || isFrozenOrCancelled;
 }
 

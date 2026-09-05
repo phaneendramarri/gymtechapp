@@ -48,37 +48,69 @@ export class DashboardService {
       this.getPlanDistribution(),
     ]);
 
-    const expiringSoon: ExpiringMember[] = expiringRaw.map((m: any) => ({
-      id: m.id,
-      firstName: m.first_name,
-      lastName: m.last_name,
-      phone: m.phone,
-      planName: m.plan_name,
-      endDate: m.end_date,
-      dueAmountPaise: isManager ? 0 : m.due_amount_paise,
-      whatsappUrl: this.notif.generateWhatsAppUrl({
-        recipientPhone: m.phone,
-        recipientName: `${m.first_name} ${m.last_name || ''}`.trim(),
+    const expiringSoon: ExpiringMember[] = expiringRaw.map((m: any) => {
+      const firstName = m.firstName ?? m.first_name ?? '';
+      const lastName = m.lastName ?? m.last_name ?? '';
+      const phone = m.phone ?? '';
+      const planName = m.planName ?? m.plan_name ?? 'Plan';
+      const endDate = Number(m.endDate ?? m.end_date ?? 0);
+      const dueAmountPaise = isManager ? 0 : Number(m.dueAmountPaise ?? m.due_amount_paise ?? 0);
+      const whatsappUrl = this.notif.generateWhatsAppUrl({
+        recipientPhone: phone,
+        recipientName: `${firstName} ${lastName}`.trim() || 'Member',
         type: 'EXPIRY_REMINDER',
         params: {
-          expiryDate: new Date(m.end_date * 1000).toLocaleDateString('en-IN'),
+          expiryDate: endDate ? new Date(endDate * 1000).toLocaleDateString('en-IN') : '',
         },
-      }),
-    }));
+      });
+      return {
+        id: m.memberId ?? m.id,
+        firstName,
+        lastName,
+        phone,
+        planName,
+        endDate,
+        dueAmountPaise,
+        whatsappUrl,
+        whatsapp_url: whatsappUrl,
+      };
+    });
 
-    const recentWithWhatsApp = recentPayments.map((p: any) => ({
-      ...p,
-      whatsapp_url: this.notif.generateWhatsAppUrl({
-        recipientPhone: p.phone,
-        recipientName: `${p.last_name || ''}`.trim(),
+    const recentWithWhatsApp = recentPayments.map((p: any) => {
+      const firstName = p.firstName ?? p.first_name ?? '';
+      const lastName = p.lastName ?? p.last_name ?? '';
+      const phone = p.phone ?? '';
+      const amountPaise = Number(p.amountPaise ?? p.amount_paise ?? 0);
+      const paymentMode = p.paymentMode ?? p.payment_mode ?? 'CASH';
+      const receiptNumber = p.receiptNumber ?? p.receipt_number ?? '';
+      const paymentDate = Number(p.paymentDate ?? p.payment_date ?? 0);
+      const memberName = `${firstName} ${lastName}`.trim() || 'Member';
+      const whatsappUrl = this.notif.generateWhatsAppUrl({
+        recipientPhone: phone,
+        recipientName: memberName,
         type: 'PAYMENT_RECEIPT',
         params: {
-          amount: p.amount_paise / 100,
-          paymentMode: p.payment_mode,
-          receiptNumber: p.receipt_number,
+          amount: amountPaise / 100,
+          paymentMode,
+          receiptNumber,
         },
-      }),
-    }));
+      });
+
+      return {
+        ...p,
+        id: p.id,
+        amountPaise,
+        paymentMode,
+        receiptNumber,
+        paymentDate,
+        firstName,
+        lastName,
+        memberName,
+        phone,
+        whatsappUrl,
+        whatsapp_url: whatsappUrl,
+      };
+    });
 
     return {
       activeMembers,
@@ -152,7 +184,7 @@ export class DashboardService {
   }
 
   /** Real monthly revenue trend for the last 6 calendar months. */
-  async getMonthlyRevenueTrend(): Promise<{ month: string; revenue: number; renewals: number; newJoins: number }[]> {
+  async getMonthlyRevenueTrend(): Promise<{ month: string; revenue: number; renewals: number; newJoins: number; monthlyRevenue: number; yearlyRevenue: number }[]> {
     const monthsName = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const now = new Date();
     const monthKeys: { key: string; label: string }[] = [];
@@ -164,63 +196,62 @@ export class DashboardService {
     }
 
     const minDateTimestamp = Math.floor(new Date(now.getFullYear(), now.getMonth() - 5, 1).getTime() / 1000);
+    // L9/L10: Bucket revenue by billing period (MONTHLY vs YEARLY) via plan join
     const rowsRes = await this.db
       .prepare(
         `SELECT
-           strftime('%Y-%m', payment_date, 'unixepoch') as month_key,
-           COALESCE(SUM(amount_paise), 0) as total_amount_paise,
-           COALESCE(SUM(CASE WHEN membership_id IS NOT NULL THEN amount_paise ELSE 0 END), 0) as renewal_amount_paise
-         FROM payments
-         WHERE gym_id = ? AND status = 'COMPLETED' AND payment_date >= ?
+           strftime('%Y-%m', p.payment_date, 'unixepoch') as month_key,
+           COALESCE(SUM(p.amount_paise), 0) as total_amount_paise,
+           COALESCE(SUM(CASE WHEN p.membership_id IS NOT NULL THEN p.amount_paise ELSE 0 END), 0) as renewal_amount_paise,
+           COALESCE(SUM(CASE WHEN mp.billing_period = 'MONTHLY' THEN p.amount_paise ELSE 0 END), 0) as monthly_amount_paise,
+           COALESCE(SUM(CASE WHEN mp.billing_period = 'YEARLY' THEN p.amount_paise ELSE 0 END), 0) as yearly_amount_paise
+         FROM payments p
+         LEFT JOIN memberships ms ON ms.id = p.membership_id AND ms.deleted_at IS NULL
+         LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id AND mp.deleted_at IS NULL
+         WHERE p.gym_id = ? AND p.status = 'COMPLETED' AND p.payment_date >= ?
          GROUP BY month_key`
       )
       .bind(this.gymId, minDateTimestamp)
-      .all<{ month_key: string; total_amount_paise: number; renewal_amount_paise: number }>();
+      .all<{ month_key: string; total_amount_paise: number; renewal_amount_paise: number; monthly_amount_paise: number; yearly_amount_paise: number }>();
 
-    const dataMap = new Map<string, { total: number; renewals: number }>();
+    const dataMap = new Map<string, { total: number; renewals: number; monthly: number; yearly: number }>();
     for (const r of rowsRes.results || []) {
       dataMap.set(r.month_key, {
         total: Math.round((r.total_amount_paise || 0) / 100),
         renewals: Math.round((r.renewal_amount_paise || 0) / 100),
+        monthly: Math.round((r.monthly_amount_paise || 0) / 100),
+        yearly: Math.round((r.yearly_amount_paise || 0) / 100),
       });
     }
 
     return monthKeys.map((m) => {
-      const val = dataMap.get(m.key) || { total: 0, renewals: 0 };
+      const val = dataMap.get(m.key) || { total: 0, renewals: 0, monthly: 0, yearly: 0 };
       return {
         month: m.label,
         revenue: val.total,
         renewals: val.renewals,
         newJoins: Math.max(0, val.total - val.renewals),
+        monthlyRevenue: val.monthly,
+        yearlyRevenue: val.yearly,
       };
     });
   }
 
   /** Churn radar: members inactive for 7+ days. */
-  async getAtRiskMembers(): Promise<
-    {
-      id: number;
-      name: string;
-      phone: string;
-      plan: string;
-      daysInactive: number;
-      lastCheckIn: string;
-      riskLevel: 'HIGH' | 'MEDIUM';
-    }[]
-  > {
+  async getAtRiskMembers(): Promise<any[]> {
     const nowSec = Math.floor(Date.now() / 1000);
     const sevenDaysAgoSec = nowSec - 7 * 86400;
 
     const rows = await this.db
       .prepare(
         `SELECT
-           m.id, m.first_name, m.last_name, m.phone,
+           m.id, m.first_name, m.last_name, m.phone, m.created_at,
            COALESCE(mp.name, 'Active Plan') as plan_name,
            ms.start_date,
            MAX(a.check_in_time) as last_check_in
          FROM members m
          JOIN memberships ms ON ms.member_id = m.id AND ms.gym_id = m.gym_id AND ms.status = 'ACTIVE' AND ms.end_date > ?
-         LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
+         LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id AND mp.deleted_at IS NULL
          LEFT JOIN attendance a ON a.member_id = m.id AND a.gym_id = m.gym_id
          WHERE m.gym_id = ? AND m.deleted_at IS NULL AND m.status = 'ACTIVE'
          GROUP BY m.id
@@ -234,16 +265,32 @@ export class DashboardService {
     return (rows.results || []).map((r: any) => {
       const lastSec = r.last_check_in ? Number(r.last_check_in) : null;
       const { daysInactive, riskLevel } = computeChurnRisk(lastSec, Number(r.start_date), nowSec);
+      const name = `${r.first_name} ${r.last_name || ''}`.trim();
+      const whatsappUrl = this.notif.generateWhatsAppUrl({
+        recipientPhone: r.phone,
+        recipientName: name,
+        type: 'CUSTOM',
+        params: {
+          message: `Hi ${r.first_name}, we missed seeing you at ${this.gymName}! Everything ok with your training? Let us know if you need any help getting back on track.`,
+        },
+      });
+
       return {
         id: r.id,
-        name: `${r.first_name} ${r.last_name || ''}`.trim(),
+        name,
+        firstName: r.first_name,
+        lastName: r.last_name,
         phone: r.phone,
         plan: r.plan_name,
         daysInactive,
         lastCheckIn: r.last_check_in
           ? new Date(r.last_check_in * 1000).toLocaleDateString('en-IN')
           : 'No visits yet',
+        lastAttendanceAt: lastSec,
+        createdAt: r.created_at,
         riskLevel,
+        whatsappUrl,
+        whatsapp_url: whatsappUrl,
       };
     });
   }
@@ -257,8 +304,8 @@ export class DashboardService {
            COUNT(DISTINCT ms.member_id) as member_count,
            COALESCE(SUM(ms.final_amount_paise), 0) as revenue_paise
          FROM membership_plans mp
-         LEFT JOIN memberships ms ON ms.membership_plan_id = mp.id AND ms.gym_id = mp.gym_id AND ms.status = 'ACTIVE'
-         WHERE mp.gym_id = ? AND mp.is_active = 1
+         LEFT JOIN memberships ms ON ms.membership_plan_id = mp.id AND ms.gym_id = mp.gym_id AND ms.status = 'ACTIVE' AND ms.deleted_at IS NULL
+         WHERE mp.gym_id = ? AND mp.is_active = 1 AND mp.deleted_at IS NULL
          GROUP BY mp.id, mp.name
          ORDER BY member_count DESC`
       )

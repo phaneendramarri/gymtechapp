@@ -1,43 +1,29 @@
 import * as React from "react"
-import { Check, Minus } from "lucide-react"
-import * as CheckboxPrimitive from "@radix-ui/react-checkbox"
+import { cn } from "cn"
+import { CheckIcon } from "lucide-react"
+import { Checkbox as CheckboxPrimitive } from "radix-ui"
 
-import { cn } from "@/lib/utils"
-
-const Checkbox = React.forwardRef<
-  React.ElementRef<typeof CheckboxPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof CheckboxPrimitive.Root>
->(({ className, ...props }, ref) => {
-  // Resolve the visual state from `checked` (controlled) or fall back to the
-  // defaultChecked / uncontrolled "indeterminate" case.
-  const isIndeterminate =
-    props.checked === "indeterminate" ||
-    (props as { defaultChecked?: unknown }).defaultChecked === "indeterminate"
-
+function Checkbox({
+  className,
+  ...props
+}: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
   return (
     <CheckboxPrimitive.Root
-      ref={ref}
+      data-slot="checkbox"
       className={cn(
-        "peer size-4 shrink-0 rounded-[4px] border border-input bg-background shadow-sm",
-        "data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground data-[state=checked]:border-primary",
-        "data-[state=indeterminate]:bg-primary data-[state=indeterminate]:text-primary-foreground data-[state=indeterminate]:border-primary",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-        "disabled:cursor-not-allowed disabled:opacity-50",
-        "transition-colors",
+        "peer size-4 shrink-0 rounded-[4px] border border-input shadow-xs transition-shadow outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground dark:bg-input/30 dark:aria-invalid:ring-destructive/40 dark:data-[state=checked]:bg-primary",
         className
       )}
       {...props}
     >
-      <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
-        {isIndeterminate ? (
-          <Minus className="size-3" />
-        ) : (
-          <Check className="size-3" />
-        )}
+      <CheckboxPrimitive.Indicator
+        data-slot="checkbox-indicator"
+        className="grid place-content-center text-current transition-none"
+      >
+        <CheckIcon className="size-3.5" />
       </CheckboxPrimitive.Indicator>
     </CheckboxPrimitive.Root>
   )
-})
-Checkbox.displayName = "Checkbox"
+}
 
 export { Checkbox }

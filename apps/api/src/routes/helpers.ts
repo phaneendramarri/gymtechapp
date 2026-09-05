@@ -50,7 +50,7 @@ export function jsonPaginated<T>(
   status = 200,
 ): Response {
   const hasMore = offset + items.length < total;
-  return jsonOk({ items, total, limit, offset, hasMore }, status);
+  return jsonOk({ items, members: items, total, limit, offset, hasMore }, status);
 }
 
 // ============================================================

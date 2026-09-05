@@ -124,7 +124,7 @@ export const LicenseLimitsDialog: React.FC<LicenseLimitsDialogProps> = ({
           </Button>
           <Button
             size="sm"
-            className="gt-btn-primary gap-1.5"
+            className="gap-1.5"
             onClick={onSave}
             disabled={saving}
           >
