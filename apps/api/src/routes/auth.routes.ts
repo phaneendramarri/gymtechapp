@@ -153,6 +153,22 @@ authRoutes.get('/me', requireAuth, safeHandler(async (c) => {
 }));
 
 /**
+ * GET /auth/csrf — Lightweight CSRF token fetcher/bootstrapper.
+ * Returns { csrfToken } and sets gym_csrf cookie + X-CSRF-Token header.
+ */
+authRoutes.get('/csrf', safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const existingCsrf = readCookie(c.req.header('Cookie'), COOKIE_NAMES.CSRF);
+  const csrf = existingCsrf || generateCsrfToken();
+  return jsonOk({ csrfToken: csrf }, 200, {
+    'Set-Cookie': [
+      buildCsrfCookie(csrf, ctx.env.APP_ENV),
+    ],
+    'X-CSRF-Token': csrf,
+  });
+}));
+
+/**
  * POST /auth/refresh — Sliding-window refresh token rotation.
  * Accepts { refreshToken } in body, returns { token, refreshToken }.
  * The old refresh token is immediately revoked after use (rotation).

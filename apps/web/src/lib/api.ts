@@ -105,93 +105,133 @@ function setStoredRefreshToken(token: string | null): void {
 }
 
 class ApiClient {
+  private async fetchCsrfToken(): Promise<string | null> {
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/auth/csrf`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      const headerCsrf = res.headers.get('X-CSRF-Token');
+      if (headerCsrf) {
+        saveCsrfToken(headerCsrf);
+        return headerCsrf;
+      }
+      const data: any = await res.json().catch(() => ({}));
+      if (data?.csrfToken) {
+        saveCsrfToken(data.csrfToken);
+        return data.csrfToken;
+      }
+      return readCsrfCookie();
+    } catch {
+      return null;
+    }
+  }
+
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    ...(options.headers as Record<string, string>),
-  };
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>),
+    };
 
-  const method = (options.method || 'GET').toUpperCase();
-  if (!SAFE_METHODS.has(method)) {
-    const csrf = readCsrfCookie();
-    if (csrf) headers['X-CSRF-Token'] = csrf;
-  }
-
-  const doFetch = () =>
-    fetch(`${API_BASE_URL}${endpoint}`, {
-      ...options,
-      headers,
-      credentials: 'include',
-    });
-
-  let res = await doFetch();
-
-  // Capture CSRF token echoed by server on auth operations
-  const responseCsrf = res.headers.get('X-CSRF-Token');
-  if (responseCsrf) {
-    saveCsrfToken(responseCsrf);
-  }
-
-  // H-16: On 401, attempt token refresh then retry original request once
-  if (res.status === 401) {
-    const refreshToken = getStoredRefreshToken();
-    if (refreshToken) {
-      // Reuse in-flight refresh if another request triggered it concurrently
-      if (!_refreshPromise) {
-        _refreshPromise = this.tryRefresh(refreshToken);
+    const method = (options.method || 'GET').toUpperCase();
+    if (!SAFE_METHODS.has(method)) {
+      let csrf = readCsrfCookie();
+      if (!csrf) {
+        csrf = await this.fetchCsrfToken();
       }
-      const newToken = await _refreshPromise;
-      _refreshPromise = null;
-      if (newToken) {
-        // Retry once with updated CSRF (cookie may have changed too)
-        if (!SAFE_METHODS.has(method)) {
-          const csrf = readCsrfCookie();
-          if (csrf) headers['X-CSRF-Token'] = csrf;
+      if (csrf) headers['X-CSRF-Token'] = csrf;
+    }
+
+    const doFetch = () =>
+      fetch(`${API_BASE_URL}${endpoint}`, {
+        ...options,
+        headers,
+        credentials: 'include',
+      });
+
+    let res = await doFetch();
+
+    // Capture CSRF token echoed by server on auth operations
+    const responseCsrf = res.headers.get('X-CSRF-Token');
+    if (responseCsrf) {
+      saveCsrfToken(responseCsrf);
+    }
+
+    // Auto-heal CSRF mismatch or missing token and retry once
+    if (res.status === 403 && !SAFE_METHODS.has(method)) {
+      const errorBody: any = await res.clone().json().catch(() => ({}));
+      if (errorBody.code === 'CSRF_MISSING' || errorBody.code === 'CSRF_MISMATCH' || errorBody.error?.includes('CSRF')) {
+        const freshCsrf = await this.fetchCsrfToken();
+        if (freshCsrf) {
+          headers['X-CSRF-Token'] = freshCsrf;
+          res = await doFetch();
+          const retryCsrf = res.headers.get('X-CSRF-Token');
+          if (retryCsrf) saveCsrfToken(retryCsrf);
         }
-        res = await doFetch();
       }
     }
 
-    // If still 401 or no refresh token → handle session invalidation
+    // H-16: On 401, attempt token refresh then retry original request once
     if (res.status === 401) {
-      setStoredRefreshToken(null);
-      
-      const isAuthCheck = endpoint.startsWith('/api/auth/me') ||
-        endpoint.startsWith('/api/auth/refresh') ||
-        endpoint.startsWith('/api/auth/login') ||
-        endpoint.startsWith('/api/auth/member-login') ||
-        endpoint.startsWith('/api/auth/forgot-password') ||
-        endpoint.startsWith('/api/auth/reset-password') ||
-        endpoint.startsWith('/api/auth/portal');
+      const refreshToken = getStoredRefreshToken();
+      if (refreshToken) {
+        // Reuse in-flight refresh if another request triggered it concurrently
+        if (!_refreshPromise) {
+          _refreshPromise = this.tryRefresh(refreshToken);
+        }
+        const newToken = await _refreshPromise;
+        _refreshPromise = null;
+        if (newToken) {
+          // Retry once with updated CSRF (cookie may have changed too)
+          if (!SAFE_METHODS.has(method)) {
+            const csrf = readCsrfCookie();
+            if (csrf) headers['X-CSRF-Token'] = csrf;
+          }
+          res = await doFetch();
+        }
+      }
 
-      const isPublicPath = typeof window !== 'undefined' && (
-        window.location.pathname === '/' ||
-        window.location.pathname === '/login' ||
-        window.location.pathname.startsWith('/reset-password') ||
-        window.location.pathname.startsWith('/about') ||
-        window.location.pathname.startsWith('/contact') ||
-        window.location.pathname.startsWith('/terms') ||
-        window.location.pathname.startsWith('/privacy')
-      );
+      // If still 401 or no refresh token → handle session invalidation
+      if (res.status === 401) {
+        setStoredRefreshToken(null);
+        
+        const isAuthCheck = endpoint.startsWith('/api/auth/me') ||
+          endpoint.startsWith('/api/auth/csrf') ||
+          endpoint.startsWith('/api/auth/refresh') ||
+          endpoint.startsWith('/api/auth/login') ||
+          endpoint.startsWith('/api/auth/member-login') ||
+          endpoint.startsWith('/api/auth/forgot-password') ||
+          endpoint.startsWith('/api/auth/reset-password') ||
+          endpoint.startsWith('/api/auth/portal');
 
-      // Only force window redirect to /login if user was on a protected internal route
-      // and their session truly expired. <ProtectedRoute> handles standard navigation guards.
-      if (!isAuthCheck && !isPublicPath && typeof window !== 'undefined') {
-        window.location.href = '/login';
+        const isPublicPath = typeof window !== 'undefined' && (
+          window.location.pathname === '/' ||
+          window.location.pathname === '/login' ||
+          window.location.pathname.startsWith('/reset-password') ||
+          window.location.pathname.startsWith('/about') ||
+          window.location.pathname.startsWith('/contact') ||
+          window.location.pathname.startsWith('/terms') ||
+          window.location.pathname.startsWith('/privacy')
+        );
+
+        // Only force window redirect to /login if user was on a protected internal route
+        // and their session truly expired. <ProtectedRoute> handles standard navigation guards.
+        if (!isAuthCheck && !isPublicPath && typeof window !== 'undefined') {
+          window.location.href = '/login';
+        }
       }
     }
+
+    const data: any = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      const error = new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
+      Object.assign(error, data);
+      throw error;
+    }
+
+    return data as T;
   }
-
-  const data: any = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    const error = new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
-    Object.assign(error, data);
-    throw error;
-  }
-
-  return data as T;
-}
 
   // H-16: Sliding-window refresh — returns new access token or null on failure.
   // Uses the stored refresh token from sessionStorage; on success the new refresh
@@ -208,6 +248,8 @@ class ApiClient {
       const data: any = await res.json().catch(() => ({}));
       if (!data.token) return null;
       if (data.refreshToken) setStoredRefreshToken(data.refreshToken);
+      const csrf = res.headers.get('X-CSRF-Token');
+      if (csrf) saveCsrfToken(csrf);
       return data.token as string;
     } catch {
       return null;
@@ -223,6 +265,8 @@ class ApiClient {
       credentials: 'include',
       body: JSON.stringify(payload),
     });
+    const csrf = res.headers.get('X-CSRF-Token');
+    if (csrf) saveCsrfToken(csrf);
     const data: any = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
     // H-16: Persist refresh token for token-refresh interceptor
@@ -247,8 +291,9 @@ class ApiClient {
   }
 
   async logout(): Promise<{ success: boolean }> {
-    // Bypass interceptor — clear stored refresh token then hit logout
+    // Bypass interceptor — clear stored refresh token and CSRF then hit logout
     setStoredRefreshToken(null);
+    saveCsrfToken(null);
     const res = await fetch(`${API_BASE_URL}/api/auth/logout`, {
       method: 'POST',
       credentials: 'include',

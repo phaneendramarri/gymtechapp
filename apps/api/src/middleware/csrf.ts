@@ -36,6 +36,7 @@ const CSRF_EXEMPT_PATHS = [
   '/api/auth/logout',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
+  '/api/auth/csrf',
   '/api/health',
   '/',
 ];
@@ -60,6 +61,13 @@ export const csrfMiddleware: MiddlewareHandler<{ Bindings: AppEnv; Variables: Va
   // Skip CSRF for non-cookie endpoints entirely.
   const path = c.req.path;
   if (CSRF_EXEMPT_PATHS.some((p) => path === p || path.startsWith(p + '/'))) {
+    return next();
+  }
+
+  // If request uses Bearer token authorization header, CSRF is not applicable
+  // because browsers do not auto-attach Authorization headers cross-origin.
+  const authHeader = c.req.header('Authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
     return next();
   }
 
