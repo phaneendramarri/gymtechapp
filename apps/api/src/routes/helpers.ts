@@ -117,11 +117,36 @@ export function jsonErr(message: string, status = 400, extra?: object | string):
   });
 }
 
-export function jsonOk(data: any, status = 200, extraHeaders?: HeadersInit): Response {
+export function jsonOk(
+  data: any,
+  status = 200,
+  extraHeaders?: HeadersInit | Record<string, string | string[]>,
+  cookies?: string[]
+): Response {
   const headers = new Headers({ 'Content-Type': 'application/json' });
   if (extraHeaders) {
-    const extra = new Headers(extraHeaders);
-    extra.forEach((value, key) => headers.append(key, value));
+    if (Array.isArray(extraHeaders)) {
+      for (const [key, value] of extraHeaders) {
+        headers.append(key, value);
+      }
+    } else if (extraHeaders instanceof Headers) {
+      extraHeaders.forEach((value, key) => headers.append(key, value));
+    } else {
+      for (const [key, value] of Object.entries(extraHeaders)) {
+        if (Array.isArray(value)) {
+          for (const v of value) {
+            headers.append(key, v);
+          }
+        } else if (value !== undefined && value !== null) {
+          headers.append(key, String(value));
+        }
+      }
+    }
+  }
+  if (cookies) {
+    for (const c of cookies) {
+      headers.append('Set-Cookie', c);
+    }
   }
   return new Response(JSON.stringify(data), { status, headers });
 }

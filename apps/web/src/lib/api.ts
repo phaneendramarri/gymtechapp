@@ -55,15 +55,32 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
  */
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
+let _memoryCsrfToken: string | null = null;
+
 /**
  * Read the `gym_csrf` non-httpOnly cookie value. Used for the
  * double-submit CSRF pattern: the web app reads the cookie and echoes it
  * as the `X-CSRF-Token` header on every non-safe request.
+ * Falls back to in-memory / sessionStorage token if cookie is not yet parsed.
  */
 function readCsrfCookie(): string | null {
-  if (typeof document === 'undefined') return null;
-  const match = document.cookie.match(/(?:^|;\s*)gym_csrf=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+  if (typeof document !== 'undefined') {
+    const match = document.cookie.match(/(?:^|;\s*)gym_csrf=([^;]+)/);
+    if (match) return decodeURIComponent(match[1]);
+  }
+  if (_memoryCsrfToken) return _memoryCsrfToken;
+  if (typeof sessionStorage !== 'undefined') {
+    return sessionStorage.getItem('gymtech_csrf_token');
+  }
+  return null;
+}
+
+function saveCsrfToken(token: string | null): void {
+  _memoryCsrfToken = token;
+  if (typeof sessionStorage !== 'undefined') {
+    if (token) sessionStorage.setItem('gymtech_csrf_token', token);
+    else sessionStorage.removeItem('gymtech_csrf_token');
+  }
 }
 
 /**
@@ -108,6 +125,12 @@ class ApiClient {
     });
 
   let res = await doFetch();
+
+  // Capture CSRF token echoed by server on auth operations
+  const responseCsrf = res.headers.get('X-CSRF-Token');
+  if (responseCsrf) {
+    saveCsrfToken(responseCsrf);
+  }
 
   // H-16: On 401, attempt token refresh then retry original request once
   if (res.status === 401) {

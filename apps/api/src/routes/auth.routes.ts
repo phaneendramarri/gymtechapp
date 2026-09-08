@@ -74,7 +74,7 @@ authRoutes.post('/login', safeHandler(async (c) => {
       'Set-Cookie': [
         buildSessionCookie(res.token, ctx.env.APP_ENV),
         buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ].join(', '),
+      ],
       'X-CSRF-Token': csrf,
     });
   } catch (e: any) {
@@ -127,7 +127,7 @@ authRoutes.post('/platform-login', safeHandler(async (c) => {
       'Set-Cookie': [
         buildSessionCookie(res.token, ctx.env.APP_ENV),
         buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ].join(', '),
+      ],
       'X-CSRF-Token': csrf,
     });
   } catch (e: any) {
@@ -139,7 +139,17 @@ authRoutes.get('/me', requireAuth, safeHandler(async (c) => {
   const ctx = getCtx(c);
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const res = await authService.getCurrentUser(ctx.user!);
-  return jsonOk(res);
+
+  // Ensure client always has a valid CSRF token in cookie & header on every session verify
+  const existingCsrf = readCookie(c.req.header('Cookie'), COOKIE_NAMES.CSRF);
+  const csrf = existingCsrf || generateCsrfToken();
+
+  return jsonOk(res, 200, {
+    'Set-Cookie': [
+      buildCsrfCookie(csrf, ctx.env.APP_ENV),
+    ],
+    'X-CSRF-Token': csrf,
+  });
 }));
 
 /**
@@ -167,7 +177,7 @@ authRoutes.post('/refresh', safeHandler(async (c) => {
       'Set-Cookie': [
         buildSessionCookie(result.token, ctx.env.APP_ENV),
         buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ].join(', '),
+      ],
       'X-CSRF-Token': csrf,
     }
   );
@@ -327,7 +337,7 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
       'Set-Cookie': [
         buildSessionCookie(token, ctx.env.APP_ENV),
         buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ].join(', '),
+      ],
       'X-CSRF-Token': csrf,
     }
   );
@@ -401,7 +411,7 @@ authRoutes.post('/logout', safeHandler(async (c) => {
         buildClearSessionCookie(ctx.env.APP_ENV),
         // CSRF cookie: clear by setting Max-Age=0
         buildCsrfCookie('', ctx.env.APP_ENV).replace(/Max-Age=\d+/, 'Max-Age=0'),
-      ].join(', '),
+      ],
     }
   );
 }));
