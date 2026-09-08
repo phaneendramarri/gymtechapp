@@ -57,9 +57,12 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
       header: 'Receipt No',
       sortAccessor: (p) => p.receiptNumber,
       cell: (p) => (
-        <span className="font-mono font-bold text-xs text-foreground group-hover:text-primary transition-colors">
+        <button
+          onClick={() => onOpenInvoice(p.id)}
+          className="font-mono font-bold text-xs text-primary hover:underline transition-colors text-left"
+        >
           {p.receiptNumber}
-        </span>
+        </button>
       ),
     },
     {
@@ -74,22 +77,30 @@ export const PaymentTable: React.FC<PaymentTableProps> = ({
     },
     {
       id: 'member',
-      header: 'Member',
+      header: 'Customer / Member',
       sortAccessor: (p) => `${p.firstName} ${p.lastName || ''}`.toLowerCase(),
-      cell: (p) => (
-        <div className="flex flex-col text-xs min-w-0">
-          <span className="font-semibold text-foreground truncate">
-            {p.firstName} {p.lastName || ''}
-          </span>
-          <span className="font-mono text-[10px] text-muted-foreground">
-            {p.memberCode} • {p.phone}
-          </span>
-        </div>
-      ),
+      cell: (p) => {
+        const initials = `${(p.firstName?.[0] || '').toUpperCase()}${(p.lastName?.[0] || '').toUpperCase()}` || 'M';
+        return (
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="size-8 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-[11px] shrink-0 font-mono">
+              {initials}
+            </div>
+            <div className="flex flex-col text-xs min-w-0">
+              <span className="font-semibold text-foreground truncate">
+                {p.firstName} {p.lastName || ''}
+              </span>
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {p.memberCode} {p.phone ? `• ${p.phone}` : ''}
+              </span>
+            </div>
+          </div>
+        );
+      },
     },
     {
       id: 'mode',
-      header: 'Mode',
+      header: 'Method',
       sortAccessor: (p) => p.paymentMode,
       cell: (p) => getModeBadge(p.paymentMode),
     },

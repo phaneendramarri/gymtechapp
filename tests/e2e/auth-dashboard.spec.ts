@@ -88,25 +88,25 @@ test.describe('Gym SaaS — Auth & Dashboard Workflows', () => {
   });
 
   test('loads landing page and navigates to sign in', async ({ page }) => {
-    await page.goto('/#/');
+    await page.goto('/');
     await expect(page).toHaveTitle(/GymTech/);
 
     const signInBtn = page.getByRole('banner').getByRole('link', { name: /Sign In/i });
     await expect(signInBtn).toBeVisible();
     await signInBtn.click();
 
-    await expect(page).toHaveURL(/#\/login/);
+    await expect(page).toHaveURL(/\/login/);
     await expect(page.getByText('Sign In to GymTech')).toBeVisible();
   });
 
   test('logs in successfully as gym owner and views dashboard metrics', async ({ page }) => {
-    await page.goto('/#/login');
+    await page.goto('/login');
 
     await page.fill('#email', 'admin@ironhouse.in');
     await page.fill('#password', 'admin123');
     await page.click('button[type="submit"]');
 
-    await expect(page).toHaveURL(/#\/dashboard/);
+    await expect(page).toHaveURL(/\/dashboard/);
     await expect(page.getByText(/Iron House Fitness/i).first()).toBeVisible();
 
     // Verify KPI metric cards
@@ -120,7 +120,7 @@ test.describe('Gym SaaS — Auth & Dashboard Workflows', () => {
   });
 
   test('toggles theme between light and dark mode', async ({ page }) => {
-    await page.goto('/#/login');
+    await page.goto('/login');
 
     const themeToggle = page.getByRole('button', { name: /toggle theme/i });
     await expect(themeToggle).toBeVisible();

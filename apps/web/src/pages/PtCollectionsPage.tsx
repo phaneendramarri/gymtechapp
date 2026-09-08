@@ -191,8 +191,8 @@ export const PtCollectionsPage: React.FC = () => {
                     <TableCell className="font-medium text-xs">{t.trainerName}</TableCell>
                     <TableCell className="text-right font-mono text-xs">{t.collections}</TableCell>
                     <TableCell className="text-right font-mono text-xs">{formatCurrency(t.collected)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-warn">{formatCurrency(t.commissionPending)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs text-ok">{formatCurrency(t.commissionPaid)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-amber-600 dark:text-amber-400">{formatCurrency(t.commissionPending)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs text-emerald-600 dark:text-emerald-400">{formatCurrency(t.commissionPaid)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>

@@ -257,7 +257,7 @@ test.describe('Visual Inspection Pass', () => {
   test('captures screenshots of major application screens', async ({ page }) => {
     test.setTimeout(60000);
     // Landing Page Screenshot (Light)
-    await page.goto('/#/');
+    await page.goto('/');
     await expect(page.getByRole('banner')).toBeVisible();
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(400);
@@ -281,43 +281,43 @@ test.describe('Visual Inspection Pass', () => {
     }
 
     // Dashboard Screenshot
-    await page.goto('/#/dashboard');
+    await page.goto('/dashboard');
     await expect(page.getByText(/Iron House Fitness/i).first()).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(artifactDir, 'screen_dashboard.png'), fullPage: true });
 
     // Members Directory Screenshot
-    await page.goto('/#/members');
+    await page.goto('/members');
     await expect(page.getByText('Rahul Sharma').first()).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(artifactDir, 'screen_members.png'), fullPage: true });
 
     // Payments & Dues Ledger Screenshot
-    await page.goto('/#/payments');
+    await page.goto('/payments');
     await expect(page.getByText('RCP-2026-0001').first()).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(artifactDir, 'screen_payments.png'), fullPage: true });
 
     // Attendance & Kiosk Terminal Screenshot
-    await page.goto('/#/attendance');
+    await page.goto('/attendance');
     await expect(page.getByText('Fast Check-In Terminal').first()).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(artifactDir, 'screen_attendance.png'), fullPage: true });
 
     // Plans Catalog Screenshot
-    await page.goto('/#/plans');
+    await page.goto('/plans');
     await expect(page.getByText('Annual Strength Pro').first()).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(artifactDir, 'screen_plans.png'), fullPage: true });
 
     // Staff & Team Access Screenshot
-    await page.goto('/#/staff');
+    await page.goto('/staff');
     await expect(page.getByText('Vikram Rathore').first()).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(artifactDir, 'screen_staff.png'), fullPage: true });
 
     // Notification & SMTP Configurable Block Screenshot
-    await page.goto('/#/settings/notifications');
+    await page.goto('/settings/notifications');
     await expect(page.getByText(/Email Delivery & Sender Account/i).first()).toBeVisible();
     await page.waitForTimeout(500);
     await page.screenshot({ path: path.join(artifactDir, 'screen_smtp_settings.png'), fullPage: true });

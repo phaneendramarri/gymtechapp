@@ -318,7 +318,7 @@ export function DataTable<T>({
                 <tr>
                   <td colSpan={totalColCount} className="gt-table-td">
                     {emptyState ?? (
-                      <div className="py-10 text-center text-meta font-mono">
+                      <div className="py-10 text-center text-muted-foreground font-mono">
                         No results.
                       </div>
                     )}

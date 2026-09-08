@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/shared/TurnstileWidget';
 import {
   ArrowRight,
@@ -394,8 +394,8 @@ export const LoginPage: React.FC = () => {
               </Button>
             </form>
 
-            <p className="text-[11px] text-ink-3 mt-6 leading-relaxed">
-              By continuing you agree to GymTech's <a href="/" className="underline underline-offset-2 hover:text-ink-2">Terms</a> and <a href="/" className="underline underline-offset-2 hover:text-ink-2">Privacy</a>.
+            <p className="text-[11px] text-muted-foreground mt-6 leading-relaxed">
+              By continuing you agree to GymTech's <Link to="/terms" className="underline underline-offset-2 hover:text-foreground">Terms</Link> and <Link to="/privacy" className="underline underline-offset-2 hover:text-foreground">Privacy</Link>.
             </p>
           </div>
         </section>

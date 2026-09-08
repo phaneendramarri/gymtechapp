@@ -136,7 +136,7 @@ export const CommunicationsPage: React.FC = () => {
                       <TableCell colSpan={6} className="py-16 text-center text-xs text-muted-foreground">
                         <div className="flex flex-col items-center justify-center gap-2">
                           <MessageSquare className="h-8 w-8 text-muted-foreground/40" />
-                          <p className="font-medium text-ink">No communication records found</p>
+                          <p className="font-medium text-foreground">No communication records found</p>
                           <p className="text-xs text-muted-foreground">Dispatched SMS and WhatsApp receipts will appear here.</p>
                         </div>
                       </TableCell>

@@ -211,7 +211,7 @@ export const RolesManagementPage: React.FC = () => {
             value={filterGymId ? String(filterGymId) : 'all'}
             onValueChange={(v) => setFilterGymId(v === 'all' ? undefined : Number(v))}
           >
-            <SelectTrigger className="w48">
+            <SelectTrigger className="w-48">
               <SelectValue placeholder="All gyms" />
             </SelectTrigger>
             <SelectContent>

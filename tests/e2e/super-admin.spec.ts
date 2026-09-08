@@ -94,7 +94,7 @@ test.describe('Gym SaaS — Super Admin Portal', () => {
   });
 
   test('loads Super Admin portal and views platform metrics and tenant gyms', async ({ page }) => {
-    await page.goto('/#/admin');
+    await page.goto('/admin');
 
     await expect(page.getByText('Platform Administration')).toBeVisible();
     await expect(page.getByText('14').first()).toBeVisible(); // Total gyms
@@ -106,7 +106,7 @@ test.describe('Gym SaaS — Super Admin Portal', () => {
   });
 
   test('provisions a new gym and owner account via wizard', async ({ page }) => {
-    await page.goto('/#/admin');
+    await page.goto('/admin');
 
     await page.fill('#gName', 'Metro Fitness Club');
     await page.fill('#gPhone', '9876500000');

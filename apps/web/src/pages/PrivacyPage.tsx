@@ -2,20 +2,24 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Shield } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 
 export const PrivacyPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-(--bg)">
       {/* Header */}
       <header className="border-b border-(--border) bg-(--surface)">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="size-4" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="font-display text-lg font-semibold text-(--fg)">Privacy Policy</h1>
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="size-4" />
+                Back
+              </Button>
+            </Link>
+            <h1 className="font-display text-lg font-semibold text-(--fg)">Privacy Policy</h1>
+          </div>
+          <ThemeToggle />
         </div>
       </header>
 

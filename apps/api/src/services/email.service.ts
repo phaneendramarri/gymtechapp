@@ -143,43 +143,59 @@ export class EmailService {
     name: string;
     token: string;
   }): Promise<{ success: boolean; resetUrl: string }> {
-    const resetUrl = `${this.appUrl}/#/reset-password?token=${params.token}`;
+    // Canonical path-based reset URL for standard BrowserRouter
+    const resetUrl = `${this.appUrl.replace(/\/+$/, '')}/reset-password?token=${params.token}`;
 
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Your GymTech Password</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 20px; }
-    .container { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; padding: 32px; }
-    .header { text-align: center; margin-bottom: 24px; }
-    .logo { font-size: 24px; font-weight: 800; color: #00C96E; letter-spacing: -0.5px; }
-    .title { font-size: 18px; font-weight: 700; color: #1e293b; margin-top: 16px; margin-bottom: 8px; }
-    .desc { font-size: 14px; color: #64748b; line-height: 1.6; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #0f172a; margin: 0; padding: 40px 16px; color: #f8fafc; }
+    .wrapper { max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4); }
+    .header { padding: 32px 32px 20px; text-align: center; border-bottom: 1px solid #334155; }
+    .logo-container { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+    .logo-badge { background-color: #D9480F; color: #ffffff; font-weight: 800; font-size: 16px; border-radius: 8px; width: 34px; height: 34px; line-height: 34px; text-align: center; }
+    .brand-name { font-size: 22px; font-weight: 700; color: #f8fafc; letter-spacing: -0.5px; }
+    .content { padding: 32px; }
+    .heading { font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 16px; letter-spacing: -0.3px; }
+    .text { font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 16px; }
     .btn-container { text-align: center; margin: 28px 0; }
-    .btn { display: inline-block; background-color: #00C96E; color: #021b13; font-weight: 700; font-size: 14px; padding: 12px 28px; text-decoration: none; border-radius: 6px; }
-    .link-alt { font-size: 12px; color: #94a3b8; word-break: break-all; margin-top: 20px; }
-    .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+    .btn { display: inline-block; background-color: #D9480F; color: #ffffff !important; font-weight: 600; font-size: 14px; padding: 13px 32px; text-decoration: none; border-radius: 8px; box-shadow: 0 4px 12px rgba(217, 72, 15, 0.35); }
+    .alert-box { background: rgba(217, 72, 15, 0.1); border: 1px solid rgba(217, 72, 15, 0.25); border-radius: 8px; padding: 12px 16px; margin: 24px 0 16px; font-size: 12px; color: #fdba74; line-height: 1.5; }
+    .link-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; margin-top: 20px; font-size: 11px; color: #64748b; word-break: break-all; font-family: monospace; }
+    .link-box a { color: #f97316; text-decoration: none; }
+    .footer { padding: 20px 32px; background: #0f172a; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #334155; }
   </style>
 </head>
 <body>
-  <div class="container">
+  <div class="wrapper">
     <div class="header">
-      <div class="logo">GymTech</div>
-      <div class="title">Reset Your Password</div>
+      <div class="logo-container">
+        <span class="logo-badge">GT</span>
+        <span class="brand-name">GymTech</span>
+      </div>
     </div>
-    <p class="desc">Hello ${params.name},</p>
-    <p class="desc">We received a request to reset the password for your GymTech account. Click the button below to choose a new password. This link is valid for 1 hour.</p>
-    <div class="btn-container">
-      <a href="${resetUrl}" class="btn">Reset Password</a>
-    </div>
-    <p class="desc">If you did not request a password reset, you can safely ignore this email. Your password will remain unchanged.</p>
-    <div class="link-alt">
-      Or copy this link: <a href="${resetUrl}">${resetUrl}</a>
+    <div class="content">
+      <h1 class="heading">Reset your password</h1>
+      <p class="text">Hello ${params.name || 'there'},</p>
+      <p class="text">We received a request to reset your password for your GymTech account. Click the button below to choose a secure new password.</p>
+      <div class="btn-container">
+        <a href="${resetUrl}" class="btn">Reset Password</a>
+      </div>
+      <div class="alert-box">
+        <strong>Security Notice:</strong> This password reset link is valid for <strong>60 minutes</strong>. If you did not make this request, you can safely ignore this email — your account remains secure.
+      </div>
+      <div class="link-box">
+        If the button above does not work, copy and paste this URL into your browser:<br>
+        <a href="${resetUrl}">${resetUrl}</a>
+      </div>
     </div>
     <div class="footer">
-      &copy; ${new Date().getFullYear()} GymTech. All rights reserved.
+      &copy; ${new Date().getFullYear()} GymTech Cloud &bull; Intelligent Gym Operations
     </div>
   </div>
 </body>
@@ -188,7 +204,7 @@ export class EmailService {
 
     await this.sendEmail({
       to: params.to,
-      subject: 'GymTech — Password Reset Request',
+      subject: 'GymTech — Reset Your Password',
       html,
     });
 
@@ -198,27 +214,37 @@ export class EmailService {
   async sendPasswordResetConfirmation(params: { to: string; name: string }): Promise<void> {
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 20px; }
-    .container { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; padding: 32px; }
-    .logo { font-size: 24px; font-weight: 800; color: #00C96E; }
-    .title { font-size: 18px; font-weight: 700; color: #1e293b; margin-top: 16px; margin-bottom: 8px; }
-    .desc { font-size: 14px; color: #64748b; line-height: 1.6; }
-    .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; margin: 0; padding: 40px 16px; color: #f8fafc; }
+    .wrapper { max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; }
+    .header { padding: 32px 32px 20px; text-align: center; border-bottom: 1px solid #334155; }
+    .logo-badge { background-color: #D9480F; color: #ffffff; font-weight: 800; font-size: 16px; border-radius: 8px; display: inline-block; width: 34px; height: 34px; line-height: 34px; text-align: center; }
+    .brand-name { font-size: 22px; font-weight: 700; color: #f8fafc; margin-left: 6px; }
+    .content { padding: 32px; }
+    .heading { font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 16px; }
+    .text { font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 16px; }
+    .badge-ok { display: inline-block; background: rgba(16, 185, 129, 0.15); color: #34d399; font-weight: 700; font-size: 12px; padding: 6px 14px; border-radius: 6px; border: 1px solid rgba(16, 185, 129, 0.3); margin-bottom: 16px; }
+    .footer { padding: 20px 32px; background: #0f172a; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #334155; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="logo">GymTech</div>
-    <div class="title">Password Changed Successfully</div>
-    <p class="desc">Hi ${params.name},</p>
-    <p class="desc">Your GymTech account password was just updated. You can now sign in with your new credentials.</p>
-    <p class="desc">If you did not make this change, please reach out to your administrator immediately.</p>
+  <div class="wrapper">
+    <div class="header">
+      <span class="logo-badge">GT</span>
+      <span class="brand-name">GymTech</span>
+    </div>
+    <div class="content">
+      <span class="badge-ok">✓ PASSWORD UPDATED</span>
+      <h1 class="heading">Password changed successfully</h1>
+      <p class="text">Hi ${params.name || 'there'},</p>
+      <p class="text">Your GymTech account password was just updated. You can now sign in using your new password.</p>
+      <p class="text" style="color: #f87171;">If you did not perform this change, please contact your gym manager or platform administrator immediately to secure your account.</p>
+    </div>
     <div class="footer">
-      &copy; ${new Date().getFullYear()} GymTech.
+      &copy; ${new Date().getFullYear()} GymTech Cloud
     </div>
   </div>
 </body>
@@ -241,31 +267,37 @@ export class EmailService {
   }): Promise<void> {
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 20px; }
-    .container { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; padding: 32px; }
-    .logo { font-size: 24px; font-weight: 800; color: #00C96E; }
-    .title { font-size: 20px; font-weight: 700; color: #1e293b; margin-top: 16px; }
-    .badge { display: inline-block; background: #ecfdf5; color: #047857; font-family: monospace; font-size: 14px; font-weight: 700; padding: 6px 14px; border-radius: 4px; margin: 16px 0; border: 1px solid #a7f3d0; }
-    .desc { font-size: 14px; color: #64748b; line-height: 1.6; }
-    .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; margin: 0; padding: 40px 16px; color: #f8fafc; }
+    .wrapper { max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; }
+    .header { padding: 32px 32px 20px; text-align: center; border-bottom: 1px solid #334155; }
+    .brand-name { font-size: 22px; font-weight: 700; color: #D9480F; }
+    .content { padding: 32px; }
+    .heading { font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 16px; }
+    .badge { display: inline-block; background: rgba(217, 72, 15, 0.15); color: #f97316; font-family: monospace; font-size: 16px; font-weight: 700; padding: 8px 18px; border-radius: 8px; margin: 16px 0; border: 1px solid rgba(217, 72, 15, 0.3); }
+    .text { font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 16px; }
+    .footer { padding: 20px 32px; background: #0f172a; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #334155; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="logo">${params.gymName}</div>
-    <div class="title">Welcome to the Club, ${params.name}! 💪</div>
-    <p class="desc">Your membership has been activated successfully under the <strong>${params.planName}</strong> plan.</p>
-    <p class="desc">Your Fast Check-In Member Code:</p>
-    <div>
-      <span class="badge">${params.memberCode}</span>
+  <div class="wrapper">
+    <div class="header">
+      <div class="brand-name">${params.gymName}</div>
     </div>
-    <p class="desc">Use this code or your phone number at the wall tablet terminal for instant desk check-in.</p>
+    <div class="content">
+      <h1 class="heading">Welcome to the Club, ${params.name}! 💪</h1>
+      <p class="text">Your membership has been activated under the <strong>${params.planName}</strong> plan.</p>
+      <p class="text">Your Fast Check-In Member Code:</p>
+      <div>
+        <span class="badge">${params.memberCode}</span>
+      </div>
+      <p class="text">Use this code or your phone number at the desk or scan terminal for instant check-in.</p>
+    </div>
     <div class="footer">
-      Powered by GymTech &bull; ${params.gymName}
+      Powered by GymTech Cloud &bull; ${params.gymName}
     </div>
   </div>
 </body>
@@ -289,34 +321,40 @@ export class EmailService {
   }): Promise<void> {
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 20px; }
-    .container { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; padding: 32px; }
-    .logo { font-size: 22px; font-weight: 800; color: #00C96E; }
-    .title { font-size: 18px; font-weight: 700; color: #1e293b; margin-top: 16px; }
-    .receipt-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 18px; margin: 20px 0; }
-    .amount { font-size: 26px; font-weight: 800; color: #0f172a; }
-    .meta { font-size: 12px; color: #64748b; margin-top: 4px; font-family: monospace; }
-    .desc { font-size: 14px; color: #64748b; line-height: 1.6; }
-    .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 32px; border-top: 1px solid #f1f5f9; padding-top: 16px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; margin: 0; padding: 40px 16px; color: #f8fafc; }
+    .wrapper { max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; }
+    .header { padding: 32px 32px 20px; text-align: center; border-bottom: 1px solid #334155; }
+    .brand-name { font-size: 22px; font-weight: 700; color: #D9480F; }
+    .content { padding: 32px; }
+    .heading { font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 16px; }
+    .receipt-box { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 20px; margin: 20px 0; text-align: center; }
+    .amount { font-size: 28px; font-weight: 800; color: #ffffff; font-family: monospace; }
+    .meta { font-size: 12px; color: #94a3b8; margin-top: 6px; font-family: monospace; }
+    .text { font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 16px; }
+    .footer { padding: 20px 32px; background: #0f172a; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #334155; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="logo">${params.gymName}</div>
-    <div class="title">Payment Receipt Verified 🧾</div>
-    <p class="desc">Hello ${params.name},</p>
-    <p class="desc">Thank you for your payment. Here are your transaction details:</p>
-    <div class="receipt-box">
-      <div class="amount">₹${params.amount.toLocaleString('en-IN')}</div>
-      <div class="meta">Receipt No: ${params.receiptNumber} &bull; Mode: ${params.paymentMode}</div>
+  <div class="wrapper">
+    <div class="header">
+      <div class="brand-name">${params.gymName}</div>
     </div>
-    <p class="desc">This digital receipt serves as confirmation of your membership fee payment.</p>
+    <div class="content">
+      <h1 class="heading">Payment Receipt Verified 🧾</h1>
+      <p class="text">Hello ${params.name},</p>
+      <p class="text">Thank you for your payment. Here are your verified transaction details:</p>
+      <div class="receipt-box">
+        <div class="amount">₹${params.amount.toLocaleString('en-IN')}</div>
+        <div class="meta">Receipt No: ${params.receiptNumber} &bull; Mode: ${params.paymentMode}</div>
+      </div>
+      <p class="text">This digital receipt confirms your payment on record.</p>
+    </div>
     <div class="footer">
-      Issued by ${params.gymName} via GymTech
+      Issued by ${params.gymName} via GymTech Cloud
     </div>
   </div>
 </body>
@@ -341,31 +379,37 @@ export class EmailService {
   }): Promise<{ success: boolean; message: string }> {
     const html = `
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
   <meta charset="utf-8">
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f8fafc; margin: 0; padding: 40px 20px; }
-    .container { max-width: 540px; margin: 0 auto; background: #ffffff; border-radius: 8px; border: 1px solid #e2e8f0; padding: 32px; }
-    .logo { font-size: 22px; font-weight: 800; color: #10B981; }
-    .badge { display: inline-block; background: #ecfdf5; color: #047857; font-family: monospace; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; margin: 12px 0; border: 1px solid #a7f3d0; }
-    .title { font-size: 18px; font-weight: 700; color: #1e293b; margin-top: 12px; }
-    .desc { font-size: 14px; color: #64748b; line-height: 1.6; }
-    .details { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 14px; margin: 16px 0; font-family: monospace; font-size: 12px; color: #334155; }
-    .footer { font-size: 12px; color: #94a3b8; text-align: center; margin-top: 28px; border-top: 1px solid #f1f5f9; padding-top: 14px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0f172a; margin: 0; padding: 40px 16px; color: #f8fafc; }
+    .wrapper { max-width: 520px; margin: 0 auto; background: #1e293b; border-radius: 12px; border: 1px solid #334155; overflow: hidden; }
+    .header { padding: 32px 32px 20px; text-align: center; border-bottom: 1px solid #334155; }
+    .brand-name { font-size: 22px; font-weight: 700; color: #D9480F; }
+    .content { padding: 32px; }
+    .badge { display: inline-block; background: rgba(16, 185, 129, 0.15); color: #34d399; font-family: monospace; font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 4px; margin-bottom: 12px; border: 1px solid rgba(16, 185, 129, 0.3); }
+    .heading { font-size: 20px; font-weight: 700; color: #ffffff; margin: 0 0 12px; }
+    .text { font-size: 14px; color: #94a3b8; line-height: 1.6; margin: 0 0 16px; }
+    .details { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 14px; margin: 16px 0; font-family: monospace; font-size: 12px; color: #cbd5e1; }
+    .footer { padding: 20px 32px; background: #0f172a; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #334155; }
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="logo">${params.gymName || 'GymTech'}</div>
-    <div><span class="badge">SMTP CONNECTION VERIFIED ✓</span></div>
-    <div class="title">Test Email Successful! 🎉</div>
-    <p class="desc">Your custom email server relay is configured properly. Automated receipts, membership expiry reminders, and reset links will now dispatch through your configured mail server.</p>
-    <div class="details">
-      <div><strong>Relay Host:</strong> ${params.smtpHost || 'Standard Relay'}</div>
-      <div><strong>Port:</strong> ${params.smtpPort}</div>
-      <div><strong>Provider:</strong> ${params.provider}</div>
-      <div><strong>Dispatched At:</strong> ${new Date().toUTCString()}</div>
+  <div class="wrapper">
+    <div class="header">
+      <div class="brand-name">${params.gymName || 'GymTech'}</div>
+    </div>
+    <div class="content">
+      <div><span class="badge">SMTP CONNECTION VERIFIED ✓</span></div>
+      <h1 class="heading">Test Email Successful! 🎉</h1>
+      <p class="text">Your custom email server relay is configured properly. Automated receipts, membership expiry reminders, and reset links will now dispatch through your configured mail server.</p>
+      <div class="details">
+        <div><strong>Relay Host:</strong> ${params.smtpHost || 'Standard Relay'}</div>
+        <div><strong>Port:</strong> ${params.smtpPort}</div>
+        <div><strong>Provider:</strong> ${params.provider}</div>
+        <div><strong>Dispatched At:</strong> ${new Date().toUTCString()}</div>
+      </div>
     </div>
     <div class="footer">
       Delivered by GymTech SMTP Engine &bull; ${params.gymName}

@@ -79,7 +79,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     setGym(null);
     setMenu([]);
-    window.location.hash = '/login';
+    window.location.href = '/login';
   };
 
   return (

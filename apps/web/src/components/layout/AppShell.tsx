@@ -58,7 +58,6 @@ export const AppShell: React.FC<AppShellProps> = ({
     return localStorage.getItem('gym_rail_collapsed') === 'true';
   });
   const [mobileOpen, setMobileOpen] = React.useState(false);
-  // Bump this to re-trigger title animation on route change
   const [titleKey, setTitleKey] = React.useState(location.pathname);
 
   const toggle = () => {
@@ -91,40 +90,26 @@ export const AppShell: React.FC<AppShellProps> = ({
       <div className="flex-1 flex flex-col min-w-0">
         <AppHeader
           gymName={gym?.name || 'GymTech'}
+          breadcrumbs={crumbs.length > 0 ? crumbs : undefined}
           onOpenMobileMenu={() => setMobileOpen(true)}
         />
 
-        <div className="flex-1 flex flex-col min-h-0">
-          {/* Page header — clean, horizontal layout */}
-          <header className="px-4 sm:px-6 lg:px-8 pt-6 pb-5 border-b border-border bg-card/30">
-            <div className="max-w-7xl mx-auto flex items-center justify-between gap-6">
-              <div className="min-w-0 flex-1">
-                {/* Breadcrumb */}
-                {crumbs.length > 0 && (
-                  <Breadcrumb className="mb-2">
-                    <BreadcrumbList>
-                      {crumbs.map((c, i) => {
-                        const isLast = i === crumbs.length - 1;
-                        return (
-                          <React.Fragment key={i}>
-                            <BreadcrumbItem>
-                              {c.href && !isLast ? (
-                                <BreadcrumbLink asChild>
-                                  <Link to={c.href}>{c.label}</Link>
-                                </BreadcrumbLink>
-                              ) : (
-                                <BreadcrumbPage>{c.label}</BreadcrumbPage>
-                              )}
-                            </BreadcrumbItem>
-                            {!isLast && <BreadcrumbSeparator />}
-                          </React.Fragment>
-                        );
-                      })}
-                    </BreadcrumbList>
-                  </Breadcrumb>
-                )}
-                {/* Title row */}
-                <div className="flex items-center gap-4">
+        <main
+          className={cn(
+            'flex-1 min-h-0',
+            flush ? 'overflow-x-auto' : ''
+          )}
+        >
+          <div
+            className={cn(
+              'max-w-7xl mx-auto w-full flex flex-col',
+              flush ? '' : 'px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
+            )}
+          >
+            {/* Page Header — Clean shadcn/ui title + actions row */}
+            {title && (
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 sm:mb-8 pb-4 border-b border-border/60">
+                <div className="min-w-0 flex-1">
                   <AnimatePresence mode="wait" initial={false}>
                     <motion.h1
                       key={titleKey}
@@ -132,43 +117,31 @@ export const AppShell: React.FC<AppShellProps> = ({
                       initial="initial"
                       animate="animate"
                       exit="exit"
-                      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                      transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
                       className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground leading-tight truncate"
                     >
                       {title}
                     </motion.h1>
                   </AnimatePresence>
-                  {actions && (
-                    <div className="flex items-center gap-2 shrink-0">{actions}</div>
+                  {description && (
+                    <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl leading-relaxed">
+                      {description}
+                    </p>
                   )}
                 </div>
-                {/* Description */}
-                {description && (
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-1 max-w-2xl truncate leading-relaxed">
-                    {description}
-                  </p>
+
+                {actions && (
+                  <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                    {actions}
+                  </div>
                 )}
               </div>
-            </div>
-          </header>
-
-          {/* Body */}
-          <main
-            className={cn(
-              'flex-1 min-h-0',
-              flush ? 'overflow-x-auto' : ''
             )}
-          >
-            <div
-              className={cn(
-                'max-w-7xl mx-auto w-full',
-                flush ? '' : 'px-4 sm:px-6 lg:px-8 py-6 sm:py-8'
-              )}
-            >
-              {children}
-            </div>
-          </main>
-        </div>
+
+            {/* Page Content Body */}
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );

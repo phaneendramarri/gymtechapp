@@ -71,11 +71,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
             <div className="flex flex-col min-w-0">
               <Link
                 to={`/members/${m.id}`}
-                className="text-sm font-medium text-ink hover:text-(--iron) transition-colors truncate"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors truncate"
               >
                 {m.firstName} {m.lastName || ''}
               </Link>
-              <span className="text-[10px] font-mono text-ink-3">{m.memberCode}</span>
+              <span className="text-[10px] font-mono text-muted-foreground">{m.memberCode}</span>
             </div>
           </div>
         )
@@ -87,8 +87,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       header: 'Contact',
       cell: (m) => (
         <div className="flex flex-col text-xs font-mono">
-          <span className="text-ink">{m.phone}</span>
-          {m.email && <span className="text-meta truncate">{m.email}</span>}
+          <span className="text-foreground">{m.phone}</span>
+          {m.email && <span className="text-muted-foreground truncate">{m.email}</span>}
         </div>
       ),
     },
@@ -101,14 +101,14 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
         const endDate = m.membershipEndDate || m.membership_end_date;
         const startDate = m.membershipStartDate || m.membership_start_date;
         if (!endDate) {
-          return <span className="text-xs text-meta">{planName || 'No plan'}</span>
+          return <span className="text-xs text-muted-foreground">{planName || 'No plan'}</span>
         }
         const isExpired = endDate < nowSec
         const daysRemaining = Math.ceil((endDate - nowSec) / 86400)
         return (
           <div className="flex flex-col gap-1 text-xs">
-            <span className="font-medium text-ink">{planName || 'No Plan'}</span>
-            <span className="text-[10px] font-mono text-ink-3">
+            <span className="font-medium text-foreground">{planName || 'No Plan'}</span>
+            <span className="text-[10px] font-mono text-muted-foreground">
               {startDate ? new Date(startDate * 1000).toLocaleDateString('en-IN') : '—'} → {new Date(endDate * 1000).toLocaleDateString('en-IN')}
             </span>
             {isExpired ? (
@@ -141,11 +141,11 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       cell: (m) => {
         const dues = m.membershipDueAmountPaise ?? m.membership_due_amount_paise ?? 0;
         return dues > 0 ? (
-          <span className="text-sm font-semibold text-(--danger)">
+          <span className="text-sm font-semibold text-destructive">
             {formatCurrency(dues)}
           </span>
         ) : (
-          <span className="text-meta">₹0</span>
+          <span className="text-muted-foreground">₹0</span>
         );
       },
     },

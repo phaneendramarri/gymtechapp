@@ -99,7 +99,7 @@ export const AuditLogsPage: React.FC = () => {
                     <TableCell colSpan={6} className="text-center py-16 text-muted-foreground text-xs">
                       <div className="flex flex-col items-center justify-center gap-2">
                         <History className="h-8 w-8 text-muted-foreground/50" />
-                        <p className="font-medium text-ink">No matching audit records found</p>
+                        <p className="font-medium text-foreground">No matching audit records found</p>
                         <p className="text-xs text-muted-foreground">Try clearing your search query or trigger an action.</p>
                       </div>
                     </TableCell>

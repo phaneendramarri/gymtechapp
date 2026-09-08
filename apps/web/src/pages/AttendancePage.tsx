@@ -122,35 +122,33 @@ export const AttendancePage: React.FC = () => {
         </div>
       }
     >
-      {/* LIVE HERO BAND — one dense row showing what's happening right now. */}
       <motion.section
         {...fadeUp(0)}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-0 border-t border-b border-(--line) mb-8"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-0 border border-border rounded-xl bg-card overflow-hidden shadow-2xs mb-8"
       >
         <HeroCell
-          icon={<Activity className="h-4 w-4" />}
+          icon={<Activity className="h-4 w-4 text-primary" />}
           label="Checked in today"
           value={logs.length}
           live
           hint={now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
         />
         <HeroCell
-          icon={<CheckCircle2 className="h-4 w-4" />}
+          icon={<CheckCircle2 className="h-4 w-4 text-emerald-500" />}
           label="In the last hour"
           value={lastHour}
-          hint={lastHour === 0 ? 'Quiet right now' : lastHour < 5 ? 'Steady traffic' : 'Peak hour'}
+          hint={lastHour === 0 ? 'Quiet right now' : lastHour < 5 ? 'Steady traffic' : 'Peak floor traffic'}
         />
         <HeroCell
-          icon={<ScanFace className="h-4 w-4" />}
+          icon={<ScanFace className="h-4 w-4 text-blue-500" />}
           label="Last check-in"
           value={logs[0] ? timeAgo(logs[0].checkInTime) : '—'}
           isString
-          hint={logs[0] ? `${logs[0].firstName} ${logs[0].lastName || ''}`.trim() : 'Awaiting first arrival'}
+          hint={logs[0] ? `${logs[0].firstName} ${logs[0].lastName || ''}`.trim() : 'Awaiting arrivals'}
         />
       </motion.section>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* LEFT — Check-in terminal */}
         <div className="lg:col-span-5 flex flex-col gap-6 min-w-0">
           <CheckInPanel
             onCheckIn={handleCheckIn}
@@ -160,62 +158,58 @@ export const AttendancePage: React.FC = () => {
             lastCheckedMember={lastCheckedMember}
           />
 
-          <div className="flex items-center gap-2 text-[11px] text-ink-3 font-mono">
-            <span className="size-1.5 rounded-full bg-(--ink-3)" />
+          <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+            <span className="size-1.5 rounded-full bg-muted-foreground" />
             Auto-refreshes every 10s · {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
         </div>
 
-        {/* RIGHT — Live feed */}
         <div className="lg:col-span-7 flex flex-col min-w-0">
           <div className="flex items-end justify-between mb-4">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Live feed</p>
-              <h2 className="text-h2 text-ink mt-1.5 flex items-center gap-2">
-                Today on the floor
-                <span className="text-h3 text-ink-3 num">{logs.length}</span>
+              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">Live Feed</p>
+              <h2 className="text-xl font-bold tracking-tight text-foreground mt-1 flex items-center gap-2">
+                Today on the Floor
+                <span className="text-sm font-normal text-muted-foreground font-mono">({logs.length})</span>
               </h2>
             </div>
-            <p className="text-[11px] text-ink-3 font-mono">Newest first</p>
+            <p className="text-xs text-muted-foreground font-mono">Newest first</p>
           </div>
 
           {isLoading ? (
-            <ul className="flex flex-col gap-2">
-              {Array.from({ length: 6 }).map((_, i) => (
-                <li key={i}><Skeleton className="h-14 rounded-lg" /></li>
-              ))}
-            </ul>
+            <div className="p-4 space-y-3">
+              {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
+            </div>
           ) : logs.length === 0 ? (
             <EmptyState
-              icon={Users}
-              title="The floor is quiet"
-              description="When members arrive and check in via Desk or Face ID, they will appear here in real time."
+              title="No check-ins yet today"
+              description="Members who scan their QR code or check in at the desk will appear in this live stream."
             />
           ) : (
-            <ul className="flex flex-col border-t border-(--line)">
+            <ul className="divide-y divide-border border border-border rounded-xl bg-card shadow-2xs overflow-hidden">
               {logs.map((log: any) => (
                 <motion.li
                   key={log.id}
                   initial={{ opacity: 0, y: 4 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.2 }}
-                  className="flex items-center gap-3.5 py-3 border-b border-line-2 last:border-b-0"
+                  className="flex items-center gap-3.5 px-4 py-3 hover:bg-muted/30 transition-colors"
                 >
                   {log.photoUrl ? (
-                    <img src={log.photoUrl} alt={log.firstName ? `${log.firstName} ${log.lastName || ''}`.trim() : 'Member photo'} className="size-9 rounded-full object-cover border border-(--line)" />
+                    <img src={log.photoUrl} alt={log.firstName ? `${log.firstName} ${log.lastName || ''}`.trim() : 'Member photo'} className="size-9 rounded-full object-cover border border-border" />
                   ) : (
-                    <Avatar size="default">
-                      <AvatarFallback>
+                    <Avatar className="size-9">
+                      <AvatarFallback className="text-xs font-bold bg-primary/10 text-primary">
                         {initials(log.firstName, log.lastName)}
                       </AvatarFallback>
                     </Avatar>
                   )}
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm text-ink truncate">
-                      <span className="font-medium">{log.firstName} {log.lastName || ''}</span>
-                      <span className="text-ink-3 font-mono text-[11px] ml-2">{log.memberCode}</span>
+                    <p className="text-sm text-foreground truncate">
+                      <span className="font-semibold">{log.firstName} {log.lastName || ''}</span>
+                      <span className="text-muted-foreground font-mono text-xs ml-2">{log.memberCode}</span>
                     </p>
-                    <p className="text-[11px] text-ink-3 mt-0.5">
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {timeAgo(log.checkInTime)}
                     </p>
                   </div>
@@ -224,17 +218,17 @@ export const AttendancePage: React.FC = () => {
                       log.method === 'FACE_ID' ? 'secondary' :
                       log.method === 'QR' ? 'default' : 'outline'
                     }
-                    className="gap-1"
+                    className="gap-1 text-[11px]"
                   >
                     {log.method === 'FACE_ID' ? <ScanFace className="h-3 w-3" /> : log.method === 'QR' ? <KeySquare className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
                     {log.method === 'FACE_ID' ? 'Face ID' : log.method === 'QR' ? 'QR' : 'Desk'}
                   </Badge>
                   <Link
-                    to={`/members/${log.member_id}`}
-                    className="text-ink-3 hover:text-ink p-1"
+                    to={`/members/${log.member_id || log.memberId}`}
+                    className="text-muted-foreground hover:text-foreground p-1"
                     aria-label="View profile"
                   >
-                    <ArrowRight className="h-3.5 w-3.5" />
+                    <ArrowRight className="h-4 w-4" />
                   </Link>
                 </motion.li>
               ))}
@@ -254,15 +248,15 @@ const HeroCell: React.FC<{
   live?: boolean;
   hint?: string;
 }> = ({ icon, label, value, isString, live, hint }) => (
-  <div className="px-6 py-5 border-r border-line-2 last:border-r-0">
-    <p className="text-eyebrow flex items-center gap-1.5">
+  <div className="px-5 py-4 border-b sm:border-b-0 sm:border-r border-border last:border-r-0">
+    <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
       {icon}
-      {label}
-      {live && <span className="size-1.5 rounded-full bg-(--positive) animate-pulse ml-1" />}
+      <span>{label}</span>
+      {live && <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse ml-0.5" />}
     </p>
-    <p className={cn('mt-2 text-ink', isString ? 'text-h2' : 'text-stat-xl num')}>
+    <p className={cn('mt-1.5 text-foreground font-mono font-bold tracking-tight', isString ? 'text-xl' : 'text-2xl')}>
       {value}
     </p>
-    {hint && <p className="text-[11px] text-ink-3 mt-1">{hint}</p>}
+    {hint && <p className="text-xs text-muted-foreground mt-0.5">{hint}</p>}
   </div>
 );

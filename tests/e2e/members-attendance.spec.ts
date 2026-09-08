@@ -155,7 +155,7 @@ test.describe('Gym SaaS — Operations & Member Workflows', () => {
   });
 
   test('displays member directory and searches members', async ({ page }) => {
-    await page.goto('/#/members');
+    await page.goto('/members');
     await expect(page.getByText('Enrolled Members')).toBeVisible();
     await expect(page.getByText('Rahul Sharma')).toBeVisible();
     await expect(page.getByText('MEM-1001')).toBeVisible();
@@ -166,7 +166,7 @@ test.describe('Gym SaaS — Operations & Member Workflows', () => {
   });
 
   test('registers a new member with plan and shows receipt & whatsapp button', async ({ page }) => {
-    await page.goto('/#/members/new');
+    await page.goto('/members/new');
     await expect(page.getByText('New Member Registration')).toBeVisible();
 
     await page.fill('#firstName', 'Anand');
@@ -182,7 +182,7 @@ test.describe('Gym SaaS — Operations & Member Workflows', () => {
   });
 
   test('performs attendance desk check-in', async ({ page }) => {
-    await page.goto('/#/attendance');
+    await page.goto('/attendance');
     await expect(page.getByText('Check-in Terminal')).toBeVisible();
 
     const codeInput = page.locator('#code');

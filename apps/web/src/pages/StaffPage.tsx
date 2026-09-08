@@ -135,56 +135,56 @@ export const StaffPage: React.FC = () => {
           }
         />
       ) : (
-        <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {staff.map((s: any) => (
             <li key={s.id}>
-              <Card className="flex flex-col justify-between p-4 hover:border-primary/40 hover:shadow-sm transition-all h-full">
-                <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-semibold shrink-0">
+              <Card className="flex flex-col justify-between p-5 rounded-xl border-border/80 ring-1 ring-border/50 hover:ring-border hover:shadow-md transition-all h-full bg-card">
+                <div className="flex items-start gap-3.5">
+                  <div className="size-11 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center text-sm font-bold font-mono shrink-0">
                     {(s.name?.[0] || '·').toUpperCase()}
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-semibold text-ink truncate">{s.name}</p>
+                      <p className="text-sm font-bold text-foreground truncate">{s.name}</p>
                       {s.isOwner === 1 ? (
-                        <Badge variant="secondary" className="text-[10px] font-medium">Owner</Badge>
+                        <Badge variant="secondary" className="text-[10px] font-semibold bg-primary/10 text-primary border border-primary/20">Owner</Badge>
                       ) : (
-                        <Badge variant="outline" className="text-[10px] text-ink-3">Staff</Badge>
+                        <Badge variant="outline" className="text-[10px] text-muted-foreground border-border">Staff</Badge>
                       )}
                       <Badge
                         variant={s.status === 'ACTIVE' ? 'default' : 'outline'}
-                        className="ml-auto text-[10px]"
+                        className="ml-auto text-[10px] uppercase font-mono"
                       >
                         {s.status}
                       </Badge>
                     </div>
-                    <div className="flex flex-col gap-0.5 mt-1.5 text-xs text-ink-3">
-                      <span className="flex items-center gap-1.5 truncate font-mono">
-                        <Mail className="h-3 w-3 shrink-0" /> {s.email}
+                    <div className="flex flex-col gap-1 mt-2 text-xs text-muted-foreground font-mono">
+                      <span className="flex items-center gap-1.5 truncate">
+                        <Mail className="size-3.5 text-muted-foreground shrink-0" /> {s.email}
                       </span>
                       {s.phone && (
-                        <span className="flex items-center gap-1.5 truncate font-mono">
-                          <Phone className="h-3 w-3 shrink-0" /> {s.phone}
+                        <span className="flex items-center gap-1.5 truncate">
+                          <Phone className="size-3.5 text-muted-foreground shrink-0" /> {s.phone}
                         </span>
                       )}
                     </div>
                   </div>
                 </div>
 
-                <div className="mt-4 pt-3 border-t border-(--line) flex items-center gap-1.5 flex-wrap">
-                  <Shield className="h-3 w-3 text-ink-3 shrink-0" />
-                  <span className="text-[10px] font-medium text-ink-3 uppercase tracking-wider">Access:</span>
+                <div className="mt-4 pt-3.5 border-t border-border/60 flex items-center gap-1.5 flex-wrap">
+                  <Shield className="size-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-[10px] font-semibold text-muted-foreground uppercase font-mono tracking-wider">Access:</span>
                   {(s.permissions as string[] || []).length > 0 ? (
                     (s.permissions as string[]).map((perm: string) => (
                       <span
                         key={perm}
-                        className="text-[10px] bg-(--surface-2) text-ink-2 px-1.5 py-0.5 rounded border border-(--line)"
+                        className="text-[10px] bg-secondary text-secondary-foreground font-mono px-2 py-0.5 rounded-md border border-border"
                       >
                         {GYM_FEATURE_LABELS[perm as keyof typeof GYM_FEATURE_LABELS]?.name ?? perm}
                       </span>
                     ))
                   ) : (
-                    <span className="text-[10px] text-ink-3 italic">None specified</span>
+                    <span className="text-[10px] text-muted-foreground italic">None specified</span>
                   )}
                 </div>
               </Card>

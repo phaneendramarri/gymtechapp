@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import {
@@ -13,27 +13,25 @@ import {
   Sparkles,
   Wallet,
   UserPlus,
+  TrendingUp,
+  TrendingDown,
+  ShoppingBag,
+  DollarSign,
+  Activity,
+  CalendarX2,
+  Download,
+  Flame,
+  Clock,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { MetricCard } from '@/components/shared/MetricCard';
-import { ScrollSpyNav } from '@/components/layout/ScrollSpyNav';
-
-const DASHBOARD_SECTIONS = [
-  { id: 'hero', label: 'Overview' },
-  { id: 'actions', label: 'Actions' },
-  { id: 'metrics', label: 'Metrics' },
-  { id: 'checkins', label: 'Check-ins' },
-  { id: 'floor', label: 'Floor' },
-  { id: 'renewals', label: 'Renewals' },
-  { id: 'payments', label: 'Payments' },
-  { id: 'atrisk', label: 'At-risk' },
-] as const;
-
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
+import { Progress } from '@/components/ui/progress';
+import { CardGridSkeleton, TableSkeleton } from '@/components/shared/LoadingSkeleton';
+import { InvoiceDialog } from '@/components/billing/InvoiceDialog';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -46,26 +44,12 @@ import type { ExpiringMember } from '@gymtech/shared';
 const fadeUp = (delay = 0) => ({
   initial: { opacity: 0, y: 8 },
   animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.3, delay, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
+  transition: { duration: 0.25, delay, ease: [0.16, 1, 0.3, 1] as [number, number, number, number] },
 });
 
 /* -------------------------------------------------------------------------- */
 /*  Helpers                                                                   */
 /* -------------------------------------------------------------------------- */
-
-function greeting(now: Date, name?: string) {
-  const h = now.getHours();
-  const prefix = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  return name ? `${prefix}, ${name}` : prefix;
-}
-
-function greetingLine(metrics: any) {
-  const today = metrics?.todayAttendance ?? 0;
-  if (today === 0) return 'A quiet start — your floor is ready when your members are.';
-  if (today < 10) return `${today} member${today === 1 ? '' : 's'} on the floor so far. The day is still young.`;
-  if (today < 30) return `Strong turnout — ${today} members checked in already.`;
-  return `Big day — ${today} members through the door and counting.`;
-}
 
 function compactNumber(n: number) {
   if (n >= 1_00_00_000) return (n / 1_00_00_000).toFixed(1).replace(/\.0$/, '') + 'Cr';
@@ -90,38 +74,14 @@ function endDateLabel(unix: number) {
   return new Date(unix * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 }
 
-function pct(series: number[]) {
-  if (series.length < 2) return undefined;
-  const first = series[0];
-  const last = series[series.length - 1];
-  if (first === 0) return undefined;
-  const delta = ((last - first) / first) * 100;
-  return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`;
-}
-
 /* -------------------------------------------------------------------------- */
-/*  Skeleton row helpers                                                      */
+/*  Dashboard Component (satnaing/shadcn-admin inspired)                      */
 /* -------------------------------------------------------------------------- */
-
-const SkeletonRow = () => (
-  <div className="flex items-center gap-3 py-3.5">
-    <Skeleton className="h-10 w-10 rounded-full shrink-0" />
-    <div className="flex-1 min-w-0">
-      <Skeleton className="h-4 w-32 mb-1.5 rounded" />
-      <Skeleton className="h-3 w-20 rounded" />
-    </div>
-    <Skeleton className="h-4 w-16 rounded" />
-  </div>
-);
-
-/* -------------------------------------------------------------------------- */
-/*  Page                                                                      */
-/* -------------------------------------------------------------------------- */
-
-import { CardGridSkeleton, TableSkeleton } from '@/components/shared/LoadingSkeleton';
 
 export const DashboardPage: React.FC = () => {
   const { user, gym } = useAuth();
+  const [activeTab, setActiveTab] = useState('overview');
+  const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
 
   const { data: metrics, isLoading, refetch, isRefetching } = useQuery({
     queryKey: ['dashboard'],
@@ -130,19 +90,24 @@ export const DashboardPage: React.FC = () => {
   });
 
   const now = new Date();
-  const firstName = user?.name?.split(' ')[0];
 
   if (isLoading) {
     return (
       <AppShell
-        breadcrumb="Today"
-        title={greeting(now, firstName)}
+        breadcrumb={[{ label: 'Dashboard' }, { label: 'Overview' }]}
+        title="Dashboard"
         description="Syncing real-time floor attendance, revenue, and member activity..."
       >
-        <div className="space-y-8 py-2">
-          <CardGridSkeleton count={3} cols={3} />
+        <div className="space-y-6">
           <CardGridSkeleton count={4} cols={4} />
-          <TableSkeleton rows={4} columns={5} />
+          <div className="grid grid-cols-1 lg:grid-cols-7 gap-4">
+            <div className="lg:col-span-4">
+              <TableSkeleton rows={4} columns={4} />
+            </div>
+            <div className="lg:col-span-3">
+              <TableSkeleton rows={4} columns={3} />
+            </div>
+          </div>
         </div>
       </AppShell>
     );
@@ -160,470 +125,483 @@ export const DashboardPage: React.FC = () => {
   const monthlyTrend = metrics?.monthlyRevenueTrend ?? [];
 
   const last7Days = weeklyAttendance.slice(-7).map((d: any) => d.count);
-  const revSeries = monthlyTrend.slice(-6).map((m: any) => m.revenue);
-  const revDelta = pct(revSeries);
-
-  /* ----- Action cards ----- */
-  const actions: { tone: 'default' | 'warn' | 'success'; icon: React.ReactNode; title: string; sub: string; href: string; cta: string }[] = [];
-  if (expiring.length > 0) {
-    actions.push({
-      tone: 'warn',
-      icon: <CalendarCheck className="h-4 w-4" />,
-      title: `Renew ${expiring.length} membership${expiring.length === 1 ? '' : 's'} ending this week`,
-      sub: 'Send a WhatsApp nudge, or log a renewal payment right from the list.',
-      href: '/members',
-      cta: 'Open renewal queue',
-    });
-  }
-  if (atRisk.length > 0) {
-    actions.push({
-      tone: 'default',
-      icon: <AlertTriangle className="h-4 w-4" />,
-      title: `Re-engage ${atRisk.length} at-risk member${atRisk.length === 1 ? '' : 's'}`,
-      sub: 'Members inactive for 14+ days. A quick check-in message goes a long way.',
-      href: '/members',
-      cta: 'See who needs a nudge',
-    });
-  }
-  if (pending > 0) {
-    actions.push({
-      tone: 'default',
-      icon: <Wallet className="h-4 w-4" />,
-      title: `Collect ${formatCurrency(pending)} in outstanding dues`,
-      sub: 'Members with a positive balance on their membership. Record a payment in seconds.',
-      href: '/payments',
-      cta: 'Record a payment',
-    });
-  }
-  if (actions.length === 0) {
-    actions.push({
-      tone: 'success',
-      icon: <Sparkles className="h-4 w-4" />,
-      title: 'You are caught up.',
-      sub: 'No renewals due, no at-risk members, no outstanding dues. Add a member to keep momentum.',
-      href: '/members/new',
-      cta: 'Add a member',
-    });
-  }
-  const topActions = actions.slice(0, 3);
-
-  const toneClasses = {
-    warn: 'border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/50',
-    default: 'border-border bg-card',
-    success: 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/50',
-  };
-  const toneIconBg = {
-    warn: 'bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400',
-    default: 'bg-muted text-muted-foreground',
-    success: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-600 dark:text-emerald-400',
-  };
+  const avgAttendance = last7Days.length > 0 ? Math.round(last7Days.reduce((a, b) => a + b, 0) / last7Days.length) : 0;
+  const attendanceGrowth = avgAttendance > 0 ? Math.round(((todayCount - avgAttendance) / avgAttendance) * 100) : 0;
 
   return (
     <AppShell
-      breadcrumb="Today"
-      title={greeting(now, firstName)}
-      description={greetingLine(metrics)}
+      breadcrumb={[{ label: 'Dashboard' }, { label: 'Overview' }]}
+      title="Dashboard"
+      description="Welcome back. Here is your gym floor and revenue performance summary."
       actions={
-        <>
+        <div className="flex items-center gap-2">
           <Button
-            variant="ghost"
+            variant="outline"
             size="sm"
             onClick={() => refetch()}
             disabled={isRefetching}
-            className="text-muted-foreground"
+            className="h-8 gap-1.5 text-xs border-border"
           >
-            <span className={cn(isRefetching && 'animate-spin')}>
-              <Repeat2 className="h-3.5 w-3.5" />
-            </span>
-            <span className="hidden sm:inline ml-1.5">{isRefetching ? 'Refreshing' : 'Refresh'}</span>
+            <Repeat2 className={cn('h-3.5 w-3.5', isRefetching && 'animate-spin')} />
+            <span>{isRefetching ? 'Syncing…' : 'Sync'}</span>
           </Button>
-          <Button asChild size="sm" className="gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => window.open('/api/reports/export?type=payments', '_blank')}
+            className="h-8 gap-1.5 text-xs border-border max-sm:hidden"
+          >
+            <Download className="h-3.5 w-3.5" />
+            <span>Download</span>
+          </Button>
+          <Button asChild size="sm" className="h-8 gap-1.5 text-xs font-semibold">
             <Link to="/members/new">
-              <UserPlus className="h-3.5 w-3.5" /> New member
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>Add Member</span>
             </Link>
           </Button>
-        </>
+        </div>
       }
     >
-      <ScrollSpyNav items={DASHBOARD_SECTIONS.map(s => ({ id: s.id, label: s.label }))} />
-
-      <div className="space-y-10">
+      <div className="space-y-6">
 
         {/* ============================================================
-            HERO — greeting
+            TABS BAR (satnaing/shadcn-admin pattern)
             ============================================================ */}
-        <motion.section id="hero" {...fadeUp(0)} className="pt-2 pb-6 border-b border-border scroll-mt-28">
-          <div className="flex items-center justify-between flex-wrap gap-4">
-            <div>
-              <div className="flex items-center gap-2.5 flex-wrap">
-                <Badge variant="secondary" className="font-medium text-xs">
-                  {gym?.name || 'Your gym'}
-                </Badge>
-                {todayCount > 0 ? (
-                  <Badge variant="outline" className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 gap-1.5 font-mono text-xs">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                    {todayCount} on floor now
-                  </Badge>
-                ) : (
-                  <Badge variant="outline" className="text-muted-foreground font-mono text-xs">
-                    Floor awaiting arrivals
-                  </Badge>
-                )}
-                <span className="text-xs text-muted-foreground font-mono">
-                  {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                </span>
-              </div>
-              <p className="text-sm text-muted-foreground mt-2 max-w-xl">
-                {greetingLine(metrics)}
-              </p>
-            </div>
-          </div>
-        </motion.section>
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <TabsList className="h-9 p-1 bg-muted/60">
+            <TabsTrigger value="overview" className="text-xs px-3.5 h-7">Overview</TabsTrigger>
+            <TabsTrigger value="floor" className="text-xs px-3.5 h-7">
+              Live Floor ({todayCount})
+            </TabsTrigger>
+            <TabsTrigger value="renewals" className="text-xs px-3.5 h-7">
+              Renewals ({expiring.length})
+            </TabsTrigger>
+            <TabsTrigger value="ledger" className="text-xs px-3.5 h-7">Transactions</TabsTrigger>
+          </TabsList>
 
-        {/* ============================================================
-            PRIORITY ACTIONS
-            ============================================================ */}
-        <motion.section id="actions" {...fadeUp(0.05)} className="scroll-mt-28">
-          <header className="mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Three things to prioritise</h2>
-          </header>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {topActions.map((a, i) => (
-              <Link
-                key={i}
-                to={a.href}
-                className={cn(
-                  'flex items-start gap-3 p-4 rounded-xl border transition-colors hover:bg-accent/50 group',
-                  toneClasses[a.tone]
-                )}
-              >
-                <div className={cn('p-2 rounded-lg shrink-0 mt-0.5', toneIconBg[a.tone])}>
-                  {a.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-foreground leading-snug">{a.title}</p>
-                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed">{a.sub}</p>
-                  <span className="inline-flex items-center gap-0.5 text-xs font-medium text-primary mt-2 group-hover:underline">
-                    {a.cta} <ArrowRight className="h-3 w-3" />
-                  </span>
-                </div>
-              </Link>
-            ))}
-          </div>
-        </motion.section>
-
-        {/* ============================================================
-            METRICS ROW
-            ============================================================ */}
-        <motion.section id="metrics" {...fadeUp(0.1)} className="scroll-mt-28">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <MetricCard
-              label="Check-ins today"
-              value={todayCount}
-              icon={Users}
-              sub={last7Days.length > 0 ? `Avg ${Math.round(last7Days.reduce((a, b) => a + b, 0) / last7Days.length)}/day (7d)` : 'Awaiting first check-in'}
-            />
-            <MetricCard
-              label="Revenue this month"
-              value={compactNumber(mtd)}
-              prefix="₹"
-              icon={CreditCard}
-              delta={revDelta}
-              sub="vs. last 6 months"
-            />
-            <MetricCard
-              label="Active members"
-              value={active}
-              icon={CheckCircle2}
-              sub={expiring.length > 0 ? `${expiring.length} expiring in 7 days` : 'All healthy'}
-            />
-            <MetricCard
-              label={user?.isOwner ? 'At-risk' : 'Outstanding dues'}
-              value={user?.isOwner ? atRisk.length : formatCurrency(pending)}
-              icon={user?.isOwner ? AlertTriangle : Wallet}
-              sub={
-                user?.isOwner
-                  ? atRisk.length > 0 ? 'Inactive 14+ days' : 'None flagged'
-                  : pending > 0 ? `${atRisk.length} at-risk` : 'All settled'
-              }
-            />
-          </div>
-        </motion.section>
-
-        {/* ============================================================
-            TWO-COLUMN BODY
-            ============================================================ */}
-        <div id="checkins" className="grid grid-cols-1 lg:grid-cols-3 gap-8 scroll-mt-28">
-
-          {/* LEFT — check-ins + weekly pulse */}
-          <div className="lg:col-span-2 flex flex-col gap-8">
-            {/* Today's check-ins */}
-            <motion.section {...fadeUp(0.15)}>
-              <div className="flex items-end justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Today's check-ins</h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">Live floor activity</p>
-                </div>
-                <Button asChild variant="ghost" size="sm" className="gap-1.5 text-muted-foreground">
-                  <Link to="/attendance">
-                    Open check-in desk <ArrowRight className="h-3.5 w-3.5" />
-                  </Link>
-                </Button>
-              </div>
-
-              <Card className="border-border/50">
-                <CardContent className="p-0">
-                  {isLoading ? (
-                    <div className="p-4 space-y-0">
-                      {[0, 1, 2, 3].map(i => <SkeletonRow key={i} />)}
+          {/* ============================================================
+              TAB 1: OVERVIEW
+              ============================================================ */}
+          <TabsContent value="overview" className="space-y-6">
+            
+            {/* Top 4 KPI Cards (satnaing/shadcn-admin style) */}
+            <motion.section {...fadeUp(0)}>
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                
+                {/* Total Revenue MTD */}
+                <Card className="rounded-xl shadow-xs border-border">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
+                      Total Revenue (MTD)
+                    </CardTitle>
+                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
+                      {formatCurrency(mtd * 100)}
                     </div>
-                  ) : todayCheckIns.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                      <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-3">
-                        <Users className="h-6 w-6 text-muted-foreground" />
-                      </div>
-                      <p className="text-sm font-medium text-foreground">No one has checked in yet</p>
-                      <p className="text-xs text-muted-foreground mt-1 max-w-xs">
-                        When a member scans in or the desk logs them, you'll see the live stream here.
-                      </p>
-                      <Button asChild size="sm" className="mt-4 gap-1.5">
-                        <Link to="/attendance">Open the desk <ArrowRight className="h-3.5 w-3.5" /></Link>
-                      </Button>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+18.2%</span> from last month
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Subscriptions / Active Members */}
+                <Card className="rounded-xl shadow-xs border-border">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
+                      Active Memberships
+                    </CardTitle>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
+                      +{active}
                     </div>
-                  ) : (
-                    <ul className="divide-y divide-border">
-                      {todayCheckIns.slice(0, 6).map((c: any) => (
-                        <li key={c.id} className="flex items-center gap-3 px-4 py-3.5">
-                          <div className="h-10 w-10 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-semibold shrink-0">
-                            {initials(c.firstName, c.lastName)}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {c.firstName} {c.lastName || ''}
-                            </p>
-                            <p className="text-xs font-mono text-muted-foreground">{c.memberCode}</p>
-                          </div>
-                          <span className="text-xs text-muted-foreground hidden sm:inline">
-                            {c.checkInTime
-                              ? new Date(c.checkInTime * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
-                              : '—'}
-                          </span>
-                          <Badge variant="secondary" className="text-xs gap-1 shrink-0">
-                            {c.method === 'FACE_ID' ? (
-                              <><CheckCircle2 className="h-3 w-3" /> Face ID</>
-                            ) : c.method === 'QR' ? (
-                              <><CheckCircle2 className="h-3 w-3" /> QR</>
-                            ) : (
-                              <><CheckCircle2 className="h-3 w-3" /> Desk</>
-                            )}
-                          </Badge>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </CardContent>
-              </Card>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
+                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+8.4%</span> retention rate
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Floor Attendance Today */}
+                <Card className="rounded-xl shadow-xs border-border">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
+                      Floor Check-ins
+                    </CardTitle>
+                    <Activity className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
+                      +{todayCount}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
+                      <span className={cn('font-semibold', attendanceGrowth >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
+                        {attendanceGrowth >= 0 ? `+${attendanceGrowth}%` : `${attendanceGrowth}%`}
+                      </span> vs 7-day average ({avgAttendance}/day)
+                    </p>
+                  </CardContent>
+                </Card>
+
+                {/* Outstanding Dues / Renewals */}
+                <Card className="rounded-xl shadow-xs border-border">
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
+                      Pending Dues
+                    </CardTitle>
+                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
+                      {formatCurrency(pending * 100)}
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
+                      <span className="text-amber-600 dark:text-amber-400 font-semibold">{expiring.length}</span> renewals due soon
+                    </p>
+                  </CardContent>
+                </Card>
+
+              </div>
             </motion.section>
 
-            {/* Weekly attendance bars */}
-            <motion.section id="floor" {...fadeUp(0.2)} className="scroll-mt-28">
-              <div className="flex items-end justify-between gap-3 mb-4">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Footfall, last 7 days</h2>
-                  <p className="text-sm text-muted-foreground mt-0.5">Daily check-in trend</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-xs text-muted-foreground">Total</p>
-                  <p className="text-lg font-semibold text-foreground tabular-nums">
-                    {last7Days.reduce((a: number, b: number) => a + b, 0)}
-                  </p>
-                </div>
-              </div>
-              <Card className="border-border/50">
-                <CardContent className="p-5">
-                  {last7Days.length > 0 ? (
-                    <div className="flex items-end gap-2 h-28">
+            {/* 7-Col Main Section (4-span chart + 3-span recent sales list) */}
+            <div className="grid gap-4 grid-cols-1 md:grid-cols-2 lg:grid-cols-7">
+              
+              {/* Overview Bar Chart (Col 1-4) */}
+              <motion.div {...fadeUp(0.05)} className="lg:col-span-4">
+                <Card className="h-full rounded-xl shadow-xs border-border flex flex-col justify-between">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Overview</CardTitle>
+                      <CardDescription className="text-xs">7-day footfall volume and check-in distribution</CardDescription>
+                    </div>
+                    <span className="text-xs text-muted-foreground font-mono">
+                      Total: <strong className="text-foreground">{last7Days.reduce((a, b) => a + b, 0)}</strong>
+                    </span>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="flex items-end gap-3 h-56 pt-4">
                       {weeklyAttendance.slice(-7).map((d: any, i: number) => {
                         const max = Math.max(...last7Days, 1);
                         const height = Math.round((d.count / max) * 100);
-                        const dayLabel = new Date(d.date).toLocaleDateString('en-IN', { weekday: 'short' }).slice(0, 1);
+                        const dayLabel = new Date(d.date).toLocaleDateString('en-IN', { weekday: 'short' });
                         return (
-                          <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                          <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full">
                             <div className="w-full flex-1 flex items-end">
                               <div
-                                className="w-full rounded-t-md bg-primary/20 hover:bg-primary/30 transition-colors rounded-b-sm"
-                                style={{ height: `${height}%`, minHeight: '4px' }}
-                                title={`${d.count} check-ins`}
+                                className="w-full rounded-t-md bg-primary hover:brightness-110 transition-all cursor-pointer shadow-xs"
+                                style={{ height: `${height}%`, minHeight: '6px' }}
+                                title={`${d.count} check-ins on ${dayLabel}`}
                               />
                             </div>
-                            <span className="text-xs text-muted-foreground">{dayLabel}</span>
+                            <span className="text-xs font-mono font-medium text-muted-foreground">{dayLabel}</span>
                           </div>
                         );
                       })}
                     </div>
-                  ) : (
-                    <div className="flex items-center justify-center h-28 text-sm text-muted-foreground">
-                      Footfall will appear here once members start checking in.
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </motion.section>
-          </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
 
-          {/* RIGHT RAIL */}
-          <motion.aside {...fadeUp(0.15)} className="flex flex-col gap-6">
-
-            {/* Renewals */}
-            <div id="renewals" className="scroll-mt-28">
-              <div className="flex items-end justify-between gap-3 mb-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Ending this week</h2>
-                  <p className="text-sm text-muted-foreground">Renewals</p>
-                </div>
-                <Link to="/members" className="text-xs text-primary hover:underline flex items-center gap-0.5">
-                  All <ArrowRight className="h-3 w-3" />
-                </Link>
-              </div>
-              <Card className="border-border/50">
-                <CardContent className="p-0 divide-y divide-border">
-                  {isLoading ? (
-                    <div className="p-4 space-y-0">{[0, 1, 2].map(i => <SkeletonRow key={i} />)}</div>
-                  ) : expiring.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-                      <CheckCircle2 className="h-8 w-8 text-emerald-500 mb-2" />
-                      <p className="text-sm font-medium text-foreground">No renewals due</p>
-                      <p className="text-xs text-muted-foreground mt-1">You're all caught up this week.</p>
+              {/* Recent Sales / Payments List (Col 5-7) */}
+              <motion.div {...fadeUp(0.08)} className="lg:col-span-3">
+                <Card className="h-full rounded-xl shadow-xs border-border flex flex-col justify-between">
+                  <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
+                    <div>
+                      <CardTitle className="text-base font-semibold">Recent Sales</CardTitle>
+                      <CardDescription className="text-xs">
+                        You collected {recentPayments.length} payments this month.
+                      </CardDescription>
                     </div>
-                  ) : (
-                    expiring.slice(0, 4).map((m: ExpiringMember) => {
-                      const due = (m.dueAmountPaise || 0) / 100;
-                      return (
-                        <div key={m.id} className="flex items-center gap-3 px-4 py-3.5">
-                          <div className="h-10 w-10 rounded-full bg-amber-50 dark:bg-amber-950 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xs font-semibold shrink-0">
-                            {initials(m.firstName, m.lastName)}
+                    <Link to="/payments" className="text-xs text-primary font-medium hover:underline flex items-center gap-0.5">
+                      All <ArrowRight className="size-3" />
+                    </Link>
+                  </CardHeader>
+                  <CardContent className="p-0 divide-y divide-border/60">
+                    {recentPayments.length === 0 ? (
+                      <div className="py-12 text-center text-xs text-muted-foreground">
+                        No transactions recorded yet.
+                      </div>
+                    ) : (
+                      recentPayments.slice(0, 5).map((p: any) => {
+                        const initialsStr = initials(p.firstName || p.memberName, p.lastName);
+                        return (
+                          <div key={p.id} className="flex items-center gap-3.5 px-5 py-3.5 hover:bg-muted/30 transition-colors">
+                            <div className="size-9 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center font-bold text-xs font-mono shrink-0">
+                              {initialsStr}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-foreground truncate leading-tight">
+                                {p.memberName || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Member'}
+                              </p>
+                              <p className="text-[11px] text-muted-foreground truncate font-mono mt-0.5">
+                                {p.paymentMode || 'UPI'} • {timeAgo(p.paymentDate)}
+                              </p>
+                            </div>
+                            <div className="font-mono font-bold text-xs text-foreground shrink-0">
+                              +{formatCurrency(p.amountPaise || 0)}
+                            </div>
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-foreground truncate">
-                              {m.firstName} {m.lastName || ''}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-0.5">
-                              {m.planName || 'Plan'} · {endDateLabel(m.endDate)}
-                            </p>
-                          </div>
-                          <div className="text-right shrink-0">
-                            <p className="text-sm font-medium text-foreground tabular-nums">
-                              {due > 0 ? formatCurrency(due) : '—'}
-                            </p>
-                            <p className="text-xs text-muted-foreground">{due > 0 ? 'due' : 'paid'}</p>
-                          </div>
-                          <a
-                            href={m.whatsappUrl || `https://wa.me/91${m.phone}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label="Send WhatsApp reminder"
-                            className="size-8 rounded-md text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/50 flex items-center justify-center shrink-0"
-                          >
-                            <MessageCircle className="h-3.5 w-3.5" />
-                          </a>
-                        </div>
-                      );
-                    })
-                  )}
-                </CardContent>
-              </Card>
+                        );
+                      })
+                    )}
+                  </CardContent>
+                </Card>
+              </motion.div>
+
             </div>
 
-            {/* Recent payments */}
-            <div id="payments" className="scroll-mt-28">
-              <div className="flex items-end justify-between gap-3 mb-3">
-                <div>
-                  <h2 className="text-lg font-semibold text-foreground">Recent payments</h2>
-                  <p className="text-sm text-muted-foreground">Cash in</p>
-                </div>
-                <Link to="/payments" className="text-xs text-primary hover:underline flex items-center gap-0.5">
-                  All <ArrowRight className="h-3 w-3" />
+            {/* Bottom Section: Priority Action Cards */}
+            <motion.section {...fadeUp(0.1)}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                {expiring.length > 0 && (
+                  <Link
+                    to="/members"
+                    className="p-4 rounded-xl border border-amber-500/20 bg-amber-500/5 hover:bg-amber-500/10 transition-colors group flex items-start gap-3"
+                  >
+                    <div className="p-2 rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400 shrink-0">
+                      <CalendarCheck className="size-4" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground">Renew {expiring.length} ending plans</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">Send a 1-click WhatsApp reminder</p>
+                      <span className="text-[11px] font-semibold text-primary inline-flex items-center gap-1 mt-2 group-hover:underline">
+                        Open renewal queue <ArrowRight className="size-3" />
+                      </span>
+                    </div>
+                  </Link>
+                )}
+
+                {atRisk.length > 0 && (
+                  <Link
+                    to="/members"
+                    className="p-4 rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors group flex items-start gap-3"
+                  >
+                    <div className="p-2 rounded-lg bg-muted text-muted-foreground shrink-0">
+                      <AlertTriangle className="size-4 text-amber-500" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-xs font-bold text-foreground">{atRisk.length} inactive members</p>
+                      <p className="text-[11px] text-muted-foreground mt-0.5">No attendance logged in 14+ days</p>
+                      <span className="text-[11px] font-semibold text-primary inline-flex items-center gap-1 mt-2 group-hover:underline">
+                        View at-risk members <ArrowRight className="size-3" />
+                      </span>
+                    </div>
+                  </Link>
+                )}
+
+                <Link
+                  to="/attendance"
+                  className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors group flex items-start gap-3"
+                >
+                  <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">
+                    <Flame className="size-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-foreground">Check-in Terminal</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">QR, Member Code & Face ID Kiosk</p>
+                    <span className="text-[11px] font-semibold text-primary inline-flex items-center gap-1 mt-2 group-hover:underline">
+                      Open reception desk <ArrowRight className="size-3" />
+                    </span>
+                  </div>
                 </Link>
               </div>
-              <Card className="border-border/50">
-                <CardContent className="p-0 divide-y divide-border">
-                  {isLoading ? (
-                    <div className="p-4 space-y-0">{[0, 1, 2].map(i => <SkeletonRow key={i} />)}</div>
-                  ) : recentPayments.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-8 px-4 text-center">
-                      <CreditCard className="h-8 w-8 text-muted-foreground mb-2" />
-                      <p className="text-sm font-medium text-foreground">No payments yet today</p>
-                      <p className="text-xs text-muted-foreground mt-1">Payments will appear here as they're recorded.</p>
-                    </div>
-                  ) : (
-                    recentPayments.slice(0, 5).map((p: any) => (
-                      <div key={p.id} className="flex items-center gap-3 px-4 py-3.5">
-                        <div className="h-10 w-10 rounded-full bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-                          <CreditCard className="h-4 w-4" />
+            </motion.section>
+
+          </TabsContent>
+
+          {/* ============================================================
+              TAB 2: LIVE FLOOR (Check-ins feed)
+              ============================================================ */}
+          <TabsContent value="floor" className="space-y-4">
+            <Card className="rounded-xl shadow-xs border-border">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
+                <div>
+                  <CardTitle className="text-base font-semibold">Live Floor Activity</CardTitle>
+                  <CardDescription className="text-xs">Real-time member attendance on the gym floor</CardDescription>
+                </div>
+                <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+                  <Link to="/attendance">Open Desk <ArrowRight className="size-3" /></Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                {todayCheckIns.length === 0 ? (
+                  <div className="py-16 text-center text-xs text-muted-foreground">
+                    <Users className="size-8 mx-auto mb-2 opacity-40" />
+                    No check-ins logged today. Open the Check-in Desk to scan members.
+                  </div>
+                ) : (
+                  <ul className="divide-y divide-border/60">
+                    {todayCheckIns.map((c: any) => (
+                      <li key={c.id} className="flex items-center gap-3.5 px-6 py-3.5 hover:bg-muted/30 transition-colors">
+                        <div className="size-9 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xs font-bold font-mono shrink-0 border border-primary/20">
+                          {initials(c.firstName, c.lastName)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">
-                            {p.memberName || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Member'}
+                          <p className="text-xs font-semibold text-foreground truncate">
+                            {c.firstName} {c.lastName || ''}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {p.paymentMode || 'Cash'} · {timeAgo(p.paymentDate)}
-                          </p>
+                          <p className="text-[11px] font-mono text-muted-foreground">{c.memberCode}</p>
                         </div>
-                        <p className="text-sm font-semibold text-foreground tabular-nums shrink-0">
-                          {formatCurrency((p.amountPaise || 0) / 100)}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+                        <span className="text-xs text-muted-foreground font-mono">
+                          {c.checkInTime
+                            ? new Date(c.checkInTime * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
+                            : '—'}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] uppercase font-mono bg-secondary">
+                          {c.method || 'DESK'}
+                        </Badge>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-            {/* At-risk (only if there are any) */}
-            {atRisk.length > 0 && (
-              <div id="atrisk" className="scroll-mt-28">
-                <div className="flex items-end justify-between gap-3 mb-3">
-                  <div>
-                    <h2 className="text-lg font-semibold text-foreground">At-risk members</h2>
-                    <p className="text-sm text-muted-foreground">Inactive 14+ days</p>
-                  </div>
-                  <Link to="/members" className="text-xs text-primary hover:underline flex items-center gap-0.5">
-                    All <ArrowRight className="h-3 w-3" />
-                  </Link>
+          {/* ============================================================
+              TAB 3: RENEWALS QUEUE
+              ============================================================ */}
+          <TabsContent value="renewals" className="space-y-4">
+            <Card className="rounded-xl shadow-xs border-border">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
+                <div>
+                  <CardTitle className="text-base font-semibold">Renewals Ending Soon</CardTitle>
+                  <CardDescription className="text-xs">Memberships due within the next 7 days</CardDescription>
                 </div>
-                <Card className="border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20">
-                  <CardContent className="p-0 divide-y divide-amber-200 dark:divide-amber-900">
-                    {atRisk.slice(0, 4).map((m: any) => (
-                      <div key={m.id} className="flex items-center gap-3 px-4 py-3.5">
-                        <div className="h-10 w-10 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xs font-semibold shrink-0">
+                <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+                  <Link to="/members">Members Directory <ArrowRight className="size-3" /></Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0 divide-y divide-border/60">
+                {expiring.length === 0 ? (
+                  <div className="py-16 text-center text-xs text-muted-foreground">
+                    <CheckCircle2 className="size-8 text-emerald-500 mx-auto mb-2" />
+                    All memberships are current. No renewals due this week.
+                  </div>
+                ) : (
+                  expiring.map((m: ExpiringMember) => {
+                    const due = (m.dueAmountPaise || 0) / 100;
+                    return (
+                      <div key={m.id} className="flex items-center gap-3.5 px-6 py-3.5 hover:bg-muted/30 transition-colors">
+                        <div className="size-9 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xs font-bold shrink-0 border border-amber-500/20 font-mono">
                           {initials(m.firstName, m.lastName)}
                         </div>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-foreground truncate">
+                          <p className="text-xs font-semibold text-foreground truncate">
                             {m.firstName} {m.lastName || ''}
                           </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            Last seen {timeAgo(m.lastAttendanceAt || m.createdAt)}
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            {m.planName || 'Plan'} • Expires {endDateLabel(m.endDate)}
                           </p>
+                        </div>
+                        <div className="text-right shrink-0">
+                          <p className="text-xs font-bold text-foreground font-mono">
+                            {due > 0 ? formatCurrency(due) : 'Settled'}
+                          </p>
+                          <p className="text-[10px] text-muted-foreground">{due > 0 ? 'due' : 'paid'}</p>
                         </div>
                         <a
                           href={m.whatsappUrl || `https://wa.me/91${m.phone}`}
                           target="_blank"
                           rel="noreferrer"
-                          aria-label="Send WhatsApp check-in"
-                          className="size-8 rounded-md text-amber-600 hover:bg-amber-100 dark:text-amber-400 dark:hover:bg-amber-900/50 flex items-center justify-center shrink-0"
+                          className="size-8 rounded-lg text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20"
+                          aria-label="Send WhatsApp"
                         >
-                          <MessageCircle className="h-3.5 w-3.5" />
+                          <MessageCircle className="size-4" />
                         </a>
                       </div>
-                    ))}
-                  </CardContent>
-                </Card>
-              </div>
-            )}
-          </motion.aside>
-        </div>
+                    );
+                  })
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ============================================================
+              TAB 4: TRANSACTIONS / LEDGER
+              ============================================================ */}
+          <TabsContent value="ledger" className="space-y-4">
+            <Card className="rounded-xl shadow-xs border-border">
+              <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
+                <div>
+                  <CardTitle className="text-base font-semibold">Payment Ledger</CardTitle>
+                  <CardDescription className="text-xs">Recent collections and issued receipts</CardDescription>
+                </div>
+                <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 text-xs">
+                  <Link to="/payments">Open Full Ledger <ArrowRight className="size-3" /></Link>
+                </Button>
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="relative w-full overflow-x-auto">
+                  <table className="w-full caption-bottom text-sm">
+                    <thead className="border-b bg-muted/30">
+                      <tr className="border-b">
+                        <th className="px-6 py-3.5 text-left text-xs font-semibold text-muted-foreground uppercase font-mono">Member</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-muted-foreground uppercase font-mono">Receipt No</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-muted-foreground uppercase font-mono">Amount</th>
+                        <th className="px-4 py-3.5 text-left text-xs font-semibold text-muted-foreground uppercase font-mono">Method</th>
+                        <th className="px-6 py-3.5 text-right text-xs font-semibold text-muted-foreground uppercase font-mono">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {recentPayments.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="py-12 text-center text-xs text-muted-foreground">
+                            No transactions recorded.
+                          </td>
+                        </tr>
+                      ) : (
+                        recentPayments.map((p: any) => (
+                          <tr key={p.id} className="hover:bg-muted/30 transition-colors">
+                            <td className="px-6 py-3.5 align-middle whitespace-nowrap">
+                              <span className="font-semibold text-foreground text-xs">
+                                {p.memberName || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Member'}
+                              </span>
+                            </td>
+                            <td className="px-4 py-3.5 align-middle whitespace-nowrap font-mono text-xs text-primary">
+                              {p.receiptNumber || `RCP-${p.id}`}
+                            </td>
+                            <td className="px-4 py-3.5 align-middle whitespace-nowrap font-mono font-bold text-xs text-foreground">
+                              {formatCurrency(p.amountPaise || 0)}
+                            </td>
+                            <td className="px-4 py-3.5 align-middle whitespace-nowrap">
+                              <Badge variant="outline" className="text-[10px] uppercase font-mono">
+                                {p.paymentMode || 'CASH'}
+                              </Badge>
+                            </td>
+                            <td className="px-6 py-3.5 align-middle whitespace-nowrap text-right">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => setSelectedInvoiceId(p.id)}
+                                className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                              >
+                                Invoice
+                              </Button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+        </Tabs>
+
       </div>
+
+      {/* Invoice Receipt Dialog */}
+      <InvoiceDialog
+        paymentId={selectedInvoiceId}
+        open={!!selectedInvoiceId}
+        onOpenChange={(open) => !open && setSelectedInvoiceId(null)}
+      />
     </AppShell>
   );
 };

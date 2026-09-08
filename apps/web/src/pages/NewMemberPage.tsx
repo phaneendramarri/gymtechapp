@@ -155,37 +155,27 @@ export const NewMemberPage: React.FC = () => {
   };
 
   return (
-    <AppShell title="Enroll New Member" breadcrumb="Members">
-      <div className="max-w-4xl mx-auto w-full flex flex-col gap-8 pb-12">
-        {/* Header with Navigation */}
-        <div className="flex flex-col gap-2">
-          <Link
-            to="/members"
-            className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-3 hover:text-ink transition-colors w-fit"
-          >
-            <ArrowLeft className="size-4" /> Back to Member Directory
-          </Link>
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mt-1">
-            <div>
-              <h1 className="font-display text-2xl sm:text-3xl font-bold tracking-tight text-ink">
-                New Member Registration
-              </h1>
-              <p className="text-sm text-ink-3 mt-1">
-                Capture personal details, assign a membership plan, and log the initial fee
-              </p>
-            </div>
-            <Badge variant="secondary" className="self-start sm:self-auto">
-              <Sparkles className="size-3.5 mr-1" /> Quick Enrollment
-            </Badge>
-          </div>
-        </div>
-
+    <AppShell
+      breadcrumb={[
+        { label: 'Members', href: '/members' },
+        { label: 'New Registration' },
+      ]}
+      title="New Member Registration"
+      description="Capture personal details, assign a membership plan, and log the initial enrollment fee."
+      actions={
+        <Badge variant="secondary" className="gap-1 font-normal text-xs py-1 px-2.5">
+          <Sparkles className="size-3.5 text-primary" /> Quick Enrollment
+        </Badge>
+      }
+    >
+      <div className="max-w-4xl mx-auto w-full flex flex-col gap-6 pb-12">
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
             <AlertDescription className="text-sm font-medium">{error}</AlertDescription>
           </Alert>
         )}
+
 
         {createdResult ? (
           <Card className="border-(--line) bg-surface shadow-md p-8 sm:p-12 text-center flex flex-col items-center gap-6">

@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { ThemeToggle } from '@/components/layout/ThemeToggle';
 
 export const ContactPage: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -45,14 +46,17 @@ export const ContactPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-(--bg)">
         <header className="border-b border-(--border) bg-(--surface)">
-          <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
-            <Link to="/">
-              <Button variant="ghost" size="sm" className="gap-2">
-                <ArrowLeft className="size-4" />
-                Back
-              </Button>
-            </Link>
-            <h1 className="font-display text-lg font-semibold text-(--fg)">Contact Us</h1>
+          <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Link to="/">
+                <Button variant="ghost" size="sm" className="gap-2">
+                  <ArrowLeft className="size-4" />
+                  Back
+                </Button>
+              </Link>
+              <h1 className="font-display text-lg font-semibold text-(--fg)">Contact Us</h1>
+            </div>
+            <ThemeToggle />
           </div>
         </header>
         <main className="max-w-3xl mx-auto px-4 py-16 text-center">
@@ -75,14 +79,17 @@ export const ContactPage: React.FC = () => {
     <div className="min-h-screen bg-(--bg)">
       {/* Header */}
       <header className="border-b border-(--border) bg-(--surface)">
-        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center gap-4">
-          <Link to="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="size-4" />
-              Back
-            </Button>
-          </Link>
-          <h1 className="font-display text-lg font-semibold text-(--fg)">Contact Us</h1>
+        <div className="max-w-3xl mx-auto px-4 py-4 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <Link to="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="size-4" />
+                Back
+              </Button>
+            </Link>
+            <h1 className="font-display text-lg font-semibold text-(--fg)">Contact Us</h1>
+          </div>
+          <ThemeToggle />
         </div>
       </header>
 

@@ -99,29 +99,23 @@ export const RenewMemberPage: React.FC = () => {
   };
 
   return (
-    <AppShell title={`Renew Plan — ${member?.firstName || 'Member'}`} breadcrumb="Members">
+    <AppShell
+      breadcrumb={[
+        { label: 'Members', href: '/members' },
+        { label: member?.firstName ? `${member.firstName}'s Profile` : 'Member', href: `/members/${id}` },
+        { label: 'Renew Plan' },
+      ]}
+      title={`Renew Plan — ${member?.firstName || 'Member'}`}
+      description="Assign a new membership package duration and record the renewal fee."
+    >
       <div className="max-w-xl mx-auto w-full flex flex-col gap-6">
-        <div>
-          <Link
-            to={`/members/${id}`}
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground font-medium transition-colors"
-          >
-            <ArrowLeft className="size-3.5" /> Back to {member?.firstName || 'Member'}'s Profile
-          </Link>
-          <h2 className="mt-1 font-display text-2xl font-bold tracking-tight text-foreground">
-            Renew / Extend Membership
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Assign a new package duration and record the renewal fee
-          </p>
-        </div>
-
         {error && (
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
             <AlertDescription className="text-xs">{error}</AlertDescription>
           </Alert>
         )}
+
 
         {result ? (
           <Card className="border-ok/30 bg-card shadow-md p-8 text-center flex flex-col items-center gap-4">

@@ -132,8 +132,8 @@ class ApiClient {
     // If still 401 or no refresh token → redirect to login
     if (res.status === 401) {
       setStoredRefreshToken(null);
-      if (!window.location.hash.includes('/login') && window.location.hash !== '' && window.location.hash !== '#/') {
-        window.location.hash = '#/login';
+      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+        window.location.href = '/login';
       }
     }
   }

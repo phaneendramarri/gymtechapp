@@ -41,42 +41,45 @@ export function MetricCard({
     : 'neutral';
 
   const TrendIcon = trend === 'up' ? TrendingUp : trend === 'down' ? TrendingDown : Minus;
-  const trendColor = trend === 'up'
-    ? 'text-emerald-600 dark:text-emerald-400'
-    : trend === 'down'
-    ? 'text-red-600 dark:text-red-400'
-    : 'text-muted-foreground';
 
   return (
-    <Card className={cn('relative overflow-hidden border-border/50 hover:border-border transition-colors group', className)}>
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{label}</p>
-            <div className="mt-2 flex items-baseline gap-2">
-              <p className="text-3xl font-semibold tracking-tight text-foreground truncate">
-                  {prefix && <span className="text-muted-foreground mr-0.5">{prefix}</span>}{value}
-                </p>
-              {delta && (
-                <span className={cn('flex items-center gap-0.5 text-xs font-medium', trendColor)}>
-                  <TrendIcon className="h-3 w-3" />
-                  {delta}
-                </span>
-              )}
-            </div>
-            {sub && <p className="mt-1 text-sm text-muted-foreground truncate">{sub}</p>}
-          </div>
+    <Card className={cn('group/card bg-card text-card-foreground ring-1 ring-border/70 hover:ring-border shadow-xs hover:shadow-md transition-all duration-200 rounded-xl overflow-hidden', className)}>
+      <CardContent className="p-5 flex flex-col justify-between h-full">
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider font-mono truncate">{label}</p>
           {Icon && (
-            <div className="shrink-0 p-2.5 rounded-lg bg-muted/60 group-hover:bg-muted transition-colors">
-              <Icon className="h-5 w-5 text-muted-foreground" />
+            <div className="size-9 shrink-0 flex items-center justify-center rounded-lg bg-primary/10 text-primary border border-primary/20 group-hover:scale-105 transition-transform">
+              <Icon className="size-4.5" />
             </div>
           )}
         </div>
-        {description && (
-          <p className="mt-3 text-xs text-muted-foreground leading-relaxed">{description}</p>
+
+        <div className="mt-3 flex items-baseline justify-between gap-2 flex-wrap">
+          <div className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-mono">
+            {prefix && <span className="text-muted-foreground mr-0.5 text-xl sm:text-2xl font-normal">{prefix}</span>}
+            {value}
+          </div>
+          {delta && (
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border',
+                trend === 'up' && 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+                trend === 'down' && 'bg-red-500/10 text-red-600 dark:text-red-400 border-red-500/20',
+                trend === 'neutral' && 'bg-muted text-muted-foreground border-border'
+              )}
+            >
+              <TrendIcon className="size-3" />
+              {delta}
+            </span>
+          )}
+        </div>
+
+        {(sub || description) && (
+          <div className="mt-2.5 pt-2 border-t border-border/40 flex items-center justify-between text-xs text-muted-foreground">
+            {sub && <span className="truncate">{sub}</span>}
+            {description && <span className="text-[11px] leading-tight text-muted-foreground">{description}</span>}
+          </div>
         )}
-        {/* Decorative gradient accent */}
-        <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-border to-transparent opacity-50" />
       </CardContent>
     </Card>
   );
