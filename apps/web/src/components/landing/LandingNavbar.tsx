@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -19,18 +20,18 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, active
     <header
       className={`fixed top-0 inset-x-0 z-50 transition-all duration-200 ${
         isScrolled
-          ? 'bg-(--bg) py-3 border-b border-(--line)'
-          : 'bg-(--bg) py-4'
+          ? 'bg-background/90 backdrop-blur-md py-3 border-b border-border'
+          : 'bg-transparent py-4'
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
         {/* Brand Logo */}
-        <a href="/" className="flex items-center">
+        <Link to="/" className="flex items-center">
           <Logo />
-        </a>
+        </Link>
 
         {/* Desktop Navigation Links */}
-        <nav className="hidden md:flex items-center gap-8 text-[13px] text-ink-2 tracking-wide">
+        <nav className="hidden md:flex items-center gap-8 text-[13px] text-muted-foreground tracking-wide font-medium">
           {[
             { id: 'product', label: 'Product' },
             { id: 'how-it-works', label: 'How it works' },
@@ -41,7 +42,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, active
               key={id}
               href={`#${id}`}
               className={`transition-colors ${
-                activeSection === id ? 'text-(--iron) font-medium' : 'hover:text-ink'
+                activeSection === id ? 'text-primary font-semibold' : 'hover:text-foreground'
               }`}
             >
               {label}
@@ -54,19 +55,19 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, active
           <ThemeToggle />
 
           {user ? (
-            <Button asChild size="sm" className="bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) h-9 px-4 gap-1.5">
-              <a href={user.role === 'PLATFORM_ADMIN' ? '/admin' : '/dashboard'}>
+            <Button asChild size="sm" className="h-9 px-4 gap-1.5 font-semibold text-xs">
+              <Link to={user.role === 'PLATFORM_ADMIN' ? '/admin' : '/dashboard'}>
                 <span>Open workspace</span>
                 <ArrowRight className="size-3.5" />
-              </a>
+              </Link>
             </Button>
           ) : (
             <>
-              <Button asChild variant="ghost" size="sm" className="text-[13px] h-9 px-3 text-ink-2 hover:text-ink hover:bg-(--surface-2)">
-                <a href="/login">Sign in</a>
+              <Button asChild variant="ghost" size="sm" className="text-xs h-9 px-3 text-muted-foreground hover:text-foreground">
+                <Link to="/login">Sign in</Link>
               </Button>
-              <Button asChild size="sm" className="bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) h-9 px-4">
-                <a href="/login">Start free trial</a>
+              <Button asChild size="sm" className="h-9 px-4 text-xs font-semibold">
+                <Link to="/login">Start free trial</Link>
               </Button>
             </>
           )}
@@ -78,7 +79,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, active
           <Button
             variant="outline"
             size="icon"
-            className="size-8.5 rounded-lg"
+            className="size-8.5 rounded-lg border-border"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label="Toggle navigation menu"
           >
@@ -94,20 +95,28 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, active
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="md:hidden border-b border-(--line) bg-(--bg) px-5 py-4 flex flex-col gap-3 overflow-hidden"
+            className="md:hidden border-b border-border bg-background px-5 py-4 flex flex-col gap-3 overflow-hidden shadow-lg"
           >
-            <a href="#product" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-ink-2 hover:text-ink">Product</a>
-            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-ink-2 hover:text-ink">How it works</a>
-            <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-ink-2 hover:text-ink">Pricing</a>
-            <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-ink-2 hover:text-ink">FAQ</a>
-            <div className="h-px bg-(--line) my-1" />
+            <a href="#product" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-muted-foreground hover:text-foreground">Product</a>
+            <a href="#how-it-works" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-muted-foreground hover:text-foreground">How it works</a>
+            <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-muted-foreground hover:text-foreground">Pricing</a>
+            <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="text-sm py-1.5 text-muted-foreground hover:text-foreground">FAQ</a>
+            <div className="h-px bg-border my-1" />
             <div className="flex flex-col gap-2 pt-1">
-              <Button asChild variant="outline" size="sm" className="w-full justify-center border-(--line) h-9">
-                <a href="/login">Sign in</a>
-              </Button>
-              <Button asChild size="sm" className="w-full justify-center bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) h-9">
-                <a href="/login">Start free trial</a>
-              </Button>
+              {user ? (
+                <Button asChild size="sm" className="w-full justify-center h-9">
+                  <Link to={user.role === 'PLATFORM_ADMIN' ? '/admin' : '/dashboard'}>Open workspace</Link>
+                </Button>
+              ) : (
+                <>
+                  <Button asChild variant="outline" size="sm" className="w-full justify-center border-border h-9">
+                    <Link to="/login">Sign in</Link>
+                  </Button>
+                  <Button asChild size="sm" className="w-full justify-center h-9">
+                    <Link to="/login">Start free trial</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </motion.div>
         )}

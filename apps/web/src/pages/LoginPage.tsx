@@ -38,7 +38,19 @@ type LoginMode = 'STAFF' | 'MEMBER';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, user } = useAuth();
+
+  React.useEffect(() => {
+    if (user) {
+      if (user.role === 'MEMBER') {
+        navigate('/portal', { replace: true });
+      } else if (user.role === 'PLATFORM_ADMIN' || (user.role as string) === 'SUPER_ADMIN') {
+        navigate('/admin', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
+    }
+  }, [user, navigate]);
 
   const [mode, setMode] = useState<LoginMode>('STAFF');
   const [email, setEmail] = useState('');

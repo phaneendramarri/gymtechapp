@@ -129,10 +129,31 @@ class ApiClient {
       }
     }
 
-    // If still 401 or no refresh token → redirect to login
+    // If still 401 or no refresh token → handle session invalidation
     if (res.status === 401) {
       setStoredRefreshToken(null);
-      if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
+      
+      const isAuthCheck = endpoint.startsWith('/api/auth/me') ||
+        endpoint.startsWith('/api/auth/refresh') ||
+        endpoint.startsWith('/api/auth/login') ||
+        endpoint.startsWith('/api/auth/member-login') ||
+        endpoint.startsWith('/api/auth/forgot-password') ||
+        endpoint.startsWith('/api/auth/reset-password') ||
+        endpoint.startsWith('/api/auth/portal');
+
+      const isPublicPath = typeof window !== 'undefined' && (
+        window.location.pathname === '/' ||
+        window.location.pathname === '/login' ||
+        window.location.pathname.startsWith('/reset-password') ||
+        window.location.pathname.startsWith('/about') ||
+        window.location.pathname.startsWith('/contact') ||
+        window.location.pathname.startsWith('/terms') ||
+        window.location.pathname.startsWith('/privacy')
+      );
+
+      // Only force window redirect to /login if user was on a protected internal route
+      // and their session truly expired. <ProtectedRoute> handles standard navigation guards.
+      if (!isAuthCheck && !isPublicPath && typeof window !== 'undefined') {
         window.location.href = '/login';
       }
     }
