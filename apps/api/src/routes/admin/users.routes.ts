@@ -119,10 +119,7 @@ adminUserRoutes.put('/:id/disable', requireSuperAdminMiddleware, safeHandler(asy
   const user = await userRepo.findByIdFull(id);
   if (!user) return jsonErr('User not found', 404);
 
-  await userRepo.update(id, { status: 'DISABLED' });
-  const sessionRepo = new SessionRepository(ctx.db);
-  await sessionRepo.revokeAllForUser(user.gymId, id);
-
+  await userRepo.update(id, { disabledAt: Date.now() });
   return jsonOk({ success: true });
 }));
 
@@ -131,10 +128,7 @@ adminUserRoutes.put('/:id/enable', requireSuperAdminMiddleware, safeHandler(asyn
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const userRepo = new UserRepository(ctx.db);
-  const user = await userRepo.findByIdFull(id);
-  if (!user) return jsonErr('User not found', 404);
-
-  await userRepo.update(id, { status: 'ACTIVE' });
+  await userRepo.update(id, { disabledAt: null });
   return jsonOk({ success: true });
 }));
 

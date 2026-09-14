@@ -94,39 +94,30 @@ export class UserRepository {
     return { ...u, roleName };
   }
 
-  async update(id: number, data: Partial<{ roleId: number | null; status: 'ACTIVE' | 'DISABLED'; disabledAt: number | null }>): Promise<void> {
+  async update(id: number, data: Partial<{ roleId: number | null; disabledAt: number | null }>): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     const setCols: Record<string, unknown> = { updatedAt: now };
     if (data.roleId !== undefined) setCols.roleId = data.roleId;
-    if (data.status !== undefined) setCols.status = data.status;
-    if (data.disabledAt !== undefined) setCols.status = data.disabledAt ? 'DISABLED' : 'ACTIVE';
+    if (data.disabledAt !== undefined) setCols.disabledAt = data.disabledAt;
     await this.db.update(users).set(setCols).where(eq(users.id, id));
   }
 
   async listAllPlatformUsers(opts: {
     page: number; limit: number; search?: string; gymId?: number;
   }): Promise<{ users: (User & { roleName: string | null; gymName: string | null })[]; total: number }> {
-    const { page, limit, gymId, search } = opts;
+    const { page, limit, gymId } = opts;
     const offset = (page - 1) * limit;
 
     // Import gym schema here to avoid circular deps
     const { gyms } = await import('../db/schema');
 
-    const conds: any[] = [isNull(users.deletedAt)];
-    if (gymId) {
-      conds.push(eq(users.gymId, gymId));
-    }
-    if (search) {
-      const term = `%${search.toLowerCase().trim()}%`;
-      conds.push(sql`(${users.name} LIKE ${term} OR ${users.email} LIKE ${term} OR ${users.phone} LIKE ${term})`);
-    }
-    const whereCond = and(...conds);
+    const baseCond = isNull(users.deletedAt);
 
-    // Filtered count
+    // Simple count
     const countRows = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(users)
-      .where(whereCond);
+      .where(baseCond);
     const total = Number(countRows[0]?.count ?? 0);
 
     // Paginated fetch
@@ -147,7 +138,7 @@ export class UserRepository {
         updatedAt: users.updatedAt,
       })
       .from(users)
-      .where(whereCond)
+      .where(baseCond)
       .orderBy(users.createdAt)
       .limit(limit)
       .offset(offset);

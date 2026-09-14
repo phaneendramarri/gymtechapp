@@ -9,7 +9,7 @@ import { eq, and, isNull, like, desc, sql } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Member, MemberStatus, MemberListItem } from '@gymtech/shared';
-import { members, memberships, membershipPlans, counters, communicationLogs, attendance } from '../db/schema';
+import { members, memberships, membershipPlans, counters, communicationLogs } from '../db/schema';
 
 /** Returns today's date as YYYYMMDD integer. */
 export function todayYyyymmdd(): number {
@@ -37,8 +37,35 @@ export class MemberRepository {
     limit?: number;
     offset?: number;
   }): Promise<MemberListItem[]> {
-    const whereParts: string[] = [`m.gym_id = ?`, `m.deleted_at IS NULL`];
-    const bindings: any[] = [this.gymId];
+    const conditions: (ReturnType<typeof sql> | ReturnType<typeof isNull>)[] = [
+      sql`${members.gymId} = ${this.gymId}`,
+      isNull(members.deletedAt),
+    ];
+
+    if (params.status && params.status !== 'ALL') {
+      if (params.status === 'EXPIRED') {
+        conditions.push(sql`(${members.status} = 'EXPIRED' OR EXISTS (
+          SELECT 1 FROM memberships ms2
+          WHERE ms2.member_id = ${members.id} AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL
+        ))`);
+      } else if (params.status === 'ACTIVE') {
+        conditions.push(sql`${members.status} = 'ACTIVE'`);
+        conditions.push(sql`(ms.end_date IS NULL OR ms.end_date >= unixepoch())`);
+      } else {
+        conditions.push(sql`${members.status} = ${params.status}`);
+      }
+    }
+
+    if (params.search) {
+      const term = `%${params.search}%`;
+      conditions.push(
+        sql`(${members.firstName} LIKE ${term} OR ${members.lastName} LIKE ${term} OR ${members.phone} LIKE ${term} OR ${members.memberCode} LIKE ${term} OR ${members.email} LIKE ${term})`
+      );
+    }
+
+    // Build WHERE clause manually since we need to use raw SQL for the complex correlated subquery
+    const whereParts: string[] = [`m.gym_id = ${this.gymId}`, `m.deleted_at IS NULL`];
+    const bindings: any[] = [];
 
     if (params.status && params.status !== 'ALL') {
       if (params.status === 'EXPIRED') {
@@ -83,38 +110,8 @@ export class MemberRepository {
       LIMIT ${limit} OFFSET ${offset}
     `;
 
-    const { results } = await this.d1.prepare(query).bind(...bindings).all() as { results: any[] };
-    return (results || []).map((row: any) => ({
-      ...row,
-      id: row.id,
-      gymId: row.gym_id ?? row.gymId,
-      memberCode: row.member_code ?? row.memberCode,
-      firstName: row.first_name ?? row.firstName,
-      lastName: row.last_name ?? row.lastName,
-      email: row.email,
-      phone: row.phone,
-      gender: row.gender,
-      status: row.status,
-      joinedDate: row.joined_date ?? row.joinedDate,
-      photoUrl: row.photo_url ?? row.photoUrl,
-      activeMembershipId: row.active_membership_id ?? row.activeMembershipId,
-      membershipStatus: row.membership_status ?? row.membershipStatus,
-      membershipStartDate: row.membership_start_date ?? row.membershipStartDate,
-      membershipEndDate: row.membership_end_date ?? row.membershipEndDate,
-      membershipDueAmountPaise: row.membership_due_amount_paise ?? row.membershipDueAmountPaise,
-      planName: row.plan_name ?? row.planName,
-      // Keep snake_case keys intact for backward compatibility
-      first_name: row.first_name ?? row.firstName,
-      last_name: row.last_name ?? row.lastName,
-      member_code: row.member_code ?? row.memberCode,
-      joined_date: row.joined_date ?? row.joinedDate,
-      active_membership_id: row.active_membership_id ?? row.activeMembershipId,
-      membership_status: row.membership_status ?? row.membershipStatus,
-      membership_start_date: row.membership_start_date ?? row.membershipStartDate,
-      membership_end_date: row.membership_end_date ?? row.membershipEndDate,
-      membership_due_amount_paise: row.membership_due_amount_paise ?? row.membershipDueAmountPaise,
-      plan_name: row.plan_name ?? row.planName,
-    })) as MemberListItem[];
+    const { results } = await this.d1.prepare(query).bind(...bindings).all() as { results: MemberListItem[] };
+    return results || [];
   }
 
   async countActive(): Promise<number> {
@@ -132,8 +129,7 @@ export class MemberRepository {
   }
 
   async countTotal(params: { search?: string; status?: string } = {}): Promise<number> {
-    const whereParts: string[] = [`gym_id = ?`, `deleted_at IS NULL`];
-    const bindings: any[] = [this.gymId];
+    const whereParts: string[] = [`gym_id = ${this.gymId}`, `deleted_at IS NULL`];
 
     if (params.status && params.status !== 'ALL') {
       if (params.status === 'EXPIRED') {
@@ -144,19 +140,17 @@ export class MemberRepository {
       } else if (params.status === 'ACTIVE') {
         whereParts.push(`status = 'ACTIVE'`);
       } else {
-        whereParts.push(`status = ?`);
-        bindings.push(params.status);
+        whereParts.push(`status = '${params.status}'`);
       }
     }
 
     if (params.search) {
       const term = `%${params.search}%`;
-      whereParts.push(`(first_name LIKE ? OR last_name LIKE ? OR phone LIKE ? OR member_code LIKE ? OR email LIKE ?)`);
-      bindings.push(term, term, term, term, term);
+      whereParts.push(`(first_name LIKE '${term}' OR last_name LIKE '${term}' OR phone LIKE '${term}' OR member_code LIKE '${term}' OR email LIKE '${term}')`);
     }
 
     const query = `SELECT COUNT(*) as count FROM members WHERE ${whereParts.join(' AND ')}`;
-    const result = await this.d1.prepare(query).bind(...bindings).first() as { count: number } | undefined;
+    const result = await this.d1.prepare(query).first() as { count: number } | undefined;
     return result?.count ?? 0;
   }
 
@@ -440,12 +434,12 @@ export class MemberRepository {
     const today = todayYyyymmdd();
     const [{ count }] = await this.db
       .select({ count: sql<number>`count(*)` })
-      .from(attendance)
+      .from(members)
       .where(
         and(
-          eq(attendance.gymId, this.gymId),
-          eq(attendance.attendanceDate, today),
-          isNull(attendance.deletedAt)
+          eq(members.gymId, this.gymId),
+          eq(members.status, 'ACTIVE' as any),
+          isNull(members.deletedAt)
         )
       );
     return count ?? 0;
