@@ -116,7 +116,10 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   const user = payloadToSessionUser(session);
   if (user.role === 'PLATFORM_ADMIN') {
     const gymIdParam = c.req.query('gymId');
-    const gymId = gymIdParam ? Number(gymIdParam) : 1;
+    if (!gymIdParam) {
+      return jsonError('Platform admin must specify target gym via ?gymId= query parameter', 400);
+    }
+    const gymId = Number(gymIdParam);
     if (!gymId || !Number.isInteger(gymId)) {
       return jsonError('Invalid gymId parameter', 400);
     }

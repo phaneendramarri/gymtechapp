@@ -177,41 +177,19 @@ export class AuthService {
     if (!session) return null;
 
     const userRow = await this.userRepo.findById(session.userId as number);
-    let sessionUser: SessionUser;
-    let gymId: number | null = null;
+    if (!userRow) return null;
 
-    if (userRow) {
-      if (userRow.status !== 'ACTIVE') return null;
-      const permissions = await this.userRepo.getPermissionsForUser(userRow.id);
-      sessionUser = {
-        id: userRow.id,
-        email: userRow.email,
-        name: userRow.name,
-        role: userRow.role as UserRole,
-        gymId: userRow.gymId,
-        isOwner: Boolean(userRow.isOwner),
-        permissions,
-        roleId: userRow.roleId ?? null,
-      };
-      gymId = userRow.gymId;
-    } else {
-      const adminRow = await this.db
-        .prepare(`SELECT * FROM platform_admins WHERE id = ? AND deleted_at IS NULL AND status = 'ACTIVE'`)
-        .bind(session.userId)
-        .first<any>();
-      if (!adminRow) return null;
-
-      sessionUser = {
-        id: adminRow.id,
-        email: adminRow.email,
-        name: adminRow.name,
-        role: 'PLATFORM_ADMIN' as UserRole,
-        gymId: null,
-        isOwner: false,
-        permissions: ['*'],
-        roleId: null,
-      };
-    }
+    const permissions = await this.userRepo.getPermissionsForUser(userRow.id);
+    const sessionUser: SessionUser = {
+      id: userRow.id,
+      email: userRow.email,
+      name: userRow.name,
+      role: userRow.role as UserRole,
+      gymId: userRow.gymId,
+      isOwner: Boolean(userRow.isOwner),
+      permissions,
+      roleId: userRow.roleId ?? null,
+    };
 
     const { token, jti: newAccessJti } = await this._createAccessToken(sessionUser);
     const { token: newRefreshToken, jti: newRefreshJti } = await createRefreshToken(this.jwtSecret);
@@ -222,13 +200,9 @@ export class AuthService {
     await this.sessionRepo.revokeByTokenHash(session.tokenHash);
 
     await this.sessionRepo.create({
-      gymId: gymId ?? 0,
-      userId: sessionUser.id,
-      tokenHash: newAccessJti,
-      refreshTokenHash: newRefreshJti,
+      gymId: userRow.gymId ?? 0, userId: userRow.id, tokenHash: newAccessJti, refreshTokenHash: newRefreshJti,
       refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
-      issuedAt: now,
-      expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
+      issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
     });
 
     return { token, refreshToken: newRefreshToken, user: sessionUser };

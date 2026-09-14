@@ -11,14 +11,12 @@ import { AuthService } from '../services/auth.service';
 import { EmailService } from '../services/email.service';
 import { AuditService, extractClientInfo } from '../services/audit.service';
 import { verifyTurnstileToken, type TurnstileAppEnv } from '../lib/turnstile';
-import { hashPassword, hashOpaqueToken, verifyOpaqueToken, verifySessionToken } from '../lib/session';
+import { hashPassword, hashOpaqueToken, verifyOpaqueToken } from '../lib/session';
 import {
   buildSessionCookie,
   buildCsrfCookie,
   buildClearSessionCookie,
   generateCsrfToken,
-  readCookie,
-  COOKIE_NAMES,
 } from '../lib/cookies';
 import { requireAuth } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
@@ -74,7 +72,7 @@ authRoutes.post('/login', safeHandler(async (c) => {
       'Set-Cookie': [
         buildSessionCookie(res.token, ctx.env.APP_ENV),
         buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ],
+      ].join(', '),
       'X-CSRF-Token': csrf,
     });
   } catch (e: any) {
@@ -127,7 +125,7 @@ authRoutes.post('/platform-login', safeHandler(async (c) => {
       'Set-Cookie': [
         buildSessionCookie(res.token, ctx.env.APP_ENV),
         buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ],
+      ].join(', '),
       'X-CSRF-Token': csrf,
     });
   } catch (e: any) {
@@ -139,33 +137,7 @@ authRoutes.get('/me', requireAuth, safeHandler(async (c) => {
   const ctx = getCtx(c);
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const res = await authService.getCurrentUser(ctx.user!);
-
-  // Ensure client always has a valid CSRF token in cookie & header on every session verify
-  const existingCsrf = readCookie(c.req.header('Cookie'), COOKIE_NAMES.CSRF);
-  const csrf = existingCsrf || generateCsrfToken();
-
-  return jsonOk(res, 200, {
-    'Set-Cookie': [
-      buildCsrfCookie(csrf, ctx.env.APP_ENV),
-    ],
-    'X-CSRF-Token': csrf,
-  });
-}));
-
-/**
- * GET /auth/csrf — Lightweight CSRF token fetcher/bootstrapper.
- * Returns { csrfToken } and sets gym_csrf cookie + X-CSRF-Token header.
- */
-authRoutes.get('/csrf', safeHandler(async (c) => {
-  const ctx = getCtx(c);
-  const existingCsrf = readCookie(c.req.header('Cookie'), COOKIE_NAMES.CSRF);
-  const csrf = existingCsrf || generateCsrfToken();
-  return jsonOk({ csrfToken: csrf }, 200, {
-    'Set-Cookie': [
-      buildCsrfCookie(csrf, ctx.env.APP_ENV),
-    ],
-    'X-CSRF-Token': csrf,
-  });
+  return jsonOk(res);
 }));
 
 /**
@@ -193,7 +165,7 @@ authRoutes.post('/refresh', safeHandler(async (c) => {
       'Set-Cookie': [
         buildSessionCookie(result.token, ctx.env.APP_ENV),
         buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ],
+      ].join(', '),
       'X-CSRF-Token': csrf,
     }
   );
@@ -226,11 +198,7 @@ authRoutes.post('/forgot-password', safeHandler(async (c) => {
     .bind(user.gym_id, user.id, tokenHash, expiresAt)
     .run();
 
-  const origin = c.req.header('origin');
-  const appUrl = origin && (origin.includes('gymtech.app') || origin.includes('workers.dev'))
-    ? origin
-    : (ctx.env.APP_URL || 'https://gymtech.app');
-  const emailService = new EmailService({ ...ctx.env, APP_URL: appUrl });
+  const emailService = new EmailService(ctx.env);
   const sendResult = await emailService.sendPasswordResetEmail({ to: user.email, name: user.name, token });
 
   // Only include the raw reset URL in non-production environments. The URL
@@ -269,11 +237,7 @@ authRoutes.post('/reset-password', safeHandler(async (c) => {
     ctx.env.DB.prepare(`UPDATE user_password_resets SET used_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(resetRecord.id, resetRecord.gym_id),
   ]);
 
-  const confOrigin = c.req.header('origin');
-  const confAppUrl = confOrigin && (confOrigin.includes('gymtech.app') || confOrigin.includes('workers.dev'))
-    ? confOrigin
-    : (ctx.env.APP_URL || 'https://gymtech.app');
-  const emailService = new EmailService({ ...ctx.env, APP_URL: confAppUrl });
+  const emailService = new EmailService(ctx.env);
   await emailService.sendPasswordResetConfirmation({ to: user.email, name: user.name });
 
   return jsonOk({ success: true, message: 'Your password has been successfully reset.' });
@@ -353,7 +317,7 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
       'Set-Cookie': [
         buildSessionCookie(token, ctx.env.APP_ENV),
         buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ],
+      ].join(', '),
       'X-CSRF-Token': csrf,
     }
   );
@@ -362,16 +326,7 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
 authRoutes.get('/portal', safeHandler(async (c) => {
   const ctx = getCtx(c);
   const authHeader = c.req.header('Authorization') || '';
-  let token = authHeader.replace(/^Bearer\s+/i, '').trim();
-
-  if (!token) {
-    const cookieHeader = c.req.header('Cookie') || '';
-    const match = cookieHeader.match(/gym_token=([^;]+)/);
-    if (match) {
-      token = decodeURIComponent(match[1].trim());
-    }
-  }
-
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
   if (!token) return jsonErr('Unauthorized: Member token required', 401);
 
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
@@ -404,21 +359,13 @@ authRoutes.get('/portal', safeHandler(async (c) => {
   });
 }));
 
-authRoutes.post('/logout', safeHandler(async (c) => {
+authRoutes.post('/logout', requireAuth, safeHandler(async (c) => {
   const ctx = getCtx(c);
-  try {
-    const cookieToken = readCookie(c.req.header('Cookie'), COOKIE_NAMES.SESSION);
-    const authHeader = c.req.header('Authorization');
-    const token = cookieToken || (authHeader?.startsWith('Bearer ') ? authHeader.substring(7) : null);
-    if (token) {
-      const iss = ctx.env.APP_URL ?? 'gymtech';
-      const session = await verifySessionToken(token, ctx.env.JWT_SECRET, { iss, aud: 'gymtech-api' }).catch(() => null);
-      if (session?.jti) {
-        const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL, ctx.env.DENYLIST_KV);
-        await authService.logout(session.jti).catch(() => {});
-      }
-    }
-  } catch {}
+  const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL, ctx.env.DENYLIST_KV);
+  // Revoke the session from DB so the access token can never be used again
+  if (ctx.user?.jti) {
+    await authService.logout(ctx.user.jti);
+  }
   return jsonOk(
     { success: true, message: 'Logged out.' },
     200,
@@ -427,7 +374,7 @@ authRoutes.post('/logout', safeHandler(async (c) => {
         buildClearSessionCookie(ctx.env.APP_ENV),
         // CSRF cookie: clear by setting Max-Age=0
         buildCsrfCookie('', ctx.env.APP_ENV).replace(/Max-Age=\d+/, 'Max-Age=0'),
-      ],
+      ].join(', '),
     }
   );
 }));
