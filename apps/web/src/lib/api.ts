@@ -539,6 +539,66 @@ class ApiClient {
     return this.request(`/api/reports?period=${period}`);
   }
 
+  async getRevenueReport(params: {
+    startDate: number;
+    endDate: number;
+    groupBy?: 'day' | 'week' | 'month';
+  }): Promise<{
+    totalRevenue: { total_paise: number; payment_count: number; cash_paise: number; upi_paise: number; card_paise: number; bank_paise: number };
+    revenueByPlan: Array<{ plan_name: string; revenue_paise: number; payment_count: number; member_count: number }>;
+    timeSeries: Array<{ period: string; revenue_paise: number; payment_count: number }>;
+  }> {
+    const q = new URLSearchParams({
+      startDate: String(params.startDate),
+      endDate: String(params.endDate),
+      groupBy: params.groupBy || 'day',
+    });
+    return this.request(`/api/reports/revenue?${q}`);
+  }
+
+  async getMembershipReport(params: {
+    startDate: number;
+    endDate: number;
+    status?: string;
+  }): Promise<{
+    summary: { total_active: number; new_memberships: number; renewals: number; expired: number; frozen: number };
+    byPlan: Array<{ plan_name: string; active_count: number; expiring_soon: number }>;
+    expiring: Array<{ member_id: number; member_name: string; member_code: string; plan_name: string; end_date: number }>;
+  }> {
+    const q = new URLSearchParams({
+      startDate: String(params.startDate),
+      endDate: String(params.endDate),
+    });
+    if (params.status) q.set('status', params.status);
+    return this.request(`/api/reports/membership?${q}`);
+  }
+
+  async getAttendanceReport(params: {
+    startDate: number;
+    endDate: number;
+    memberId?: number;
+  }): Promise<{
+    summary: { total_checkins: number; unique_members: number; avg_daily: number };
+    byDay: Array<{ date: string; checkin_count: number }>;
+    peakHours: Array<{ hour: number; checkin_count: number }>;
+    topMembers: Array<{ member_id: number; member_name: string; checkin_count: number }>;
+  }> {
+    const q = new URLSearchParams({
+      startDate: String(params.startDate),
+      endDate: String(params.endDate),
+    });
+    if (params.memberId) q.set('memberId', String(params.memberId));
+    return this.request(`/api/reports/attendance?${q}`);
+  }
+
+  async getMemberGrowthReport(startDate: number, endDate: number): Promise<{
+    summary: { total_joins: number; total_churned: number; net_growth: number };
+    series: Array<{ period: string; joins: number; churned: number; net: number }>;
+  }> {
+    const q = new URLSearchParams({ startDate: String(startDate), endDate: String(endDate) });
+    return this.request(`/api/reports/growth?${q}`);
+  }
+
   async getInvoice(paymentId: number): Promise<InvoiceData> {
     return this.request<InvoiceData>(`/api/payments/${paymentId}/invoice`);
   }
