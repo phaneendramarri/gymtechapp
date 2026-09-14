@@ -24,6 +24,7 @@ const AttendancePage = lazy(() => import('./pages/AttendancePage').then(m => ({ 
 const PlansPage = lazy(() => import('./pages/PlansPage').then(m => ({ default: m.PlansPage })));
 const StaffPage = lazy(() => import('./pages/StaffPage').then(m => ({ default: m.StaffPage })));
 const ReportsPage = lazy(() => import('./pages/ReportsPage').then(m => ({ default: m.ReportsPage })));
+const SettingsPage = lazy(() => import('./pages/SettingsPage').then(m => ({ default: m.SettingsPage })));
 const SettingsNotificationsPage = lazy(() => import('./pages/SettingsNotificationsPage').then(m => ({ default: m.SettingsNotificationsPage })));
 const AdminPage = lazy(() => import('./pages/AdminPage').then(m => ({ default: m.AdminPage })));
 const ResetPasswordPage = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
@@ -69,18 +70,15 @@ const queryClient = new QueryClient({
   },
 });
 
-export const App: React.FC = () => {
+const AppRoutes: React.FC = () => {
+  const location = useLocation();
+
   return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <ToastProvider>
-          <BrowserRouter>
-            <Suspense fallback={<RouteSkeleton />}>
-              <AnimatePresence mode="wait" initial={false}>
-                <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
-                  {/* Public Routes — loaded immediately */}
-                  <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+    <Suspense fallback={<RouteSkeleton />}>
+      <AnimatePresence mode="wait" initial={false}>
+        <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
+          {/* Public Routes — loaded immediately */}
+          <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
                   <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
                   <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
 
@@ -218,12 +216,24 @@ export const App: React.FC = () => {
                     }
                   />
                   <Route
+                    path="/settings"
+                    element={
+                      <PageTransition>
+                        <ProtectedRoute requiredPermissions={['settings']}>
+                          <RequireGymFeature requiredFeature="settings">
+                            <ErrorBoundary><SettingsPage /></ErrorBoundary>
+                          </RequireGymFeature>
+                        </ProtectedRoute>
+                      </PageTransition>
+                    }
+                  />
+                  <Route
                     path="/settings/notifications"
                     element={
                       <PageTransition>
                         <ProtectedRoute requiredPermissions={['settings']}>
                           <RequireGymFeature requiredFeature="settings">
-                            <ErrorBoundary><SettingsNotificationsPage /></ErrorBoundary>
+                            <ErrorBoundary><SettingsPage defaultTab="notifications" /></ErrorBoundary>
                           </RequireGymFeature>
                         </ProtectedRoute>
                       </PageTransition>
@@ -345,7 +355,18 @@ export const App: React.FC = () => {
                 </Routes>
               </AnimatePresence>
             </Suspense>
-          </BrowserRouter>
+  );
+};
+
+export const App: React.FC = () => {
+  return (
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <ToastProvider>
+            <BrowserRouter>
+              <AppRoutes />
+            </BrowserRouter>
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>

@@ -84,3 +84,32 @@ staffRoutes.post('/:id/restore', requireGym, requireFeature('staff'), requirePer
   await auditGym(ctx, 'staff.restore', 'user', id, { after: restored ? { id, email: restored.email, role: restored.role, status: restored.status } : { id } });
   return jsonOk({ success: true, message: 'Staff member restored successfully.' });
 }));
+
+staffRoutes.patch('/:id', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const id = paramId(c.req.param() as Record<string, string>);
+  const userRepo = new UserRepository(ctx.db);
+  const before = await userRepo.findById(id);
+  if (!before || before.gymId !== ctx.gymId!) return jsonErr('Staff member not found in this gym', 404);
+
+  const body = await c.req.json().catch(() => ({}));
+  const { name, phone, role, roleId, status, permissions } = body;
+
+  const updateData: any = {};
+  if (name !== undefined) updateData.name = String(name).trim();
+  if (phone !== undefined) updateData.phone = phone ? String(phone).trim() : null;
+  if (role !== undefined) updateData.role = String(role);
+  if (roleId !== undefined) updateData.roleId = roleId ? Number(roleId) : null;
+  if (status !== undefined) updateData.status = status === 'DISABLED' ? 'DISABLED' : 'ACTIVE';
+  if (permissions !== undefined) updateData.permissions = JSON.stringify(permissions);
+
+  await userRepo.updateStaff(id, ctx.gymId!, updateData);
+
+  if (Array.isArray(permissions)) {
+    await userRepo.setPermissions(id, permissions, ctx.user!.id);
+  }
+
+  const after = await userRepo.findByIdFull(id);
+  await auditGym(ctx, 'staff.update', 'user', id, { before, after });
+  return jsonOk(after);
+}));

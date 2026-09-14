@@ -505,6 +505,42 @@ class ApiClient {
     });
   }
 
+  async updateStaff(
+    id: number,
+    payload: {
+      name?: string;
+      phone?: string;
+      role?: string;
+      roleId?: number | null;
+      status?: 'ACTIVE' | 'DISABLED';
+      permissions?: string[];
+    },
+    gymId?: number
+  ): Promise<User> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<User>(`/api/staff/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  // Gym Profile & Settings
+  async getGymProfile(gymId?: number): Promise<any> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<any>(`/api/settings/gym${qs ? `?${qs}` : ''}`);
+  }
+
+  async updateGymProfile(payload: Record<string, any>, gymId?: number): Promise<any> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<any>(`/api/settings/gym${qs ? `?${qs}` : ''}`, {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    });
+  }
+
   // Notification Settings
   async getNotificationSettings(): Promise<NotificationSettingsResponse> {
     return this.request<NotificationSettingsResponse>('/api/settings/notifications');

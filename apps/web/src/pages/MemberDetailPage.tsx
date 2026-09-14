@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   QrCode,
   Download,
+  AlertTriangle,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
@@ -37,11 +38,15 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { DetailSkeleton } from '@/components/shared/LoadingSkeleton';
 
+import QRCode from 'qrcode';
+import { InvoiceDialog } from '@/components/billing/InvoiceDialog';
+
 export const MemberDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const memberId = parseInt(id || '0', 10);
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [invoicePaymentId, setInvoicePaymentId] = useState<number | null>(null);
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -101,6 +106,8 @@ export const MemberDetailPage: React.FC = () => {
   const due = activeMembership ? (activeMembership.dueAmountPaise || 0) / 100 : 0;
   const endDate = activeMembership ? new Date(activeMembership.endDate * 1000) : null;
   const daysToEnd = endDate ? Math.ceil((endDate.getTime() - Date.now()) / 86400000) : null;
+  const isExpired = member.status === 'EXPIRED' || (daysToEnd !== null && daysToEnd <= 0);
+  const isExpiringSoon = !isExpired && daysToEnd !== null && daysToEnd <= 7;
 
   const [isSendingWa, setIsSendingWa] = useState(false);
   const [isSendingSms, setIsSendingSms] = useState(false);
@@ -147,30 +154,32 @@ export const MemberDetailPage: React.FC = () => {
     }
   };
 
-  // Generate QR code for member
+  // Generate QR code for member locally using qrcode package
   useEffect(() => {
     if (!member) return;
 
-    // Generate QR code payload
+    // Standard GymTech check-in QR payload
     const payload = `gymtech://checkin/${user?.gymId || 1}/${member.id}/${member.memberCode}`;
 
-    // Use QRCode.js library (we'll import it via CDN for now, or install qrcode package)
-    // For simplicity, generate data URL using API endpoint
-    const generateQR = async () => {
-      try {
-        // We'll use the browser's built-in capabilities or a simple library
-        // For now, let's create a placeholder that would work with the QR generator
-        const qrData = encodeURIComponent(payload);
-        // In production, you'd call your API or use a QR library
-        // For now, using a public QR service as fallback
-        const url = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${qrData}`;
-        setQrCodeUrl(url);
-      } catch (err) {
-        console.error('Failed to generate QR code:', err);
-      }
-    };
+    let isMounted = true;
+    QRCode.toDataURL(payload, {
+      width: 320,
+      margin: 2,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+    })
+      .then((dataUrl) => {
+        if (isMounted) setQrCodeUrl(dataUrl);
+      })
+      .catch((err) => {
+        console.error('Failed to generate QR code locally:', err);
+      });
 
-    generateQR();
+    return () => {
+      isMounted = false;
+    };
   }, [member, user?.gymId]);
 
   const handleDownloadQR = () => {
@@ -239,16 +248,23 @@ export const MemberDetailPage: React.FC = () => {
                 <div className="min-w-0">
                   <div className="flex items-center gap-2.5 flex-wrap">
                     <h2 className="text-xl font-bold tracking-tight text-foreground">{fullName}</h2>
-                    <Badge
-                      variant={isFrozen ? 'secondary' :
-                        member.status === 'BLOCKED' ? 'destructive' :
-                        member.status === 'EXPIRED' ? 'destructive' :
-                        'default'
-                      }
-                      className="text-xs"
-                    >
-                      {member.status}
-                    </Badge>
+                    {isFrozen ? (
+                      <Badge variant="secondary" className="text-xs">FROZEN</Badge>
+                    ) : member.status === 'BLOCKED' ? (
+                      <Badge variant="destructive" className="text-xs">BLOCKED</Badge>
+                    ) : isExpired ? (
+                      <Badge variant="destructive" className="text-xs font-semibold bg-destructive/15 text-destructive border border-destructive/30">
+                        EXPIRED
+                      </Badge>
+                    ) : isExpiringSoon ? (
+                      <Badge variant="outline" className="text-xs font-semibold text-amber-600 dark:text-amber-400 border-amber-400/50 bg-amber-500/10">
+                        EXPIRING SOON ({daysToEnd}d)
+                      </Badge>
+                    ) : (
+                      <Badge variant="default" className="text-xs bg-emerald-600 hover:bg-emerald-600 text-white">
+                        ACTIVE
+                      </Badge>
+                    )}
                     {activeMembership && (
                       <Badge variant="outline" className="text-xs font-mono">
                         {activeMembership.planName || 'Active plan'}
@@ -297,6 +313,51 @@ export const MemberDetailPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Renewal Callout Banner if Expired or Expiring Soon */}
+            {isExpired && (
+              <div className="mt-5 p-4 rounded-xl border border-destructive/30 bg-destructive/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-destructive/20 text-destructive shrink-0">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-destructive">Membership Expired</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {endDate ? `Plan expired on ${endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.` : 'This member does not have an active package.'} Check-ins are restricted.
+                    </p>
+                  </div>
+                </div>
+                <Button asChild size="sm" className="h-8 text-xs font-semibold bg-destructive hover:bg-destructive/90 text-white shrink-0">
+                  <Link to={`/members/${memberId}/renew`}>
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Renew Membership Now
+                  </Link>
+                </Button>
+              </div>
+            )}
+
+            {isExpiringSoon && (
+              <div className="mt-5 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-lg bg-amber-500/20 text-amber-600 dark:text-amber-400 shrink-0">
+                    <AlertTriangle className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                      Plan Expiring in {daysToEnd} {daysToEnd === 1 ? 'Day' : 'Days'}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      {endDate ? `Expires on ${endDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}.` : 'Membership ends soon.'} Renew now to prevent interruption of gym access.
+                    </p>
+                  </div>
+                </div>
+                <Button asChild size="sm" className="h-8 text-xs font-semibold bg-amber-600 hover:bg-amber-700 text-white shrink-0">
+                  <Link to={`/members/${memberId}/renew`}>
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Renew Plan
+                  </Link>
+                </Button>
+              </div>
+            )}
 
             {/* Metric strip */}
             {activeMembership ? (
@@ -499,7 +560,16 @@ export const MemberDetailPage: React.FC = () => {
                             {' · '}{p.paymentMode}
                           </p>
                         </div>
-                        <Badge variant="outline" className="font-mono text-[10px]">{p.receiptNumber}</Badge>
+                        <button
+                          type="button"
+                          onClick={() => setInvoicePaymentId(p.id)}
+                          className="hover:opacity-80 transition-opacity"
+                          title="View receipt"
+                        >
+                          <Badge variant="outline" className="font-mono text-[10px] cursor-pointer hover:border-primary hover:text-primary">
+                            {p.receiptNumber}
+                          </Badge>
+                        </button>
                       </li>
                     ))}
                   </ul>
@@ -564,6 +634,12 @@ export const MemberDetailPage: React.FC = () => {
           queryClient.invalidateQueries({ queryKey: ['member', id] });
           queryClient.invalidateQueries({ queryKey: ['members'] });
         }}
+      />
+
+      <InvoiceDialog
+        paymentId={invoicePaymentId}
+        open={!!invoicePaymentId}
+        onOpenChange={(open) => !open && setInvoicePaymentId(null)}
       />
     </AppShell>
   );

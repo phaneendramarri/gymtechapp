@@ -1,4 +1,4 @@
-import { eq, and, isNull } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Attendance, AttendanceMethod, AttendanceListItem } from '@gymtech/shared';
@@ -108,7 +108,7 @@ export class AttendanceRepository {
   async countToday(): Promise<number> {
     const today = todayYyyymmdd();
     const [{ count }] = await this.db
-      .select({ count: attendance.id })
+      .select({ count: sql<number>`count(*)` })
       .from(attendance)
       .where(and(eq(attendance.gymId, this.gymId), eq(attendance.attendanceDate, today), isNull(attendance.deletedAt)));
     return count ?? 0;

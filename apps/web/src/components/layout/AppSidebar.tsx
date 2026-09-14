@@ -105,7 +105,7 @@ const ADMIN_NAV: NavItem[] = [
   { key: 'staff', label: 'Staff Management', href: '/staff', icon: UserCog, requiredPermission: 'staff' },
   { key: 'communications', label: 'Communications', href: '/communications', icon: Bell, requiredPermission: 'settings' },
   { key: 'audit_logs', label: 'Audit Logs', href: '/audit-logs', icon: Sliders, requiredPermission: 'audit_logs' },
-  { key: 'settings', label: 'Settings', href: '/settings/notifications', icon: Settings, requiredPermission: 'settings' },
+  { key: 'settings', label: 'Settings', href: '/settings', icon: Settings, requiredPermission: 'settings' },
 ];
 
 const PLATFORM_ADMIN_NAV: NavItem[] = [

@@ -49,42 +49,54 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isProcess
     }
   };
 
-  const captureFrame = () => {
-    if (!videoRef.current) return;
+  const isDetectingRef = useRef(false);
+  const [manualCode, setManualCode] = useState('');
+
+  const captureFrame = async () => {
+    if (!videoRef.current || isDetectingRef.current || scanSuccess) return;
     const video = videoRef.current;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.drawImage(video, 0, 0);
+    if (video.readyState < 2) return;
 
-    // In production, use a QR code scanning library like 'jsqr'
-    // const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    // const code = jsQR(imageData.data, imageData.width, imageData.height);
-    // if (code) {
-    //   handleScan(code.data);
-    // }
-
-    // Placeholder: show success and call onScan with mock data
-    // Remove this in production
-    console.log('Frame captured, QR scanning would happen here');
+    // Use native browser BarcodeDetector if available
+    if (typeof window !== 'undefined' && 'BarcodeDetector' in window) {
+      try {
+        isDetectingRef.current = true;
+        const detector = new (window as any).BarcodeDetector({ formats: ['qr_code'] });
+        const barcodes = await detector.detect(video);
+        if (barcodes.length > 0 && barcodes[0]?.rawValue) {
+          handleScan(barcodes[0].rawValue);
+          return;
+        }
+      } catch (err) {
+        // Frame detection error fallback
+      } finally {
+        isDetectingRef.current = false;
+      }
+    }
   };
 
   const handleScan = (data: string) => {
+    if (!data.trim() || scanSuccess) return;
     setScanSuccess(true);
     setTimeout(() => {
-      onScan(data);
+      onScan(data.trim());
       stopCamera();
-    }, 500);
+    }, 400);
   };
 
-  // Start scanning frames (call this on mount in production)
+  const handleManualSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (manualCode.trim()) {
+      handleScan(manualCode.trim());
+    }
+  };
+
+  // Start scanning frames
   useEffect(() => {
     if (!hasPermission || !videoRef.current) return;
-    const interval = setInterval(captureFrame, 500); // Scan every 500ms
+    const interval = setInterval(captureFrame, 350); // Scan every 350ms
     return () => clearInterval(interval);
-  }, [hasPermission]);
+  }, [hasPermission, scanSuccess]);
 
   return (
     <div className="fixed inset-0 z-50 bg-black bg-opacity-75 flex items-center justify-center p-4">
@@ -146,8 +158,22 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isProcess
             </Button>
           </div>
 
-          <p className="text-xs text-muted-foreground text-center mt-4">
-            Note: Camera access is required to scan QR codes. Your privacy is protected - video is not recorded.
+          <form onSubmit={handleManualSubmit} className="mt-3 flex gap-2">
+            <input
+              type="text"
+              placeholder="Or enter / scan QR code payload here..."
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              disabled={isProcessing}
+              className="flex-1 px-3 py-1.5 text-xs bg-muted/40 border border-border rounded-md font-mono focus:outline-none focus:ring-1 focus:ring-primary"
+            />
+            <Button type="submit" size="sm" disabled={!manualCode.trim() || isProcessing} className="text-xs h-8">
+              Check In
+            </Button>
+          </form>
+
+          <p className="text-xs text-muted-foreground text-center mt-3">
+            Note: Camera or barcode scanner access is required to check in. Video is processed locally on-device.
           </p>
         </CardContent>
       </Card>

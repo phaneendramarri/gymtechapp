@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Printer, Loader2 } from 'lucide-react';
+import { Printer, Loader2, ExternalLink } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -128,14 +128,24 @@ export const InvoiceDialog: React.FC<InvoiceDialogProps> = ({ paymentId, open, o
               This is a computer-generated receipt from {invoice.gym.name} via GymTech.
             </p>
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="self-end text-xs"
-              onClick={() => window.print()}
-            >
-              <Printer className="mr-1.5 size-3.5" /> Print / Save PDF
-            </Button>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs gap-1.5"
+                onClick={() => window.open(`/api/payments/${paymentId}/receipt`, '_blank')}
+              >
+                <ExternalLink className="size-3.5" /> Printable Receipt
+              </Button>
+              <Button
+                variant="default"
+                size="sm"
+                className="text-xs gap-1.5"
+                onClick={() => window.print()}
+              >
+                <Printer className="size-3.5" /> Print / Save PDF
+              </Button>
+            </div>
           </div>
         )}
       </DialogContent>

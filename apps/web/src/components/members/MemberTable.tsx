@@ -205,12 +205,27 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
       id: 'freeze',
       label: 'Freeze plan',
       icon: Snowflake,
-      onClick: (rows) =>
-        toast(
-          'info',
-          `Plans frozen for ${rows.length} member${rows.length === 1 ? '' : 's'}`,
-          'Memberships are paused until you unfreeze.'
-        ),
+      onClick: async (rows) => {
+        let frozen = 0;
+        try {
+          for (const m of rows) {
+            await api.freezeMember(m.id, 'Frozen from bulk action');
+            frozen++;
+          }
+          toast(
+            'success',
+            `Plans frozen for ${frozen} member${frozen === 1 ? '' : 's'}`,
+            'Memberships are paused until you unfreeze.'
+          );
+          window.location.reload();
+        } catch (err: any) {
+          toast(
+            'error',
+            frozen > 0 ? `Frozen ${frozen} members, then stopped` : 'Cannot freeze plans',
+            err.message
+          );
+        }
+      },
     },
   ]
 
@@ -267,8 +282,16 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
         title={`Freeze ${pendingFreeze?.firstName ?? 'plan'}?`}
         description="The member's plan is paused until you unfreeze it. They will not be billed during the freeze period."
         confirmLabel="Freeze plan"
-        onConfirm={() => {
-          toast('info', 'Plan frozen', 'You can unfreeze from the member detail page.')
+        onConfirm={async () => {
+          if (!pendingFreeze?.id) return;
+          try {
+            await api.freezeMember(pendingFreeze.id, 'Frozen from member list');
+            toast('success', 'Plan frozen', `${pendingFreeze.firstName}'s plan is paused. Unfreeze from the member detail page.`);
+            setPendingFreeze(null);
+            window.location.reload();
+          } catch (err: any) {
+            toast('error', 'Freeze failed', err.message);
+          }
         }}
       />
     </>

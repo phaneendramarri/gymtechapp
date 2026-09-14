@@ -42,7 +42,9 @@ attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), saf
 
   const nowSec = Math.floor(Date.now() / 1000);
   const isExpired = !activeMembership || activeMembership.end_date < nowSec;
-  if (isExpired) {
+  const isOverride = Boolean(parsed.data.override && (ctx.user?.isOwner || ctx.user?.permissions?.includes('attendance')));
+
+  if (isExpired && !isOverride) {
     const expiryDateStr = activeMembership ? new Date(activeMembership.end_date * 1000).toLocaleDateString('en-IN') : 'No Plan';
     return jsonOk({
       success: false, code: 'MEMBERSHIP_EXPIRED',
@@ -58,10 +60,10 @@ attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), saf
 
   await auditGymFromCtx(
     c,
-    'attendance.checkin',
+    isOverride ? 'attendance.override_checkin' : 'attendance.checkin',
     'attendance',
     member.id,
-    { metadata: { method: parsed.data.method, alreadyCheckedIn: res.alreadyCheckedIn } }
+    { metadata: { method: parsed.data.method, alreadyCheckedIn: res.alreadyCheckedIn, override: isOverride } }
   );
 
   return jsonOk({

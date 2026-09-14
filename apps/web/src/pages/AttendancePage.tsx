@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +34,8 @@ function timeAgo(unix: number) {
 
 export const AttendancePage: React.FC = () => {
   const queryClient = useQueryClient();
+  const { user } = useAuth();
+  const canOverride = Boolean(user?.isOwner || user?.permissions?.includes('attendance'));
 
   const { data, isLoading } = useQuery({
     queryKey: ['attendance'],
@@ -61,7 +64,7 @@ export const AttendancePage: React.FC = () => {
     return () => clearInterval(t);
   }, []);
 
-  const handleCheckIn = async (code: string, method: 'MANUAL' | 'QR' | 'FACE_ID' = 'MANUAL') => {
+  const handleCheckIn = async (code: string, method: 'MANUAL' | 'QR' | 'FACE_ID' = 'MANUAL', override = false) => {
     if (!code.trim()) return;
     setErrorMessage(null);
     setBlockedMember(null);
@@ -71,6 +74,7 @@ export const AttendancePage: React.FC = () => {
       const res = await api.checkIn({
         memberIdOrCode: code.trim(),
         method,
+        override,
       });
 
       setBlockedMember(null);
@@ -156,6 +160,7 @@ export const AttendancePage: React.FC = () => {
             errorMessage={errorMessage}
             blockedMember={blockedMember}
             lastCheckedMember={lastCheckedMember}
+            canOverride={canOverride}
           />
 
           <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">

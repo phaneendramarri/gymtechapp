@@ -33,7 +33,7 @@ import {
 import { QRScanner } from './QRScanner';
 
 interface CheckInPanelProps {
-  onCheckIn: (code: string, method?: 'MANUAL' | 'QR' | 'FACE_ID') => Promise<void>;
+  onCheckIn: (code: string, method?: 'MANUAL' | 'QR' | 'FACE_ID', override?: boolean) => Promise<void>;
   isCheckingIn: boolean;
   errorMessage: string | null;
   blockedMember: { id?: number; name?: string; expiryDate?: string } | null;
@@ -43,6 +43,7 @@ interface CheckInPanelProps {
     alreadyCheckedIn?: boolean;
     checkInTime?: string;
   } | null;
+  canOverride?: boolean;
 }
 
 export const CheckInPanel: React.FC<CheckInPanelProps> = ({
@@ -51,6 +52,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
   errorMessage,
   blockedMember,
   lastCheckedMember,
+  canOverride,
 }) => {
   // Mode selection: 'search' (Manual Search), 'qr' (QR Scanner), or 'face' (Face ID Biometric)
   const [activeMode, setActiveMode] = useState<'search' | 'qr' | 'face'>('search');
@@ -356,13 +358,25 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
               </div>
             </div>
             {blockedMember?.id && (
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-1 flex-wrap">
                 <Button asChild size="sm" className="bg-destructive text-white hover:bg-destructive/90 font-bold text-xs h-8">
                   <Link to={`/members/${blockedMember.id}/renew`}>
                     Renew Membership Now <ArrowRight className="size-3.5 ml-1" />
                   </Link>
                 </Button>
-                <Button asChild size="sm" variant="outline" className="text-xs h-8 border-destructive/40 text-destructive hover:bg-destructive/10">
+                {canOverride && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={isCheckingIn}
+                    onClick={() => onCheckIn(String(blockedMember.id), 'MANUAL', true)}
+                    className="text-xs h-8 border-destructive/40 text-destructive hover:bg-destructive/10"
+                  >
+                    Override Check-in
+                  </Button>
+                )}
+                <Button asChild size="sm" variant="outline" className="text-xs h-8 border-border text-foreground hover:bg-muted">
                   <Link to={`/members/${blockedMember.id}`}>View Profile</Link>
                 </Button>
               </div>

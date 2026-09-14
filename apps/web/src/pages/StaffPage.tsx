@@ -1,11 +1,12 @@
 import { z } from 'zod';
 import React, { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, AlertCircle, Users } from 'lucide-react';
+import { Plus, AlertCircle, Users, Pencil, UserX, UserCheck, Shield } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/toast';
 import {
   Dialog,
   DialogContent,
@@ -38,8 +39,9 @@ const ALL_PERMISSION_KEYS = [
 export const StaffPage: React.FC = () => {
   const { user, gym } = useAuth();
   const queryClient = useQueryClient();
+  const { toast } = useToast();
   // Only users with 'staff' permission can add/edit users
-  const canManage = user?.permissions?.includes('staff');
+  const canManage = user?.permissions?.includes('staff') || user?.isOwner;
 
   const { data, isLoading } = useQuery({
     queryKey: ['staff'],
@@ -55,6 +57,14 @@ export const StaffPage: React.FC = () => {
   const [password, setPassword] = useState('');
   const [selectedPerms, setSelectedPerms] = useState<string[]>([]);
 
+  // Edit staff state
+  const [editingStaff, setEditingStaff] = useState<any | null>(null);
+  const [editName, setEditName] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editRole, setEditRole] = useState('STAFF');
+  const [editStatus, setEditStatus] = useState<'ACTIVE' | 'DISABLED'>('ACTIVE');
+  const [editPerms, setEditPerms] = useState<string[]>([]);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -69,12 +79,27 @@ export const StaffPage: React.FC = () => {
     );
   };
 
+  const toggleEditPerm = (key: string) => {
+    setEditPerms((prev) =>
+      prev.includes(key) ? prev.filter((p) => p !== key) : [...prev, key]
+    );
+  };
+
+  const handleOpenEdit = (s: any) => {
+    setEditingStaff(s);
+    setEditName(s.name || '');
+    setEditPhone(s.phone || '');
+    setEditRole(s.role || 'STAFF');
+    setEditStatus(s.status || 'ACTIVE');
+    setEditPerms(Array.isArray(s.permissions) ? [...s.permissions] : []);
+    setError(null);
+  };
+
   const handleAddStaff = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setIsSubmitting(true);
     try {
-      // M-9: Validate form data against Zod schema before sending to API.
       const parsed = CreateStaffRequestSchema.safeParse({ name, email, phone, password, role: 'STAFF', permissions: selectedPerms });
       if (!parsed.success) {
         setError(parsed.error.errors.map((e) => e.message).join(', '));
@@ -97,6 +122,7 @@ export const StaffPage: React.FC = () => {
       setPassword('');
       setSelectedPerms([]);
       queryClient.invalidateQueries({ queryKey: ['staff'] });
+      toast('success', 'User invited', 'The team member can now log in with their credentials.');
     } catch (err: any) {
       setError(err.message || 'Failed to add user');
     } finally {
@@ -104,13 +130,51 @@ export const StaffPage: React.FC = () => {
     }
   };
 
+  const handleUpdateStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingStaff) return;
+    setError(null);
+    setIsSubmitting(true);
+    try {
+      await api.updateStaff(editingStaff.id, {
+        name: editName,
+        phone: editPhone,
+        role: editRole,
+        status: editStatus,
+        permissions: editPerms,
+      });
+      setEditingStaff(null);
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      toast('success', 'Staff updated', 'Team member profile and permissions updated successfully.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update staff');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleToggleStatus = async (s: any) => {
+    if (s.id === user?.id) {
+      toast('error', 'Action not allowed', 'You cannot deactivate your own account.');
+      return;
+    }
+    const newStatus = s.status === 'ACTIVE' ? 'DISABLED' : 'ACTIVE';
+    try {
+      await api.updateStaff(s.id, { status: newStatus });
+      queryClient.invalidateQueries({ queryKey: ['staff'] });
+      toast('success', `Staff ${newStatus === 'ACTIVE' ? 'activated' : 'deactivated'}`, `${s.name} is now ${newStatus.toLowerCase()}.`);
+    } catch (err: any) {
+      toast('error', 'Action failed', err.message || 'Could not update staff status.');
+    }
+  };
+
   return (
     <AppShell
       title="Team"
-      description="Invite team members and control exactly which menus each person can access."
+      description="Invite team members, assign permissions, and control access to your gym management system."
       actions={
         canManage && (
-          <Button variant="default" size="sm" onClick={() => setDialogOpen(true)}>
+          <Button variant="default" size="sm" onClick={() => setDialogOpen(true)} className="gap-1.5 font-semibold">
             <Plus className="h-3.5 w-3.5" /> Invite user
           </Button>
         )
@@ -136,37 +200,81 @@ export const StaffPage: React.FC = () => {
           }
         />
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col gap-2.5">
           {staff.map((s: any) => (
-            <li
-              key={s.id}
-              className="cursor-pointer"
-            >
-              <Card className="flex items-center gap-3 p-3 hover:border-(--ink-3) hover:shadow-sm transition-colors">
-              <div className="h-9 w-9 rounded-full bg-(--surface-2) text-ink-2 flex items-center justify-center text-sm font-semibold shrink-0">
-                {(s.name?.[0] || '·').toUpperCase()}
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-ink truncate">{s.name}</p>
-                  {s.isOwner === 1 && (
-                    <Badge variant="secondary" className="text-[10px]">Owner</Badge>
+            <li key={s.id}>
+              <Card className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 hover:border-primary/40 hover:shadow-xs transition-all bg-card">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 text-primary border border-primary/20 flex items-center justify-center text-sm font-bold shrink-0">
+                    {(s.name?.[0] || '·').toUpperCase()}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-semibold text-foreground truncate">{s.name}</p>
+                      {s.isOwner === 1 ? (
+                        <Badge variant="secondary" className="text-[10px] font-bold">Owner</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px] uppercase font-mono">{s.role || 'STAFF'}</Badge>
+                      )}
+                      <Badge variant={s.status === 'ACTIVE' ? 'default' : 'destructive'} className="text-[10px]">
+                        {s.status}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-0.5 truncate font-mono">
+                      {s.email} {s.phone ? `· ${s.phone}` : ''}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-border">
+                  <div className="hidden md:flex flex-wrap gap-1 max-w-xs justify-end">
+                    {(s.permissions as string[] || []).slice(0, 3).map((perm: string) => (
+                      <span key={perm} className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-secondary text-secondary-foreground">
+                        {perm}
+                      </span>
+                    ))}
+                    {(s.permissions as string[] || []).length > 3 && (
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        +{(s.permissions as string[] || []).length - 3} more
+                      </span>
+                    )}
+                  </div>
+
+                  {canManage && (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs gap-1"
+                        onClick={() => handleOpenEdit(s)}
+                      >
+                        <Pencil className="h-3 w-3" /> Edit
+                      </Button>
+                      {!s.isOwner && s.id !== user?.id && (
+                        <Button
+                          variant={s.status === 'ACTIVE' ? 'ghost' : 'outline'}
+                          size="sm"
+                          className={cn(
+                            'h-8 text-xs gap-1',
+                            s.status === 'ACTIVE' ? 'text-destructive hover:bg-destructive/10' : 'text-emerald-600 hover:bg-emerald-50'
+                          )}
+                          onClick={() => handleToggleStatus(s)}
+                        >
+                          {s.status === 'ACTIVE' ? (
+                            <>
+                              <UserX className="h-3 w-3" /> Deactivate
+                            </>
+                          ) : (
+                            <>
+                              <UserCheck className="h-3 w-3" /> Reactivate
+                            </>
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </div>
-                <p className="text-[11px] text-ink-3 mt-0.5 truncate font-mono">
-                  {s.email} · {s.phone || '—'}
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-1 justify-end">
-                {/* Permissions are stored in user_permissions table; staff list query joins them */}
-                {(s.permissions as string[] || []).map((perm: string) => (
-                  <span key={perm} className="text-[10px] text-ink-3">{perm}</span>
-                ))}
-              </div>
-              <Badge variant={s.status === 'ACTIVE' ? 'default' : 'outline'}>
-                {s.status}
-              </Badge>
-            </Card>
+              </Card>
             </li>
           ))}
         </ul>
@@ -264,6 +372,105 @@ export const StaffPage: React.FC = () => {
               </Button>
               <Button type="submit" variant="default" size="sm" disabled={isSubmitting || selectedPerms.length === 0}>
                 {isSubmitting ? 'Adding…' : 'Invite user'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Staff Dialog */}
+      <Dialog open={!!editingStaff} onOpenChange={(open) => !open && setEditingStaff(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Team Member</DialogTitle>
+          </DialogHeader>
+
+          {error && (
+            <Alert variant="destructive" className="mb-3">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription className="text-xs">{error}</AlertDescription>
+            </Alert>
+          )}
+
+          <form onSubmit={handleUpdateStaff} className="flex flex-col gap-4">
+            <Field label="Full name *">
+              <input
+                required
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                className="gt-input"
+              />
+            </Field>
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Phone">
+                <input
+                  type="tel"
+                  placeholder="9876543210"
+                  value={editPhone}
+                  onChange={(e) => setEditPhone(e.target.value)}
+                  className="gt-input font-mono"
+                />
+              </Field>
+
+              <Field label="Role">
+                <select
+                  value={editRole}
+                  onChange={(e) => setEditRole(e.target.value)}
+                  className="gt-input font-mono"
+                >
+                  <option value="STAFF">STAFF</option>
+                  <option value="TRAINER">TRAINER</option>
+                  <option value="MANAGER">MANAGER</option>
+                </select>
+              </Field>
+            </div>
+
+            <Field label="Status">
+              <select
+                value={editStatus}
+                onChange={(e) => setEditStatus(e.target.value as any)}
+                className="gt-input font-mono"
+              >
+                <option value="ACTIVE">ACTIVE</option>
+                <option value="DISABLED">DISABLED</option>
+              </select>
+            </Field>
+
+            <Field label="Menu access *">
+              <p className="text-[11px] text-ink-3 mb-2">Select every menu this user should be able to access.</p>
+              <div className="grid grid-cols-2 gap-2">
+                {availablePerms.map((key) => {
+                  const label = GYM_FEATURE_LABELS[key as keyof typeof GYM_FEATURE_LABELS]?.name ?? key;
+                  return (
+                    <label
+                      key={key}
+                      className={cn(
+                        'flex items-center gap-2 p-2 rounded border cursor-pointer transition-colors text-xs',
+                        editPerms.includes(key)
+                          ? 'border-primary bg-(--surface-2) text-ink'
+                          : 'border-(--line) text-ink-3 hover:border-(--ink-3)'
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={editPerms.includes(key)}
+                        onChange={() => toggleEditPerm(key)}
+                        className="accent-primary"
+                      />
+                      {label}
+                    </label>
+                  );
+                })}
+              </div>
+            </Field>
+
+            <DialogFooter className="mt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setEditingStaff(null)}>
+                Cancel
+              </Button>
+              <Button type="submit" variant="default" size="sm" disabled={isSubmitting}>
+                {isSubmitting ? 'Saving…' : 'Save changes'}
               </Button>
             </DialogFooter>
           </form>

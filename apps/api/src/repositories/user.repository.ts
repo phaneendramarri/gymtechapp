@@ -94,11 +94,12 @@ export class UserRepository {
     return { ...u, roleName };
   }
 
-  async update(id: number, data: Partial<{ roleId: number | null; disabledAt: number | null }>): Promise<void> {
+  async update(id: number, data: Partial<{ roleId: number | null; disabledAt: number | null; status: 'ACTIVE' | 'DISABLED' }>): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     const setCols: Record<string, unknown> = { updatedAt: now };
     if (data.roleId !== undefined) setCols.roleId = data.roleId;
     if (data.disabledAt !== undefined) setCols.disabledAt = data.disabledAt;
+    if (data.status !== undefined) setCols.status = data.status;
     await this.db.update(users).set(setCols).where(eq(users.id, id));
   }
 
@@ -368,6 +369,29 @@ export class UserRepository {
       .where(and(eq(users.id, id), eq(users.gymId, gymId), sql`${users.deletedAt} IS NOT NULL`))
       .returning({ id: users.id });
     return (row[0]?.id ?? null) !== null;
+  }
+
+  async updateStaff(
+    id: number,
+    gymId: number,
+    data: Partial<{
+      name: string;
+      phone: string | null;
+      role: string;
+      roleId: number | null;
+      status: 'ACTIVE' | 'DISABLED';
+      permissions: string;
+    }>
+  ): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    const setCols: Record<string, unknown> = { updatedAt: now };
+    if (data.name !== undefined) setCols.name = data.name;
+    if (data.phone !== undefined) setCols.phone = data.phone;
+    if (data.role !== undefined) setCols.role = data.role;
+    if (data.roleId !== undefined) setCols.roleId = data.roleId;
+    if (data.status !== undefined) setCols.status = data.status;
+    if (data.permissions !== undefined) setCols.permissions = data.permissions;
+    await this.db.update(users).set(setCols).where(and(eq(users.id, id), eq(users.gymId, gymId)));
   }
 
   async create(

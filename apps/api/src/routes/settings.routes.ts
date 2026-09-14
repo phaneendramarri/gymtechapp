@@ -9,13 +9,64 @@ import {
 import { requireGym, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
-import { extractClientInfo } from '../services/audit.service';
+import { extractClientInfo, auditGymFromCtx } from '../services/audit.service';
 import { LicenseRepository } from '../repositories/license.repository';
 import { LicenseService } from '../services/license.service';
 import { NotificationService } from '../lib/notifications';
 import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 
 export const settingsRoutes = new Hono();
+
+// Gym Profile Settings
+settingsRoutes.get('/gym', requireGym, safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const tenant = c.get('tenant' as never) as { gym: any };
+  const gymRow = await ctx.env.DB.prepare(`
+    SELECT id, name, slug, phone, email, address, city, state, pincode, gst_number as gstNumber,
+           currency, logo_url as logoUrl, status, created_at as createdAt, updated_at as updatedAt
+    FROM gyms WHERE id = ? /* gym_id */
+  `).bind(ctx.gymId!).first();
+  return jsonOk(gymRow || tenant.gym);
+}));
+
+settingsRoutes.patch('/gym', requireGym, requirePermission('settings'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const body = await c.req.json().catch(() => ({}));
+  const { name, phone, email, address, city, state, pincode, gstNumber, currency, logoUrl } = body;
+
+  const current: any = await ctx.env.DB.prepare('SELECT * FROM gyms WHERE id = ? /* gym_id */').bind(ctx.gymId!).first();
+  if (!current) return jsonErr('Gym not found', 404);
+
+  const updatedName = name !== undefined ? String(name).trim() : current.name;
+  const updatedPhone = phone !== undefined ? String(phone).trim() : current.phone;
+  const updatedEmail = email !== undefined ? (email ? String(email).trim() : null) : current.email;
+  const updatedAddress = address !== undefined ? (address ? String(address).trim() : null) : current.address;
+  const updatedCity = city !== undefined ? (city ? String(city).trim() : null) : current.city;
+  const updatedState = state !== undefined ? (state ? String(state).trim() : null) : current.state;
+  const updatedPincode = pincode !== undefined ? (pincode ? String(pincode).trim() : null) : current.pincode;
+  const updatedGst = gstNumber !== undefined ? (gstNumber ? String(gstNumber).trim() : null) : current.gst_number;
+  const updatedCurrency = currency !== undefined ? String(currency).trim() : current.currency;
+  const updatedLogo = logoUrl !== undefined ? (logoUrl ? String(logoUrl).trim() : null) : current.logo_url;
+
+  await ctx.env.DB.prepare(`
+    UPDATE gyms
+    SET name = ?, phone = ?, email = ?, address = ?, city = ?, state = ?,
+        pincode = ?, gst_number = ?, currency = ?, logo_url = ?, updated_at = unixepoch()
+    WHERE id = ? /* gym_id */
+  `).bind(
+    updatedName, updatedPhone, updatedEmail, updatedAddress, updatedCity, updatedState,
+    updatedPincode, updatedGst, updatedCurrency, updatedLogo, ctx.gymId!
+  ).run();
+
+  const updated: any = await ctx.env.DB.prepare(`
+    SELECT id, name, slug, phone, email, address, city, state, pincode, gst_number as gstNumber,
+           currency, logo_url as logoUrl, status, created_at as createdAt, updated_at as updatedAt
+    FROM gyms WHERE id = ? /* gym_id */
+  `).bind(ctx.gymId!).first();
+
+  await auditGymFromCtx(c, 'gym.update', 'gym', ctx.gymId!, { before: current, after: updated });
+  return jsonOk(updated);
+}));
 
 const DEFAULT_NOTIFICATION_SETTINGS = {
   reminderDays: 7, welcomeEnabled: true, receiptEnabled: true, expiryEnabled: true,

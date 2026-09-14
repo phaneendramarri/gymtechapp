@@ -305,7 +305,7 @@ export const PtCollectionsPage: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {(membersData?.members || []).map((m: any) => (
-                    <SelectItem key={m.id} value={m.id}>
+                    <SelectItem key={m.id} value={String(m.id)}>
                       {m.firstName} {m.lastName || ''} ({m.memberCode})
                     </SelectItem>
                   ))}
@@ -321,7 +321,7 @@ export const PtCollectionsPage: React.FC = () => {
                 </SelectTrigger>
                 <SelectContent>
                   {trainers.map((t: any) => (
-                    <SelectItem key={t.id} value={t.id}>
+                    <SelectItem key={t.id} value={String(t.id)}>
                       {t.name}
                     </SelectItem>
                   ))}

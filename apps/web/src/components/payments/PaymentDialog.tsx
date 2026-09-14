@@ -26,6 +26,8 @@ interface PaymentDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   members: any[];
+  initialMemberId?: number;
+  initialAmount?: number;
   onPaymentSuccess: () => void;
 }
 
@@ -33,10 +35,12 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   open,
   onOpenChange,
   members,
+  initialMemberId,
+  initialAmount,
   onPaymentSuccess,
 }) => {
-  const [selectedMemberId, setSelectedMemberId] = useState<number | undefined>(undefined);
-  const [amount, setAmount] = useState<number>(0);
+  const [selectedMemberId, setSelectedMemberId] = useState<number | undefined>(initialMemberId);
+  const [amount, setAmount] = useState<number>(initialAmount || 0);
   const [paymentMode, setPaymentMode] = useState<'CASH' | 'UPI' | 'CARD' | 'BANK_TRANSFER' | 'OTHER'>('UPI');
   const [referenceId, setReferenceId] = useState('');
   const [notes, setNotes] = useState('');
@@ -45,20 +49,23 @@ export const PaymentDialog: React.FC<PaymentDialogProps> = ({
   const [successInfo, setSuccessInfo] = useState<{ receiptNumber: string; whatsappUrl?: string } | null>(null);
 
   useEffect(() => {
-    if (members.length > 0 && selectedMemberId === undefined) {
-      setSelectedMemberId(members[0].id);
-    }
-  }, [members, selectedMemberId]);
-
-  useEffect(() => {
-    if (!open) {
+    if (open) {
+      if (initialMemberId !== undefined) {
+        setSelectedMemberId(initialMemberId);
+      } else if (members.length > 0 && selectedMemberId === undefined) {
+        setSelectedMemberId(members[0].id);
+      }
+      if (initialAmount !== undefined) {
+        setAmount(initialAmount);
+      }
+    } else {
       setError(null);
       setSuccessInfo(null);
       setAmount(0);
       setReferenceId('');
       setNotes('');
     }
-  }, [open]);
+  }, [open, initialMemberId, initialAmount, members]);
 
   const handleRecordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

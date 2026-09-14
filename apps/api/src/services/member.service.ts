@@ -234,6 +234,10 @@ export class MemberService {
       createdByUserId: this.userId,
     });
 
+    if (member.status === 'EXPIRED') {
+      await this.memberRepo.update(data.memberId, { status: 'ACTIVE' });
+    }
+
     let receiptNumber: string | undefined;
     if (fin.paidAmount > 0) {
       receiptNumber = await this.paymentRepo.getNextReceiptNumber();

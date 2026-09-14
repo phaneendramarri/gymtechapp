@@ -199,6 +199,7 @@ export interface RecordPaymentResponse {
 export const CheckInRequestSchema = z.object({
   memberIdOrCode: z.string().min(1, 'Member ID or code is required'),
   method: z.enum(['MANUAL', 'QR', 'FACE_ID']).default('MANUAL'),
+  override: z.boolean().optional(),
 });
 export type CheckInRequest = z.infer<typeof CheckInRequestSchema>;
 
