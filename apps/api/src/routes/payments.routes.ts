@@ -141,3 +141,29 @@ paymentRoutes.get('/:id/invoice', requireGym, safeHandler(async (c) => {
     notes: payment.notes,
   });
 }));
+
+// Add receipt endpoint at end of file before export
+paymentRoutes.get('/:id/receipt', requireGym, safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const tenant = c.get('tenant' as never) as { gym: any };
+  const id = paramId(c.req.param() as Record<string, string>);
+  const payment: any = await ctx.env.DB.prepare(`
+    SELECT p.*, m.first_name, m.last_name, m.phone, m.member_code, mp.name as plan_name
+    FROM payments p JOIN members m ON m.id = p.member_id
+    LEFT JOIN memberships ms ON ms.id = p.membership_id
+    LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
+    WHERE p.id = ? AND p.gym_id = ?`).bind(id, ctx.gymId!).first();
+  if (!payment) return jsonErr('Payment not found', 404);
+  const { generateReceiptHTML } = await import('../lib/receipt-generator');
+  const html = generateReceiptHTML({
+    receiptNumber: payment.receipt_number, paymentDate: payment.payment_date,
+    memberName: `${payment.first_name} ${payment.last_name || ''}`.trim(),
+    memberCode: payment.member_code, phone: payment.phone, amountPaise: payment.amount_paise,
+    paymentMode: payment.payment_mode, referenceId: payment.reference_id,
+    planName: payment.plan_name, notes: payment.notes,
+    gymName: tenant.gym.name, gymPhone: tenant.gym.phone, gymAddress: tenant.gym.address,
+    gymEmail: tenant.gym.email, gstNumber: tenant.gym.gst_number,
+  });
+  return new Response(html, { headers: { 'Content-Type': 'text/html' } });
+}));
+
