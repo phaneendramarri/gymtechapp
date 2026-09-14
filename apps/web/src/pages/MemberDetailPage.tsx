@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -20,6 +20,8 @@ import {
   CreditCard,
   Activity,
   CheckCircle2,
+  QrCode,
+  Download,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
@@ -102,6 +104,7 @@ export const MemberDetailPage: React.FC = () => {
 
   const [isSendingWa, setIsSendingWa] = useState(false);
   const [isSendingSms, setIsSendingSms] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
   const handleSendWhatsApp = async () => {
     if (!member) return;
@@ -142,6 +145,43 @@ export const MemberDetailPage: React.FC = () => {
     } finally {
       setIsSendingSms(false);
     }
+  };
+
+  // Generate QR code for member
+  useEffect(() => {
+    if (!member) return;
+
+    // Generate QR code payload
+    const payload = `gymtech://checkin/${user?.gymId || 1}/${member.id}/${member.memberCode}`;
+
+    // Use QRCode.js library (we'll import it via CDN for now, or install qrcode package)
+    // For simplicity, generate data URL using API endpoint
+    const generateQR = async () => {
+      try {
+        // We'll use the browser's built-in capabilities or a simple library
+        // For now, let's create a placeholder that would work with the QR generator
+        const qrData = encodeURIComponent(payload);
+        // In production, you'd call your API or use a QR library
+        // For now, using a public QR service as fallback
+        const url = `https://api.qrserver.com/v1/create-qr-code/?size=256x256&data=${qrData}`;
+        setQrCodeUrl(url);
+      } catch (err) {
+        console.error('Failed to generate QR code:', err);
+      }
+    };
+
+    generateQR();
+  }, [member, user?.gymId]);
+
+  const handleDownloadQR = () => {
+    if (!qrCodeUrl) return;
+
+    const link = document.createElement('a');
+    link.href = qrCodeUrl;
+    link.download = `${member.memberCode}-qrcode.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   return (
@@ -390,8 +430,48 @@ export const MemberDetailPage: React.FC = () => {
             </Card>
           </div>
 
-          {/* Right Col: Ledger & Check-in Stream */}
+          {/* Right Col: QR Code, Ledger & Check-in Stream */}
           <div className="space-y-6">
+            {/* Member QR Code for Check-in */}
+            <Card className="border-border shadow-xs">
+              <CardHeader className="pb-3 border-b border-border">
+                <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                  <QrCode className="h-4 w-4 text-primary" /> Check-in QR Code
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="pt-4">
+                <div className="flex flex-col items-center gap-4">
+                  {qrCodeUrl ? (
+                    <div className="p-4 rounded-xl bg-white border-2 border-border">
+                      <img
+                        src={qrCodeUrl}
+                        alt={`QR Code for ${fullName}`}
+                        className="w-48 h-48 object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-48 h-48 rounded-xl bg-muted/40 border border-border flex items-center justify-center">
+                      <div className="animate-pulse text-muted-foreground text-xs">Generating...</div>
+                    </div>
+                  )}
+                  <div className="text-center space-y-2 w-full">
+                    <p className="text-xs text-muted-foreground">
+                      Scan this code at the desk for instant check-in
+                    </p>
+                    <Button
+                      onClick={handleDownloadQR}
+                      disabled={!qrCodeUrl}
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-8 text-xs gap-1.5"
+                    >
+                      <Download className="h-3.5 w-3.5" /> Download QR Code
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             {/* Payments Ledger */}
             <Card className="border-border shadow-xs">
               <CardHeader className="pb-3 border-b border-border">

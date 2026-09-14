@@ -14,6 +14,7 @@ import {
   X,
   AlertCircle,
   VideoOff,
+  QrCode,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -29,6 +30,7 @@ import {
   EnrolledFaceMember,
   FaceMatchResult,
 } from '@/lib/face-matcher';
+import { QRScanner } from './QRScanner';
 
 interface CheckInPanelProps {
   onCheckIn: (code: string, method?: 'MANUAL' | 'QR' | 'FACE_ID') => Promise<void>;
@@ -50,8 +52,8 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
   blockedMember,
   lastCheckedMember,
 }) => {
-  // Mode selection: 'search' (Manual Search) or 'face' (Face ID Biometric)
-  const [activeMode, setActiveMode] = useState<'search' | 'face'>('search');
+  // Mode selection: 'search' (Manual Search), 'qr' (QR Scanner), or 'face' (Face ID Biometric)
+  const [activeMode, setActiveMode] = useState<'search' | 'qr' | 'face'>('search');
 
   // --- MANUAL SEARCH STATE ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -59,6 +61,9 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
   const [isSearching, setIsSearching] = useState(false);
   const [recentMembers, setRecentMembers] = useState<any[]>([]);
   const searchInputRef = useRef<HTMLInputElement>(null);
+
+  // --- QR SCANNER STATE ---
+  const [showQRScanner, setShowQRScanner] = useState(false);
 
   // --- FACE ID STATE ---
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -321,12 +326,15 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
           {/* Mode Switcher Tabs */}
           <Tabs
             value={activeMode}
-            onValueChange={(val) => setActiveMode(val as 'search' | 'face')}
+            onValueChange={(val) => setActiveMode(val as 'search' | 'qr' | 'face')}
             className="shrink-0"
           >
             <TabsList className="h-8">
               <TabsTrigger value="search" className="gap-1.5 text-xs">
-                <Search className="size-3.5" /> Manual Search
+                <Search className="size-3.5" /> Manual
+              </TabsTrigger>
+              <TabsTrigger value="qr" className="gap-1.5 text-xs">
+                <QrCode className="size-3.5" /> QR Scan
               </TabsTrigger>
               <TabsTrigger value="face" className="gap-1.5 text-xs">
                 <ScanFace className="size-3.5 text-primary" /> Face ID
@@ -555,7 +563,56 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
         )}
 
         {/* ========================================================================= */}
-        {/* MODE 2: BIOMETRIC FACE ID CAMERA TERMINAL */}
+        {/* MODE 2: QR CODE SCANNER */}
+        {/* ========================================================================= */}
+        {activeMode === 'qr' && (
+          <div className="flex flex-col gap-4">
+            <div className="p-6 rounded-xl border border-border bg-secondary/20 flex flex-col items-center justify-center text-center gap-3">
+              <div className="size-16 rounded-2xl bg-primary/10 border border-primary/20 flex items-center justify-center">
+                <QrCode className="size-8 text-primary" />
+              </div>
+              <div className="flex flex-col gap-1 max-w-md">
+                <span className="text-sm font-bold text-foreground">Scan Member QR Code</span>
+                <span className="text-xs text-muted-foreground">
+                  Point your device camera at the member's QR code to check them in instantly.
+                </span>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => setShowQRScanner(true)}
+                className="bg-primary text-primary-foreground font-bold text-xs gap-1.5"
+              >
+                <Camera className="size-3.5" /> Open QR Scanner
+              </Button>
+            </div>
+
+            {showQRScanner && (
+              <QRScanner
+                onScan={async (data) => {
+                  setShowQRScanner(false);
+                  // Parse QR payload format: gymtech://checkin/{gymId}/{memberId}/{memberCode}
+                  const match = data.match(/gymtech:\/\/checkin\/(\d+)\/(\d+)\/(.+)/);
+                  if (match) {
+                    const [, , , memberCode] = match;
+                    await onCheckIn(memberCode, 'QR');
+                  } else {
+                    // Fallback: treat raw data as member code
+                    await onCheckIn(data, 'QR');
+                  }
+                }}
+                onClose={() => setShowQRScanner(false)}
+                isProcessing={isCheckingIn}
+              />
+            )}
+
+            <div className="flex items-center gap-2 text-xs text-muted-foreground p-3 rounded-xl bg-secondary/40 border border-border">
+              <span className="font-mono">💡 Tip:</span> Members can download their QR code from their profile page.
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* MODE 3: BIOMETRIC FACE ID CAMERA TERMINAL */}
         {/* ========================================================================= */}
         {activeMode === 'face' && (
           <div className="flex flex-col gap-4">

@@ -4,6 +4,7 @@ import { requireGym, requireFeature, requirePermission } from '../middleware/aut
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
 import { DashboardService } from '../services/dashboard.service';
+import { ReportsService } from '../services/reports.service';
 import { jsonErr, jsonOk, jsonCsv, jsonValidationErr } from './helpers';
 
 export const reportRoutes = new Hono();
@@ -138,4 +139,55 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
   }
 
   return jsonCsv(csv, filename);
+}));
+
+// Revenue Report - Detailed revenue breakdown
+reportRoutes.get('/revenue', requireGym, requireFeature('reports'), requirePermission('reports'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const startDate = parseInt(c.req.query('startDate') || '0', 10);
+  const endDate = parseInt(c.req.query('endDate') || String(Math.floor(Date.now() / 1000)), 10);
+  const groupBy = (c.req.query('groupBy') || 'day') as 'day' | 'week' | 'month';
+
+  const reportsService = new ReportsService(ctx.env.DB, ctx.gymId!);
+  const report = await reportsService.getRevenueReport({ startDate, endDate, groupBy });
+
+  return jsonOk(report);
+}));
+
+// Membership Report - Active, expired, frozen memberships
+reportRoutes.get('/membership', requireGym, requireFeature('reports'), requirePermission('reports'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const startDate = parseInt(c.req.query('startDate') || '0', 10);
+  const endDate = parseInt(c.req.query('endDate') || String(Math.floor(Date.now() / 1000)), 10);
+  const status = c.req.query('status');
+
+  const reportsService = new ReportsService(ctx.env.DB, ctx.gymId!);
+  const report = await reportsService.getMembershipReport({ startDate, endDate, status });
+
+  return jsonOk(report);
+}));
+
+// Attendance Report - Daily attendance, peak hours
+reportRoutes.get('/attendance', requireGym, requireFeature('reports'), requirePermission('reports'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const startDate = parseInt(c.req.query('startDate') || '0', 10);
+  const endDate = parseInt(c.req.query('endDate') || String(Math.floor(Date.now() / 1000)), 10);
+  const memberId = c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined;
+
+  const reportsService = new ReportsService(ctx.env.DB, ctx.gymId!);
+  const report = await reportsService.getAttendanceReport({ startDate, endDate, memberId });
+
+  return jsonOk(report);
+}));
+
+// Member Growth Report - New joins vs churn
+reportRoutes.get('/growth', requireGym, requireFeature('reports'), requirePermission('reports'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const startDate = parseInt(c.req.query('startDate') || '0', 10);
+  const endDate = parseInt(c.req.query('endDate') || String(Math.floor(Date.now() / 1000)), 10);
+
+  const reportsService = new ReportsService(ctx.env.DB, ctx.gymId!);
+  const report = await reportsService.getMemberGrowthReport(startDate, endDate);
+
+  return jsonOk(report);
 }));
