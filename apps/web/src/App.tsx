@@ -69,16 +69,20 @@ const queryClient = new QueryClient({
   },
 });
 
-const AppRoutes: React.FC = () => {
-  const location = useLocation();
+export const App: React.FC = () => {
   return (
-    <Suspense fallback={<RouteSkeleton />}>
-      <AnimatePresence mode="wait" initial={false}>
-        <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
-          {/* Public Routes — loaded immediately */}
-          <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
-          <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
-          <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider>
+        <AuthProvider>
+          <ToastProvider>
+          <BrowserRouter>
+            <Suspense fallback={<RouteSkeleton />}>
+              <AnimatePresence mode="wait" initial={false}>
+                <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
+                  {/* Public Routes — loaded immediately */}
+                  <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
+                  <Route path="/login" element={<PageTransition><LoginPage /></PageTransition>} />
+                  <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
 
                   {/* Gym Owner & Staff Routes — lazy loaded */}
                   <Route
@@ -341,18 +345,7 @@ const AppRoutes: React.FC = () => {
                 </Routes>
               </AnimatePresence>
             </Suspense>
-  );
-};
-
-export const App: React.FC = () => {
-  return (
-    <QueryClientProvider client={queryClient}>
-      <ThemeProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <BrowserRouter>
-              <AppRoutes />
-            </BrowserRouter>
+          </BrowserRouter>
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
