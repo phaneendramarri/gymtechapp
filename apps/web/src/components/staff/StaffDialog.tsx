@@ -84,22 +84,18 @@ export const StaffDialog: React.FC<StaffDialogProps> = ({
     try {
       if (editMode && initialData) {
         // Update staff (not implemented yet - would need updateStaff API method)
-        toast({
-          title: 'Success',
-          description: 'Staff member updated successfully',
-        });
+        toast('success', 'Staff Updated', 'Staff member updated successfully');
       } else {
         await api.createStaff({
           name: name.trim(),
           email: email.trim(),
-          phone: phone.trim() || undefined,
+          phone: phone.trim() || '',
           password: password,
+          role: 'STAFF',
+          permissions: roles.find((r) => r.id === roleId)?.permissions || [],
           roleId: roleId!,
         });
-        toast({
-          title: 'Success',
-          description: 'Staff member created successfully',
-        });
+        toast('success', 'Staff Created', 'Staff member created successfully');
       }
       onSuccess();
       onClose();

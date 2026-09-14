@@ -56,13 +56,13 @@ export async function generateQRCodeSVG(payload: string, size: number = 256): Pr
 
 /**
  * Generate QR code as data URL (for img src)
+ * Note: This function is intended for browser use only.
+ * In Cloudflare Workers, return the SVG directly or use a different approach.
  */
 export async function generateQRCodeDataURL(payload: string, size: number = 256): Promise<string> {
   const svg = await generateQRCodeSVG(payload, size);
-  const blob = new Blob([svg], { type: 'image/svg+xml' });
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result as string);
-    reader.readAsDataURL(blob);
-  });
+
+  // In Workers environment, convert SVG to base64 data URL without FileReader
+  const base64 = btoa(svg);
+  return `data:image/svg+xml;base64,${base64}`;
 }
