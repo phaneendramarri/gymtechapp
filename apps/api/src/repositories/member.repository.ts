@@ -11,6 +11,7 @@ import { createDatabase } from '../db/client';
 import type { Member, MemberStatus, MemberListItem } from '@gymtech/shared';
 import { members, memberships, membershipPlans, counters, attendance } from '../db/schema';
 import { CommunicationRepository } from './communication.repository';
+import { CounterRepository } from './counter.repository';
 
 /** Returns today's date as YYYYMMDD integer. */
 export function todayYyyymmdd(): number {
@@ -223,19 +224,31 @@ export class MemberRepository {
     return (rows[0] as Member) ?? null;
   }
 
-  async getNextMemberCode(): Promise<string> {
-    // H4 fix: use atomic upsert-returning to eliminate TOCTOU race between count and insert.
-    // INSERT ... ON CONFLICT DO UPDATE: if no row exists, inserts with value=1; if exists, increments.
+  /**
+   * Expire members who have no remaining active membership; returns rows
+   * changed. Used by the expiry sweep (scheduled.ts → LicenseService).
+   */
+  async expireMembersWithoutActiveMembership(gymId: number, nowUnix: number): Promise<number> {
     const result = await this.d1
-      .prepare(`
-        INSERT INTO counters (gym_id, counter_type, value)
-        VALUES (?, 'member_code', 1)
-        ON CONFLICT (gym_id, counter_type) DO UPDATE SET value = value + 1
-        RETURNING value AS next_val
-      `)
-      .bind(this.gymId)
-      .all<{ next_val: number }>();
-    const nextVal = result.results?.[0]?.next_val ?? 1;
+      .prepare(
+        `UPDATE members SET status = 'EXPIRED', updated_at = ?
+         WHERE gym_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM memberships
+             WHERE memberships.member_id = members.id
+               AND memberships.gym_id = members.gym_id
+               AND memberships.status = 'ACTIVE'
+               AND memberships.deleted_at IS NULL
+           )`
+      )
+      .bind(nowUnix, gymId)
+      .run();
+    return result.meta?.changes ?? 0;
+  }
+
+  async getNextMemberCode(): Promise<string> {
+    // Atomic upsert-returning via the counters-table owner — no TOCTOU race.
+    const nextVal = await new CounterRepository(this.d1).nextValue(this.gymId, 'member_code');
     return `MEM-${1000 + nextVal}`;
   }
 
@@ -508,11 +521,16 @@ export class MemberRepository {
     await new CommunicationRepository(this.d1).purgeForMember(this.gymId, id);
 
     // Anonymise + soft-delete the member record.
+    // `phone` is NOT NULL in the schema; erase it to a tombstone value rather
+    // than null so the audit row survives while its content is gone.
     await this.db
       .update(members)
       .set({
+        // Names are personal data too; first_name is NOT NULL, so tombstone it.
+        firstName: '[ERASED]',
+        lastName: null,
         email: null,
-        phone: null,
+        phone: `erased-${id}@gdpr.invalid`,
         address: null,
         city: null,
         pincode: null,

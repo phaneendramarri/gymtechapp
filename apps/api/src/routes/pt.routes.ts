@@ -1,11 +1,23 @@
 // filepath: apps/api/src/routes/pt.routes.ts
+/**
+ * PT (personal-training) routes — HTTP boundary only.
+ *
+ * Validates, authorizes, and shapes responses. All `pt_collections` SQL lives
+ * in PtRepository; receipt numbers come from PaymentRepository.
+ */
 import { Hono } from 'hono';
-import { RecordPtCollectionRequestSchema, SettlePtCommissionRequestSchema } from '@gymtech/shared';
-import { requireGym, requireFeature, requireRole, requirePermission } from '../middleware/auth';
+import {
+  RecordPtCollectionRequestSchema,
+  SettlePtCommissionRequestSchema,
+  CreatePtPackageRequestSchema,
+  LogPtSessionRequestSchema,
+} from '@gymtech/shared';
+import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { calculatePtCommission } from '../lib/calculations';
 import { MemberRepository } from '../repositories/member.repository';
+import { PtRepository } from '../repositories/pt.repository';
 import { PaymentRepository } from '../repositories/payment.repository';
 import { auditGymFromCtx } from '../services/audit.service';
 import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
@@ -20,61 +32,31 @@ ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), safeH
     : (c.req.query('trainerId') ? parseInt(c.req.query('trainerId')!, 10) : null);
   const limit = Math.min(parseInt(c.req.query('limit') || '100', 10), 500);
 
-  let sql = `
-    SELECT pt.*,
-           m.first_name || ' ' || COALESCE(m.last_name, '') as member_name, m.member_code,
-           u.name as trainer_name
-    FROM pt_collections pt
-    JOIN members m ON m.id = pt.member_id
-    LEFT JOIN users u ON u.id = pt.trainer_id
-    WHERE pt.gym_id = ?`;
-  const binds: any[] = [ctx.gymId!];
-  if (trainerId) { sql += ' AND pt.trainer_id = ?'; binds.push(trainerId); }
-  sql += ' ORDER BY pt.payment_date DESC LIMIT ?';
-  binds.push(limit);
-
-  const rows = await ctx.env.DB.prepare(sql).bind(...binds).all();
-  return jsonOk({ collections: rows.results || [] });
+  const ptRepo = new PtRepository(ctx.env.DB);
+  const collections = await ptRepo.listForGym(ctx.gymId!, trainerId, limit);
+  return jsonOk({ collections });
 }));
 
 ptRoutes.get('/summary', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  if (!ctx.user!.permissions?.includes('*') && !ctx.user!.permissions?.includes('reports')) {
+  const canSeeAll = ctx.user!.permissions?.includes('*') || ctx.user!.permissions?.includes('reports');
+  if (!canSeeAll) {
     return jsonOk({ totalCollected: 0, totalCommissionPending: 0, totalCommissionPaid: 0, byTrainer: [] });
   }
   const isTrainer = !ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff');
-  const totalsSql = isTrainer
-    ? `SELECT
-         COALESCE(SUM(amount_paise), 0) as total_collected,
-         COALESCE(SUM(CASE WHEN commission_status = 'PENDING' THEN commission_paise END), 0) as commission_pending,
-         COALESCE(SUM(CASE WHEN commission_status = 'PAID' THEN commission_paise END), 0) as commission_paid
-       FROM pt_collections WHERE gym_id = ? AND trainer_id = ?`
-    : `SELECT
-         COALESCE(SUM(amount_paise), 0) as total_collected,
-         COALESCE(SUM(CASE WHEN commission_status = 'PENDING' THEN commission_paise END), 0) as commission_pending,
-         COALESCE(SUM(CASE WHEN commission_status = 'PAID' THEN commission_paise END), 0) as commission_paid
-       FROM pt_collections WHERE gym_id = ?`;
-  const totalsStmt = isTrainer ? ctx.env.DB.prepare(totalsSql).bind(ctx.gymId!, ctx.user!.id) : ctx.env.DB.prepare(totalsSql).bind(ctx.gymId!);
-  const totals: any = await totalsStmt.first();
+  const trainerId = isTrainer ? ctx.user!.id : null;
 
-  const byTrainerSql = `
-    SELECT pt.trainer_id, COALESCE(u.name, 'Unknown Trainer') as trainer_name,
-           COUNT(*) as collections,
-           COALESCE(SUM(pt.amount_paise), 0) as collected,
-           COALESCE(SUM(CASE WHEN pt.commission_status = 'PENDING' THEN pt.commission_paise END), 0) as commission_pending,
-           COALESCE(SUM(CASE WHEN pt.commission_status = 'PAID' THEN pt.commission_paise END), 0) as commission_paid
-    FROM pt_collections pt
-    LEFT JOIN users u ON u.id = pt.trainer_id
-    WHERE pt.gym_id = ?${isTrainer ? ' AND pt.trainer_id = ?' : ''}
-    GROUP BY pt.trainer_id ORDER BY collected DESC`;
-  const byTrainerStmt = isTrainer ? ctx.env.DB.prepare(byTrainerSql).bind(ctx.gymId!, ctx.user!.id) : ctx.env.DB.prepare(byTrainerSql).bind(ctx.gymId!);
-  const byTrainer = await byTrainerStmt.all();
+  const ptRepo = new PtRepository(ctx.env.DB);
+  const [totals, byTrainer] = await Promise.all([
+    ptRepo.summaryFor(ctx.gymId!, trainerId),
+    ptRepo.summaryByTrainer(ctx.gymId!, trainerId),
+  ]);
 
   return jsonOk({
-    totalCollected: totals?.total_collected || 0,
-    totalCommissionPending: totals?.commission_pending || 0,
-    totalCommissionPaid: totals?.commission_paid || 0,
-    byTrainer: byTrainer.results || [],
+    totalCollected: totals.totalCollected,
+    totalCommissionPending: totals.commissionPending,
+    totalCommissionPaid: totals.commissionPaid,
+    byTrainer,
   });
 }));
 
@@ -88,39 +70,43 @@ ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safe
   const member = await memberRepo.findById(parsed.data.memberId);
   if (!member) return jsonErr('Member not found', 404);
 
-  const trainerId = (!ctx.user!.permissions?.includes('*') && !ctx.user!.permissions?.includes('staff')) ? ctx.user!.id : parsed.data.trainerId;
-  const trainer: any = await ctx.env.DB.prepare(
-    `SELECT id, name FROM users WHERE id = ? AND gym_id = ? AND deleted_at IS NULL LIMIT 1`
-  ).bind(trainerId, ctx.gymId!).first();
+  const trainerId = (!ctx.user!.permissions?.includes('*') && !ctx.user!.permissions?.includes('staff'))
+    ? ctx.user!.id
+    : parsed.data.trainerId;
+  const ptRepo = new PtRepository(ctx.env.DB);
+  const trainer = await ptRepo.findUserInGym(trainerId, ctx.gymId!);
   if (!trainer) return jsonErr('Trainer not found in this gym', 404);
 
   const commissionPaise = calculatePtCommission(parsed.data.amountPaise, parsed.data.commissionPercentage);
-  const paymentDate = parsed.data.paymentDate ? Math.floor(new Date(parsed.data.paymentDate).getTime() / 1000) : Math.floor(Date.now() / 1000);
-  const paymentRepo = new PaymentRepository(ctx.env.DB, ctx.gymId!);
-  const receiptNumber = await paymentRepo.getNextReceiptNumber();
+  const paymentDate = parsed.data.paymentDate
+    ? Math.floor(new Date(parsed.data.paymentDate).getTime() / 1000)
+    : Math.floor(Date.now() / 1000);
+  const receiptNumber = await new PaymentRepository(ctx.env.DB, ctx.gymId!).getNextReceiptNumber();
 
-  const res = await ctx.env.DB.prepare(`
-    INSERT INTO pt_collections (
-      gym_id, member_id, trainer_id, sessions, amount_paise,
-      commission_percentage, commission_paise, commission_status,
-      payment_mode, payment_date, receipt_number, notes, recorded_by_user_id,
-      created_at, updated_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, 'PENDING', ?, ?, ?, ?, ?, unixepoch(), unixepoch())
-  `).bind(
-    ctx.gymId!, parsed.data.memberId, trainerId, parsed.data.sessions, parsed.data.amountPaise,
-    parsed.data.commissionPercentage, commissionPaise, parsed.data.paymentMode, paymentDate,
-    receiptNumber, parsed.data.notes ?? null, ctx.user!.id
-  ).run();
+  const id = await ptRepo.create({
+    gymId: ctx.gymId!,
+    memberId: parsed.data.memberId,
+    trainerId,
+    sessions: parsed.data.sessions,
+    amountPaise: parsed.data.amountPaise,
+    commissionPercentage: parsed.data.commissionPercentage,
+    commissionPaise,
+    paymentMode: parsed.data.paymentMode,
+    paymentDate,
+    receiptNumber,
+    notes: parsed.data.notes ?? null,
+    recordedByUserId: ctx.user!.id,
+  });
 
   await auditGymFromCtx(
     c,
     'pt_collection.create',
     'pt_collection',
-    Number(res.meta?.last_row_id ?? 0),
+    id,
     { after: { amount_paise: parsed.data.amountPaise, commission_paise: commissionPaise } }
   );
 
-  return jsonOk({ id: Number(res.meta?.last_row_id ?? 0), receiptNumber, commissionPaise }, 201);
+  return jsonOk({ id, receiptNumber, commissionPaise }, 201);
 }));
 
 ptRoutes.post('/collections/:id/settle', requireGym, requirePermission('pt_collections'), safeHandler(async (c) => {
@@ -130,10 +116,11 @@ ptRoutes.post('/collections/:id/settle', requireGym, requirePermission('pt_colle
   const parsed = SettlePtCommissionRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid settlement payload');
 
-  const existing: any = await ctx.env.DB.prepare(`SELECT id FROM pt_collections WHERE id = ? AND gym_id = ?`).bind(id, ctx.gymId!).first();
+  const ptRepo = new PtRepository(ctx.env.DB);
+  const existing = await ptRepo.findByIdInGym(id, ctx.gymId!);
   if (!existing) return jsonErr('PT collection not found', 404);
 
-  await ctx.env.DB.prepare(`UPDATE pt_collections SET commission_status = ?, updated_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(parsed.data.status, id, ctx.gymId!).run();
+  await ptRepo.settleCommission(id, ctx.gymId!, parsed.data.status);
 
   await auditGymFromCtx(
     c,
@@ -144,4 +131,80 @@ ptRoutes.post('/collections/:id/settle', requireGym, requirePermission('pt_colle
   );
 
   return jsonOk({ success: true, id, status: parsed.data.status });
+}));
+
+// --- Packages & Sessions ---
+
+ptRoutes.get('/packages', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const memberId = c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined;
+  const isTrainer = !ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff');
+  const trainerId = isTrainer
+    ? ctx.user!.id
+    : (c.req.query('trainerId') ? parseInt(c.req.query('trainerId')!, 10) : undefined);
+
+  const ptRepo = new PtRepository(ctx.env.DB);
+  const packages = await ptRepo.listPackages(ctx.gymId!, memberId, trainerId);
+  return jsonOk({ packages });
+}));
+
+ptRoutes.post('/packages', requireGym, requirePermission('pt_collections'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = CreatePtPackageRequestSchema.safeParse(body);
+  if (!parsed.success) return jsonValidationErr(parsed, 'Invalid PT package payload');
+
+  const ptRepo = new PtRepository(ctx.env.DB);
+  const id = await ptRepo.createPackage({
+    gymId: ctx.gymId!,
+    memberId: parsed.data.memberId,
+    trainerId: parsed.data.trainerId,
+    packageName: parsed.data.packageName,
+    totalSessions: parsed.data.totalSessions,
+    amountPaise: parsed.data.amountPaise,
+    startDate: parsed.data.startDate,
+    expiryDate: parsed.data.expiryDate,
+    notes: parsed.data.notes,
+  });
+
+  await auditGymFromCtx(c, 'pt_package.create', 'pt_package', id, { after: parsed.data });
+  return jsonOk({ id }, 201);
+}));
+
+ptRoutes.get('/sessions', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const packageId = c.req.query('packageId') ? parseInt(c.req.query('packageId')!, 10) : undefined;
+  const memberId = c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined;
+
+  const ptRepo = new PtRepository(ctx.env.DB);
+  const sessions = await ptRepo.listSessions(ctx.gymId!, packageId, memberId);
+  return jsonOk({ sessions });
+}));
+
+ptRoutes.post('/sessions', requireGym, requirePermission('pt_collections'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const body = await c.req.json().catch(() => ({}));
+  const parsed = LogPtSessionRequestSchema.safeParse(body);
+  if (!parsed.success) return jsonValidationErr(parsed, 'Invalid PT session payload');
+
+  const ptRepo = new PtRepository(ctx.env.DB);
+  const pkg = await ptRepo.findPackageById(parsed.data.packageId, ctx.gymId!);
+  if (!pkg) return jsonErr('PT package not found', 404);
+  if (pkg.used_sessions >= pkg.total_sessions) {
+    return jsonErr('This PT package has no remaining sessions', 400);
+  }
+
+  const id = await ptRepo.logSession({
+    gymId: ctx.gymId!,
+    packageId: pkg.id,
+    memberId: pkg.member_id,
+    trainerId: pkg.trainer_id,
+    sessionDate: parsed.data.sessionDate,
+    sessionNotes: parsed.data.sessionNotes,
+    feedback: parsed.data.feedback,
+    recordedByUserId: ctx.user!.id,
+  });
+
+  await auditGymFromCtx(c, 'pt_session.log', 'pt_session', id, { after: parsed.data });
+  return jsonOk({ id, remainingSessions: pkg.total_sessions - (pkg.used_sessions + 1) }, 201);
 }));

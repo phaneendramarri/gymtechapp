@@ -1,4 +1,4 @@
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, and, lt } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { License } from '@gymtech/shared';
@@ -124,15 +124,42 @@ export class LicenseRepository {
       .where(eq(licenses.gymId, gymId));
   }
 
-  async incrementUsage(gymId: number, channel: 'sms' | 'whatsapp' | 'email', delta = 1): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    if (channel === 'sms') {
-      await this.db.update(licenses).set({ smsUsed: sql`${licenses.smsUsed} + ${delta}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
-    } else if (channel === 'whatsapp') {
-      await this.db.update(licenses).set({ whatsappUsed: sql`${licenses.whatsappUsed} + ${delta}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
-    } else {
-      await this.db.update(licenses).set({ emailUsed: sql`${licenses.emailUsed} + ${delta}`, updatedAt: now }).where(eq(licenses.gymId, gymId));
-    }
+  /**
+   * Atomically consume communication credits for a channel.
+   *
+   * The conditional UPDATE only applies when the balance suffices, so a
+   * concurrent dispatcher cannot overdraw: a return of 0 means "insufficient
+   * credits". Returns the number of rows changed (0 or 1).
+   */
+  async consumeCredits(gymId: number, channel: 'sms' | 'whatsapp' | 'email', credits = 1): Promise<number> {
+    const columns = {
+      sms: { max: 'max_sms', used: 'sms_used' },
+      whatsapp: { max: 'max_whatsapp', used: 'whatsapp_used' },
+      email: { max: 'max_email', used: 'email_used' },
+    } as const;
+    const { max, used } = columns[channel];
+
+    const d1 = this.d1;
+    if (!d1) throw new Error('consumeCredits requires a raw D1 binding');
+
+    const result = await d1
+      .prepare(
+        `UPDATE licenses
+         SET ${used} = ${used} + ?, updated_at = unixepoch()
+         WHERE gym_id = ? AND (${max} = -1 OR (${max} - ${used}) >= ?)`
+      )
+      .bind(credits, gymId, credits)
+      .run();
+    return result.meta?.changes ?? 0;
+  }
+
+  /** Expire an over-due license; returns rows changed. */
+  async expireIfDue(gymId: number, nowUnix: number): Promise<number> {
+    const result = await this.db
+      .update(licenses)
+      .set({ status: 'EXPIRED', updatedAt: nowUnix })
+      .where(and(eq(licenses.gymId, gymId), eq(licenses.status, 'ACTIVE'), lt(licenses.expiresAt, nowUnix)));
+    return (result as unknown as { meta?: { changes?: number } }).meta?.changes ?? 0;
   }
 
   async topUpCredits(gymId: number, channel: 'sms' | 'whatsapp' | 'email', credits: number): Promise<void> {

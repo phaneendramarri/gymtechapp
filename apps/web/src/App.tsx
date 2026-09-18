@@ -1,4 +1,4 @@
-﻿import React, { lazy, Suspense } from 'react';
+import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AnimatePresence } from 'framer-motion';
@@ -26,6 +26,11 @@ const AdminPage           = lazy(() => import('./pages/AdminPage').then(m => ({ 
 const ResetPasswordPage   = lazy(() => import('./pages/ResetPasswordPage').then(m => ({ default: m.ResetPasswordPage })));
 const MemberPortalPage    = lazy(() => import('./pages/MemberPortalPage').then(m => ({ default: m.MemberPortalPage })));
 const PtCollectionsPage   = lazy(() => import('./pages/PtCollectionsPage').then(m => ({ default: m.PtCollectionsPage })));
+const ClassesPage         = lazy(() => import('./pages/ClassesPage').then(m => ({ default: m.ClassesPage })));
+const PosPage             = lazy(() => import('./pages/PosPage').then(m => ({ default: m.PosPage })));
+const ExpensesPage        = lazy(() => import('./pages/ExpensesPage').then(m => ({ default: m.ExpensesPage })));
+const LockersPage         = lazy(() => import('./pages/LockersPage').then(m => ({ default: m.LockersPage })));
+const KioskPage           = lazy(() => import('./pages/KioskPage').then(m => ({ default: m.KioskPage })));
 const AuditLogsPage       = lazy(() => import('./pages/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 const RolesManagementPage = lazy(() => import('./pages/platform/RolesManagementPage').then(m => ({ default: m.RolesManagementPage })));
 const PlatformUsersPage   = lazy(() => import('./pages/platform/PlatformUsersPage').then(m => ({ default: m.PlatformUsersPage })));
@@ -94,6 +99,11 @@ const AppRoutes: React.FC = () => {
           <Route path="/payments"               element={<PageTransition><Guarded permissions={['payments']}><PaymentsPage /></Guarded></PageTransition>} />
           <Route path="/pt-collections"         element={<PageTransition><Guarded permissions={['pt_collections']}><PtCollectionsPage /></Guarded></PageTransition>} />
           <Route path="/attendance"             element={<PageTransition><Guarded permissions={['attendance']}><AttendancePage /></Guarded></PageTransition>} />
+          <Route path="/kiosk"                  element={<PageTransition><Guarded permissions={['attendance']}><KioskPage /></Guarded></PageTransition>} />
+          <Route path="/classes"                element={<PageTransition><Guarded permissions={['classes']}><ClassesPage /></Guarded></PageTransition>} />
+          <Route path="/pos"                    element={<PageTransition><Guarded permissions={['pos']}><PosPage /></Guarded></PageTransition>} />
+          <Route path="/expenses"               element={<PageTransition><Guarded permissions={['expenses']}><ExpensesPage /></Guarded></PageTransition>} />
+          <Route path="/lockers"                element={<PageTransition><Guarded permissions={['lockers']}><LockersPage /></Guarded></PageTransition>} />
           <Route path="/plans"                  element={<PageTransition><Guarded permissions={['plans']}><PlansPage /></Guarded></PageTransition>} />
           <Route path="/staff"                  element={<PageTransition><Guarded permissions={['staff']}><StaffPage /></Guarded></PageTransition>} />
           <Route path="/reports"                element={<PageTransition><Guarded permissions={['reports']}><ReportsPage /></Guarded></PageTransition>} />

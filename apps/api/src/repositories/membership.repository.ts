@@ -1,8 +1,8 @@
-import { eq, and, desc, isNull } from 'drizzle-orm';
+import { eq, and, desc, isNull, lt } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Membership } from '@gymtech/shared';
-import { memberships, membershipPlans } from '../db/schema';
+import { memberships, membershipPlans, members } from '../db/schema';
 
 export class MembershipRepository {
   private db: Database;
@@ -120,24 +120,13 @@ export class MembershipRepository {
     return row[0]!.id;
   }
 
-  async updatePaymentProgress(id: number, additionalPaidPaise: number): Promise<void> {
-    const current = await this.findById(id);
-    if (!current) return;
-
-    const { paidAmount, dueAmount } = applyPayment(
-      current.finalAmountPaise,
-      current.paidAmountPaise,
-      additionalPaidPaise
-    );
-
-    await this.db
+  /** Expire memberships whose end date has passed; returns rows changed. */
+  async expireIfDue(gymId: number, nowUnix: number): Promise<number> {
+    const result = await this.db
       .update(memberships)
-      .set({
-        paidAmountPaise: paidAmount,
-        dueAmountPaise: dueAmount,
-        updatedAt: Math.floor(Date.now() / 1000),
-      })
-      .where(and(eq(memberships.id, id), eq(memberships.gymId, this.gymId)));
+      .set({ status: 'EXPIRED' as any, updatedAt: nowUnix })
+      .where(and(eq(memberships.gymId, gymId), eq(memberships.status, 'ACTIVE' as any), lt(memberships.endDate, nowUnix), isNull(memberships.deletedAt)));
+    return (result as unknown as { meta?: { changes?: number } }).meta?.changes ?? 0;
   }
 
   async getExpiringSoon(days = 7): Promise<any[]> {
@@ -186,14 +175,3 @@ export class MembershipRepository {
   }
 }
 
-// Circular dep workaround: import here to avoid circular with member.repository
-import { members } from '../db/schema';
-
-function applyPayment(
-  totalPaise: number,
-  alreadyPaidPaise: number,
-  paymentPaise: number
-): { paidAmount: number; dueAmount: number } {
-  const newPaid = Math.min(alreadyPaidPaise + paymentPaise, totalPaise);
-  return { paidAmount: newPaid, dueAmount: totalPaise - newPaid };
-}

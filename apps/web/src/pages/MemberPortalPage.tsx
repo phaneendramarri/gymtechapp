@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dumbbell,
   LogOut,
@@ -9,12 +9,19 @@ import {
   ShieldCheck,
   Phone,
   Receipt,
+  Calendar,
+  Clock,
+  Trophy,
+  CheckCircle2,
+  Sparkles,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useToast } from '@/components/ui/toast';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { StatusBadge } from '@/components/shared/StatusBadge';
@@ -26,6 +33,8 @@ import { ErrorState } from '@/components/shared/ErrorState';
 export const MemberPortalPage: React.FC = () => {
   const navigate = useNavigate();
   const { logout } = useAuth();
+  const { toast } = useToast();
+  const qc = useQueryClient();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['member-portal'],
@@ -48,6 +57,39 @@ export const MemberPortalPage: React.FC = () => {
   const daysRemaining = activeMembership
     ? Math.max(0, Math.ceil((activeMembership.endDate - nowSec) / 86400))
     : 0;
+
+  const { data: memberPtData } = useQuery({
+    queryKey: ['memberPtPackages', member?.id],
+    queryFn: () => (member?.id ? api.getPtPackages({ memberId: member.id }) : Promise.resolve({ packages: [] })),
+    enabled: Boolean(member?.id),
+  });
+
+  const { data: memberPtSessions } = useQuery({
+    queryKey: ['memberPtSessions', member?.id],
+    queryFn: () => (member?.id ? api.getPtSessions({ memberId: member.id }) : Promise.resolve({ sessions: [] })),
+    enabled: Boolean(member?.id),
+  });
+
+  const { data: classSchedulesData } = useQuery({
+    queryKey: ['memberClassSchedules'],
+    queryFn: () => api.getClassSchedules(),
+  });
+
+  const bookClassMutation = useMutation({
+    mutationFn: (scheduleId: number) => {
+      if (!member?.id) throw new Error('No member session');
+      return api.bookClass({
+        scheduleId,
+        memberId: member.id,
+        bookingDate: new Date().toISOString().slice(0, 10),
+      });
+    },
+    onSuccess: () => {
+      toast('success', 'Booked successfully into class!');
+      qc.invalidateQueries({ queryKey: ['memberClassSchedules'] });
+    },
+    onError: (err: any) => toast('error', err.message || 'Booking failed'),
+  });
 
   const formatDate = (timestamp?: number | null) => {
     if (!timestamp) return '—';
@@ -250,6 +292,8 @@ export const MemberPortalPage: React.FC = () => {
         <Tabs defaultValue="attendance" className="w-full">
           <TabsList className="bg-secondary border border-border p-1">
             <TabsTrigger value="attendance" className="text-xs font-semibold">Check-In History</TabsTrigger>
+            <TabsTrigger value="classes" className="text-xs font-semibold">Group Classes</TabsTrigger>
+            <TabsTrigger value="pt" className="text-xs font-semibold">PT Sessions</TabsTrigger>
             <TabsTrigger value="payments" className="text-xs font-semibold">Payment Receipts</TabsTrigger>
             <TabsTrigger value="profile" className="text-xs font-semibold">My Details</TabsTrigger>
           </TabsList>
@@ -294,6 +338,124 @@ export const MemberPortalPage: React.FC = () => {
                   )}
                 </TableBody>
               </Table>
+            </Card>
+          </TabsContent>
+
+          {/* TAB: GROUP CLASSES BOOKING */}
+          <TabsContent value="classes" className="mt-4">
+            <Card className="border-border shadow-xs p-5 bg-card space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-foreground">Available Group Classes</h3>
+                  <p className="text-xs text-muted-foreground">Book your spot in today and this week's fitness sessions</p>
+                </div>
+                <Badge variant="outline">{classSchedulesData?.schedules?.length || 0} Slots</Badge>
+              </div>
+
+              {(!classSchedulesData?.schedules || classSchedulesData.schedules.length === 0) ? (
+                <div className="p-8 text-center text-xs text-muted-foreground font-mono">
+                  No classes scheduled currently. Check back later or ask reception!
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {classSchedulesData.schedules.map((slot: any) => (
+                    <div
+                      key={slot.id}
+                      className="p-3.5 rounded-xl border border-border bg-secondary/30 flex flex-col justify-between"
+                    >
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <h4 className="font-semibold text-sm text-foreground">{slot.className}</h4>
+                          <span className="text-xs font-mono text-muted-foreground">
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][slot.dayOfWeek]}
+                          </span>
+                        </div>
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="w-3.5 h-3.5" />
+                            <span>{slot.startTime} – {slot.endTime}</span>
+                          </div>
+                          {slot.room && <p className="text-[11px]">Room: {slot.room}</p>}
+                        </div>
+                      </div>
+
+                      <div className="mt-3 pt-2 border-t border-border flex items-center justify-between">
+                        <span className="text-[11px] text-muted-foreground">Max {slot.maxCapacity} spots</span>
+                        <Button
+                          size="sm"
+                          disabled={bookClassMutation.isPending || isExpired}
+                          onClick={() => bookClassMutation.mutate(slot.id)}
+                          className="h-7 text-xs"
+                        >
+                          Book Spot
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </TabsContent>
+
+          {/* TAB: PERSONAL TRAINING (PT) */}
+          <TabsContent value="pt" className="mt-4">
+            <Card className="border-border shadow-xs p-5 bg-card space-y-5">
+              <div>
+                <h3 className="text-sm font-semibold text-foreground">My PT Packages & Balances</h3>
+                <p className="text-xs text-muted-foreground">Track your 1-on-1 trainer packages and logged workout sessions</p>
+              </div>
+
+              {(!memberPtData?.packages || memberPtData.packages.length === 0) ? (
+                <div className="p-8 text-center text-xs text-muted-foreground font-mono border border-dashed border-border rounded-xl">
+                  No active Personal Training packages. Inquire at reception to enroll with a certified trainer!
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {memberPtData.packages.map((pkg: any) => {
+                    const remaining = pkg.totalSessions - pkg.usedSessions;
+                    const percent = Math.round((pkg.usedSessions / pkg.totalSessions) * 100);
+                    return (
+                      <div key={pkg.id} className="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <h4 className="font-semibold text-sm text-foreground">{pkg.packageName}</h4>
+                            <p className="text-xs text-muted-foreground">Trainer: {pkg.trainerName || 'Assigned Trainer'}</p>
+                          </div>
+                          <Badge variant={pkg.status === 'ACTIVE' ? 'default' : 'outline'}>{pkg.status}</Badge>
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex justify-between text-xs font-mono">
+                            <span>{pkg.usedSessions} of {pkg.totalSessions} sessions completed</span>
+                            <span className="font-bold text-primary">{remaining} remaining</span>
+                          </div>
+                          <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
+                            <div className="bg-primary h-full transition-all" style={{ width: `${percent}%` }} />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Workout Sessions Log */}
+              {memberPtSessions?.sessions && memberPtSessions.sessions.length > 0 && (
+                <div className="pt-3 border-t border-border space-y-2">
+                  <h4 className="text-xs font-semibold text-foreground uppercase font-mono">Trainer Session Logs</h4>
+                  <div className="divide-y divide-border">
+                    {memberPtSessions.sessions.map((s: any) => (
+                      <div key={s.id} className="py-2.5 flex items-center justify-between text-xs">
+                        <div>
+                          <p className="font-medium text-foreground">{s.sessionNotes || 'PT Workout Session'}</p>
+                          <p className="text-[11px] text-muted-foreground">Trainer: {s.trainerName} • {s.sessionDate}</p>
+                        </div>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </Card>
           </TabsContent>
 

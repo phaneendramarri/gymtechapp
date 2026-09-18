@@ -1,6 +1,8 @@
 import type { License } from '@gymtech/shared';
 import { LicenseRepository } from '../repositories/license.repository';
 import { CommunicationRepository } from '../repositories/communication.repository';
+import { MembershipRepository } from '../repositories/membership.repository';
+import { MemberRepository } from '../repositories/member.repository';
 import { lawfulBasisFor, retentionUntilFor } from '../lib/notifications';
 
 export interface LimitCheckResult {
@@ -21,10 +23,14 @@ export interface CommunicationConsumeResult {
 export class LicenseService {
   private licenseRepo: LicenseRepository;
   private commRepo: CommunicationRepository;
+  private membershipRepo: MembershipRepository;
+  private memberRepo: MemberRepository;
 
   constructor(private db: D1Database, private gymId: number) {
     this.licenseRepo = new LicenseRepository(db, gymId);
     this.commRepo = new CommunicationRepository(db);
+    this.membershipRepo = new MembershipRepository(db, gymId);
+    this.memberRepo = new MemberRepository(db, gymId);
   }
 
   async getLicense(): Promise<License | null> {
@@ -157,27 +163,15 @@ export class LicenseService {
       ip = null,
     } = params;
 
-    const channelCol = channel.toLowerCase();
-    const usedCol = `${channelCol}_used`;
-    const maxCol = `max_${channelCol}`;
+    // Atomic conditional decrement — owned by LicenseRepository.
+    const rowsChanged = await this.licenseRepo.consumeCredits(this.gymId, channel.toLowerCase() as 'sms' | 'whatsapp' | 'email', credits);
 
-    // Atomic conditional increment in D1 / SQLite
-    const updateResult = await this.db
-      .prepare(
-        `UPDATE licenses
-         SET ${usedCol} = ${usedCol} + ?, updated_at = unixepoch()
-         WHERE gym_id = ?
-           AND (${maxCol} = -1 OR (${maxCol} - ${usedCol}) >= ?)`
-      )
-      .bind(credits, this.gymId, credits)
-      .run();
-
-    const rowsChanged = updateResult.meta?.changes ?? 0;
     if (rowsChanged === 0) {
-      // Fetch current numbers to explain failure
+      // Fetch current numbers to explain the failure
       const lic = await this.getLicense();
-      const max = (lic as any)?.[maxCol] ?? 0;
-      const used = (lic as any)?.[usedCol] ?? 0;
+      const channelKey = channel.toLowerCase() as 'sms' | 'whatsapp' | 'email';
+      const max = (lic as any)?.[`max${channelKey.charAt(0).toUpperCase()}${channelKey.slice(1)}`] ?? 0;
+      const used = (lic as any)?.[`${channelKey}Used`] ?? 0;
       const remaining = Math.max(0, max - used);
       return {
         success: false,
@@ -190,8 +184,9 @@ export class LicenseService {
 
     // Read new balance
     const updatedLicense = await this.getLicense();
-    const max = (updatedLicense as any)?.[maxCol] ?? 0;
-    const used = (updatedLicense as any)?.[usedCol] ?? 0;
+    const channelKey = channel.toLowerCase() as 'sms' | 'whatsapp' | 'email';
+    const max = (updatedLicense as any)?.[`max${channelKey.charAt(0).toUpperCase()}${channelKey.slice(1)}`] ?? 0;
+    const used = (updatedLicense as any)?.[`${channelKey}Used`] ?? 0;
     const remaining = max === -1 ? 999999 : Math.max(0, max - used);
 
     // Audit granular consumption in communication_logs.
@@ -230,47 +225,16 @@ export class LicenseService {
 
   /**
    * Sweeps expired licenses, memberships, and member statuses for this gym.
-   * Invoked on hourly cron schedule.
+   * Invoked on the hourly cron schedule. Each UPDATE lives in its table's
+   * repository; this method only orchestrates.
    */
   async sweepExpiries(): Promise<{ expiredLicenses: number; expiredMemberships: number; expiredMembers: number }> {
     const nowSec = Math.floor(Date.now() / 1000);
 
-    const licRes = await this.db
-      .prepare(
-        `UPDATE licenses SET status = 'EXPIRED', updated_at = ?
-         WHERE gym_id = ? AND status = 'ACTIVE' AND expires_at < ?`
-      )
-      .bind(nowSec, this.gymId, nowSec)
-      .run();
+    const expiredLicenses = await this.licenseRepo.expireIfDue(this.gymId, nowSec);
+    const expiredMemberships = await this.membershipRepo.expireIfDue(this.gymId, nowSec);
+    const expiredMembers = await this.memberRepo.expireMembersWithoutActiveMembership(this.gymId, nowSec);
 
-    const memRes = await this.db
-      .prepare(
-        `UPDATE memberships SET status = 'EXPIRED', updated_at = ?
-         WHERE gym_id = ? AND status = 'ACTIVE' AND end_date < ?`
-      )
-      .bind(nowSec, this.gymId, nowSec)
-      .run();
-
-    // Sync member statuses to EXPIRED if they have no remaining active memberships
-    const memberRes = await this.db
-      .prepare(
-        `UPDATE members SET status = 'EXPIRED', updated_at = ?
-         WHERE gym_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL
-           AND NOT EXISTS (
-             SELECT 1 FROM memberships
-             WHERE memberships.member_id = members.id
-               AND memberships.gym_id = members.gym_id
-               AND memberships.status = 'ACTIVE'
-               AND memberships.deleted_at IS NULL
-           )`
-      )
-      .bind(nowSec, this.gymId)
-      .run();
-
-    return {
-      expiredLicenses: licRes.meta?.changes ?? 0,
-      expiredMemberships: memRes.meta?.changes ?? 0,
-      expiredMembers: memberRes.meta?.changes ?? 0,
-    };
+    return { expiredLicenses, expiredMemberships, expiredMembers };
   }
 }

@@ -124,26 +124,23 @@ export async function getTestEnv(): Promise<TestEnv> {
  * state directory — which then breaks subsequent `wrangler d1` CLI commands
  * and `pnpm db:*` scripts until the processes are killed by hand.
  */
-export async function disposeTestEnv(): Promise<void> {
-  sessionCache.clear();
-  cached = null;
-  const p = proxy;
-  proxy = null;
-  if (p?.dispose) await p.dispose();
-}
-
 let teardownRegistered = false;
 
 /**
- * Register the proxy teardown with vitest. Call once at the top level of each
- * integration spec so cleanup is deterministic even when no test references
- * `getTestEnv()` directly.
+ * Tear down the platform proxy (its workerd child process) and all caches
+ * after the file's tests run. Call once at the top level of each integration
+ * spec — a leaked proxy holds locks on the shared D1 state directory and
+ * breaks subsequent `wrangler d1` CLI and `pnpm db:*` commands.
  */
 export function setupHarnessTeardown(): void {
   if (teardownRegistered) return;
   teardownRegistered = true;
   afterAll(async () => {
-    await disposeTestEnv();
+    sessionCache.clear();
+    cached = null;
+    const p = proxy;
+    proxy = null;
+    if (p?.dispose) await p.dispose();
   }, 30_000);
 }
 
@@ -161,9 +158,8 @@ export interface ApiResponse<T = unknown> {
 }
 
 /**
- * Rate limiting is per IP, so every client gets its own address by default.
- * Without this, a test file's traffic would share one bucket and trip the
- * limits — `withIp()` exists for the tests that deliberately exercise them.
+ * Rate limiting is per IP, so every client gets its own address by default;
+ * tests that exercise the limits pass an explicit IP to the constructor.
  */
 let ipCounter = 0;
 function nextIp(): string {
@@ -181,19 +177,6 @@ export class ApiClient {
 
   constructor(private env: TestEnv, ip?: string) {
     this.ip = ip ?? nextIp();
-  }
-
-  /** Same session cookies, independent address and jar. */
-  clone(): ApiClient {
-    const copy = new ApiClient(this.env);
-    for (const [name, value] of this.cookies) copy.cookies.set(name, value);
-    return copy;
-  }
-
-  /** Pin this client to a specific IP (for rate-limit tests). */
-  withIp(ip: string): ApiClient {
-    this.ip = ip;
-    return this;
   }
 
   /** Replace the cookie jar with a previously captured session. */
@@ -284,8 +267,6 @@ export class ApiClient {
 
   get = <T = unknown>(path: string) => this.request<T>('GET', path);
   post = <T = unknown>(path: string, body?: unknown) => this.request<T>('POST', path, { body });
-  patch = <T = unknown>(path: string, body?: unknown) => this.request<T>('PATCH', path, { body });
-  del = <T = unknown>(path: string) => this.request<T>('DELETE', path);
 }
 
 /** Credentials created by `apps/api/seed/seed_production.sql`. */
@@ -294,7 +275,7 @@ export const SEED = {
   platformAdmin: { email: 'admin@gymtech.app', password: 'Password123!' },
 } as const;
 
-export interface Session {
+interface Session {
   client: ApiClient;
   env: TestEnv;
 }

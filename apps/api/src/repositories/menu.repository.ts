@@ -51,6 +51,14 @@ export class MenuRepository {
     return rows.map((r) => r.key);
   }
 
+  /** Remove a role's menu links (used when the role is deleted). */
+  async clearRoleMenus(gymId: number, roleId: number): Promise<void> {
+    await this.d1
+      .prepare('DELETE FROM role_menus WHERE gym_id = ? AND role_id = ?')
+      .bind(gymId, roleId)
+      .run();
+  }
+
   /**
    * Atomically synchronize a role's accessible menus.
    */

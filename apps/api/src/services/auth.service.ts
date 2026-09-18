@@ -153,7 +153,7 @@ export class AuthService {
       } catch (err) { console.error('Lazy rehash failed for platform admin', admin.id, err); }
     }
 
-    await this.db.prepare(`UPDATE platform_admins SET last_login_at = unixepoch() WHERE id = ?`).bind(admin.id).run();
+    await this.userRepo.touchPlatformAdminLogin(admin.id);
 
     const sessionUser: SessionUser = {
       id: admin.id,

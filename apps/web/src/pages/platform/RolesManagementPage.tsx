@@ -50,6 +50,10 @@ const PERM_LABELS: Record<Perm, string> = {
   reports: 'Reports',
   settings: 'Settings',
   audit_logs: 'Audit Logs',
+  classes: 'Group Classes',
+  pos: 'POS & Store',
+  expenses: 'Expenses & P&L',
+  lockers: 'Lockers',
   superadmin: 'Super Admin',
 };
 

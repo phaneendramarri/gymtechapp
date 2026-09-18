@@ -16,6 +16,7 @@ import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { AdminRepository } from '../repositories/admin.repository';
 import { LicenseRepository } from '../repositories/license.repository';
+import { SettingsRepository } from '../repositories/settings.repository';
 import { AuditService, auditSaasFromCtx } from '../services/audit.service';
 import { EmailService } from '../services/email.service';
 import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
@@ -179,8 +180,7 @@ adminRoutes.get('/audit-logs', safeHandler(async (c) => {
 adminRoutes.get('/communications', safeHandler(async (c) => {
   const ctx = getCtx(c);
   try {
-    const row = await ctx.env.DB.prepare(`SELECT value_json FROM platform_settings WHERE key = 'communications'`).first<{ value_json: string }>();
-    const config = row?.value_json ? JSON.parse(row.value_json) : {
+    const config = await new SettingsRepository(ctx.env.DB).getPlatformSetting('communications') ?? {
       smtp: { enabled: false, provider: 'CUSTOM', host: '', port: 587, secure: false, username: '', password: '', fromName: '', fromEmail: '' },
       smsGateway: { enabled: false, provider: 'FAST2SMS', apiKey: '', senderId: 'GYMTC' },
       whatsappGateway: { enabled: false, provider: 'META_CLOUD_API', accessToken: '', phoneNumberId: '', businessAccountId: '' },
@@ -194,10 +194,7 @@ adminRoutes.put('/communications', safeHandler(async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = PlatformCommunicationsConfigSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid gateway config');
-  await ctx.env.DB
-    .prepare(`INSERT INTO platform_settings (key, value_json, updated_at) VALUES ('communications', ?, unixepoch())
-              ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = unixepoch()`)
-    .bind(JSON.stringify(parsed.data)).run();
+  await new SettingsRepository(ctx.env.DB).putPlatformSetting('communications', parsed.data);
   await auditSaas(ctx, 'communications.update', null, 'platform_settings', null, { after: { configUpdated: true } });
   return jsonOk({ success: true, config: parsed.data });
 }));

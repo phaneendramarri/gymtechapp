@@ -20,6 +20,11 @@ import {
   Sliders,
   Building2,
   Shield,
+  Calendar,
+  ShoppingBag,
+  Receipt,
+  Lock,
+  Tablet,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -47,7 +52,11 @@ const MAIN_NAV: NavItem[] = [
   { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
   { key: 'members', label: 'Members', href: '/members', icon: Users, requiredPermission: 'members' },
   { key: 'floor', label: 'Floor & Attendance', href: '/attendance', icon: CalendarCheck, requiredPermission: 'attendance' },
+  { key: 'classes', label: 'Classes & Timetable', href: '/classes', icon: Calendar, requiredPermission: 'classes' },
   { key: 'payments', label: 'Payments', href: '/payments', icon: CreditCard, requiredPermission: 'payments' },
+  { key: 'pos', label: 'POS & Store', href: '/pos', icon: ShoppingBag, requiredPermission: 'pos' },
+  { key: 'expenses', label: 'Expenses & P&L', href: '/expenses', icon: Receipt, requiredPermission: 'expenses' },
+  { key: 'lockers', label: 'Lockers', href: '/lockers', icon: Lock, requiredPermission: 'lockers' },
   { key: 'pt', label: 'PT Sessions', href: '/pt-collections', icon: Trophy, requiredPermission: 'pt_collections' },
   { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, requiredPermission: 'plans' },
   { key: 'reports', label: 'Reports', href: '/reports', icon: BarChart3, requiredPermission: 'reports' },

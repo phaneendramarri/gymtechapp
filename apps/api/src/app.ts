@@ -29,6 +29,10 @@ import { adminRoutes } from './routes/admin.routes';
 import { adminRoleRoutes } from './routes/admin/roles.routes';
 import { adminUserRoutes } from './routes/admin/users.routes';
 import { auditRoutes } from './routes/audit.routes';
+import { classesRoutes } from './routes/classes.routes';
+import { posRoutes } from './routes/pos.routes';
+import { expensesRoutes } from './routes/expenses.routes';
+import { lockersRoutes } from './routes/lockers.routes';
 
 import type { Database } from './db/client';
 
@@ -154,6 +158,10 @@ app.route('/api/admin', adminRoutes);
 app.route('/api/admin/roles', adminRoleRoutes);
 app.route('/api/admin/users', adminUserRoutes);
 app.route('/api/audit-logs', auditRoutes);
+app.route('/api/classes', classesRoutes);
+app.route('/api/pos', posRoutes);
+app.route('/api/expenses', expensesRoutes);
+app.route('/api/lockers', lockersRoutes);
 
 // SPA catch-all — fetch and serve index.html from Workers Static Assets (ASSETS)
 // so that BrowserRouter clean URLs (e.g. /login, /dashboard) work correctly.

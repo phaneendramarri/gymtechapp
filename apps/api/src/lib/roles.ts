@@ -31,11 +31,8 @@ export function jsonError(message: string, status: number, extra?: Record<string
   });
 }
 
-/**
- * Role names with built-in meaning, derived from the shared vocabulary so the
- * frontend, contracts and API can never disagree about the set of roles.
- */
-export const BUILT_IN_ROLES: readonly string[] = Object.values(USER_ROLES);
+/** Role names with built-in meaning, from the shared vocabulary. */
+const BUILT_IN_ROLES: readonly string[] = Object.values(USER_ROLES);
 
 // ---------------------------------------------------------------------------
 // Derivation: stored state → coarse role
@@ -99,7 +96,7 @@ export function isPlatformAdmin(user: { role?: string | null } | null | undefine
 }
 
 /** The gym's primary owner account. */
-export function isGymOwner(user: { isOwner?: boolean } | null | undefined): boolean {
+function isGymOwner(user: { isOwner?: boolean } | null | undefined): boolean {
   return Boolean(user?.isOwner);
 }
 

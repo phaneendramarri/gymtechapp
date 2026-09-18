@@ -2,7 +2,8 @@ import { eq, and, desc, sql, isNull } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Payment, PaymentMode, PaymentWithDetails } from '@gymtech/shared';
-import { payments, members, users, memberships, counters } from '../db/schema';
+import { payments, members, users, memberships } from '../db/schema';
+import { CounterRepository } from './counter.repository';
 
 export class PaymentRepository {
   private db: Database;
@@ -80,22 +81,11 @@ export class PaymentRepository {
   }
 
   async getNextReceiptNumber(): Promise<string> {
-    const year = new Date().getFullYear();
     // Receipt numbers restart each calendar year, so the counter is year-scoped
-    // ('receipt:2026'). Without the year in the key the sequence kept climbing
-    // across years, producing gaps like RCP-2027-0842 for a fresh period.
-    const counterType = `receipt:${year}`;
-    // Atomic upsert-returning: no TOCTOU race between read and increment.
-    const result = await this.d1
-      .prepare(`
-        INSERT INTO counters (gym_id, counter_type, value)
-        VALUES (?, ?, 1)
-        ON CONFLICT (gym_id, counter_type) DO UPDATE SET value = value + 1
-        RETURNING value AS next_val
-      `)
-      .bind(this.gymId, counterType)
-      .all<{ next_val: number }>();
-    const nextVal = result.results?.[0]?.next_val ?? 1;
+    // ('receipt:<YYYY>') — the sequence restarts every January. The atomic
+    // upsert lives in CounterRepository (single owner of the counters table).
+    const year = new Date().getFullYear();
+    const nextVal = await new CounterRepository(this.d1).nextValue(this.gymId, `receipt:${year}`);
     return `RCP-${year}-${String(nextVal).padStart(4, '0')}`;
   }
 
@@ -132,6 +122,55 @@ export class PaymentRepository {
       })
       .returning({ id: payments.id });
     return row[0]!.id;
+  }
+
+  /**
+   * Record a payment AND apply it to the membership's dues in one atomic
+   * batch. The single path for membership-linked payments — the payments
+   * route and MemberService both go through this, so the two-step race
+   * (payment inserted but dues not updated, or vice versa) is impossible.
+   */
+  async recordAndApplyToMembership(data: {
+    memberId: number;
+    membershipId: number;
+    receiptNumber: string;
+    amountPaise: number;
+    paymentDate: number;
+    paymentMode: PaymentMode;
+    referenceId?: string | null;
+    recordedByUserId: number;
+    notes?: string | null;
+  }): Promise<number> {
+    const now = Math.floor(Date.now() / 1000);
+    const insertStmt = this.d1
+      .prepare(
+        `INSERT INTO payments (gym_id, member_id, membership_id, payment_type, receipt_number,
+           amount_paise, payment_date, payment_mode, reference_id, status, recorded_by_user_id,
+           notes, created_at, updated_at)
+         VALUES (?, ?, ?, 'GYM', ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?)`
+      )
+      .bind(
+        this.gymId, data.memberId, data.membershipId, data.receiptNumber, data.amountPaise,
+        data.paymentDate, data.paymentMode, data.referenceId ?? null, data.recordedByUserId,
+        data.notes ?? null, now, now
+      );
+    const duesStmt = this.d1
+      .prepare(
+        `UPDATE memberships
+         SET paid_amount_paise = paid_amount_paise + ?,
+             due_amount_paise = MAX(due_amount_paise - ?, 0),
+             updated_at = ?
+         WHERE id = ? AND gym_id = ?`
+      )
+      .bind(data.amountPaise, data.amountPaise, now, data.membershipId, this.gymId);
+
+    await this.d1.batch([insertStmt, duesStmt]);
+
+    const row = await this.d1
+      .prepare(`SELECT id FROM payments WHERE gym_id = ? AND receipt_number = ?`)
+      .bind(this.gymId, data.receiptNumber)
+      .first<{ id: number }>();
+    return row!.id;
   }
 
   async getSummaryMetrics(): Promise<{ monthlyRevenue: number; todayRevenue: number; pendingDues: number }> {

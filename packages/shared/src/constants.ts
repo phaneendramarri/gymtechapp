@@ -83,6 +83,7 @@ export const ATTENDANCE_METHODS = {
   MANUAL: 'MANUAL',
   QR: 'QR',
   FACE_ID: 'FACE_ID',
+  KIOSK: 'KIOSK',
 } as const;
 
 
@@ -174,12 +175,40 @@ export type BillingPeriod = (typeof BILLING_PERIODS)[keyof typeof BILLING_PERIOD
 export type CommissionStatus = (typeof COMMISSION_STATUSES)[keyof typeof COMMISSION_STATUSES];
 
 // =====================================================
-// Centralized Feature Catalog
+// New Modules Enums
 // =====================================================
-// One key per shipped product area. A gym's enabled keys live in
-// `licenses.features` (JSON) and gate both the API (`requireFeature`) and
-// the sidebar/platform-admin feature toggles.
-// An EMPTY feature map means "all features enabled" (legacy/default license).
+
+export const CLASS_BOOKING_STATUSES = {
+  BOOKED: 'BOOKED',
+  ATTENDED: 'ATTENDED',
+  CANCELLED: 'CANCELLED',
+  NO_SHOW: 'NO_SHOW',
+  WAITLIST: 'WAITLIST',
+} as const;
+export type ClassBookingStatus = (typeof CLASS_BOOKING_STATUSES)[keyof typeof CLASS_BOOKING_STATUSES];
+
+export const PT_PACKAGE_STATUSES = {
+  ACTIVE: 'ACTIVE',
+  COMPLETED: 'COMPLETED',
+  EXPIRED: 'EXPIRED',
+} as const;
+export type PtPackageStatus = (typeof PT_PACKAGE_STATUSES)[keyof typeof PT_PACKAGE_STATUSES];
+
+export const LOCKER_STATUSES = {
+  AVAILABLE: 'AVAILABLE',
+  OCCUPIED: 'OCCUPIED',
+  MAINTENANCE: 'MAINTENANCE',
+} as const;
+export type LockerStatus = (typeof LOCKER_STATUSES)[keyof typeof LOCKER_STATUSES];
+
+export const LOCKER_ALLOCATION_STATUSES = {
+  ACTIVE: 'ACTIVE',
+  TERMINATED: 'TERMINATED',
+  OVERDUE: 'OVERDUE',
+} as const;
+export type LockerAllocationStatus = (typeof LOCKER_ALLOCATION_STATUSES)[keyof typeof LOCKER_ALLOCATION_STATUSES];
+
+// Centralized Feature Catalog
 export const GYM_FEATURES = [
   'dashboard',
   'members',
@@ -191,6 +220,10 @@ export const GYM_FEATURES = [
   'reports',
   'settings',
   'audit_logs',
+  'classes',
+  'pos',
+  'expenses',
+  'lockers',
 ] as const;
 
 export type GymFeatureKey = (typeof GYM_FEATURES)[number];
@@ -200,11 +233,15 @@ export const GYM_FEATURE_LABELS: Record<GymFeatureKey, { name: string; descripti
   members: { name: 'Members Directory', description: 'Member registration, lifecycle & digital passes' },
   attendance: { name: 'Floor & Attendance', description: 'Real-time check-in, reticle HUD & Face ID' },
   payments: { name: 'Payments & Billing', description: 'POS invoicing, fee collection & receipts' },
-  pt_collections: { name: 'PT Collections', description: 'Personal trainer sessions & commission splits' },
+  pt_collections: { name: 'PT Sessions & Packages', description: 'Personal trainer sessions, package balances & workout tracking' },
   plans: { name: 'Membership Plans', description: 'Plan catalog, pricing & durations' },
-  staff: { name: 'Staff Management', description: 'Owner and Manager account provisioning' },
+  staff: { name: 'Staff Management', description: 'Custom gym role permissions & staff accounts' },
   reports: { name: 'Financial Reports', description: 'Revenue breakdowns, collection trends & analytics' },
-  settings: { name: 'Notification Settings', description: 'WhatsApp & SMS triggers and message balances' },
+  settings: { name: 'Settings & Reminders', description: 'WhatsApp, SMS, Email and gym branding configurations' },
   audit_logs: { name: 'Audit Logs', description: 'Audit trail of all gym data changes' },
+  classes: { name: 'Group Classes & Timetable', description: 'Class schedule, capacity caps, booking roster & waitlist' },
+  pos: { name: 'POS & Inventory', description: 'Retail store, supplements, drinks, stock counts & register' },
+  expenses: { name: 'Expenses & P&L', description: 'Gym expense tracking, vendor invoices & profit and loss reporting' },
+  lockers: { name: 'Locker Management', description: 'Locker numbering, member allocations, rental terms & deposits' },
 };
 

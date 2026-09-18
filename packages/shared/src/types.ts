@@ -27,6 +27,10 @@ import type {
   BillingPeriod,
   CommissionStatus,
   GymFeatureKey,
+  ClassBookingStatus,
+  PtPackageStatus,
+  LockerStatus,
+  LockerAllocationStatus,
 } from './constants';
 
 export type {
@@ -43,6 +47,10 @@ export type {
   BillingPeriod,
   CommissionStatus,
   GymFeatureKey,
+  ClassBookingStatus,
+  PtPackageStatus,
+  LockerStatus,
+  LockerAllocationStatus,
 };
 
 export interface GymFeature {
@@ -497,5 +505,202 @@ export interface InvoiceData {
   cgst: number
   sgst: number
   notes: string | null
+}
+
+// ============================================================
+// Group Fitness Classes & Scheduling
+// ============================================================
+export interface ClassItem {
+  id: number;
+  gymId: number;
+  name: string;
+  description: string | null;
+  durationMinutes: number;
+  maxCapacity: number;
+  capacity?: number;
+  color: string;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface ClassSchedule {
+  id: number;
+  gymId: number;
+  classId: number;
+  className?: string;
+  classColor?: string;
+  trainerUserId: number | null;
+  trainerName?: string | null;
+  dayOfWeek: number; // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  startTime: string; // HH:MM
+  endTime: string;   // HH:MM
+  room?: string | null;
+  date: string | null; // YYYY-MM-DD for one-off
+  isCancelled: boolean;
+  maxCapacity: number;
+  bookedCount?: number;
+  createdAt: number;
+}
+
+export interface ClassBooking {
+  id: number;
+  gymId: number;
+  scheduleId: number;
+  memberId: number;
+  memberName?: string;
+  memberCode?: string;
+  status: ClassBookingStatus;
+  bookedAt: number;
+  attendedAt?: number | null;
+}
+
+// ============================================================
+// Personal Training Packages & Workout Tracking
+// ============================================================
+export interface PtPackage {
+  id: number;
+  gymId: number;
+  memberId: number;
+  memberName?: string;
+  memberCode?: string;
+  trainerUserId: number;
+  trainerName?: string;
+  totalSessions: number;
+  completedSessions: number;
+  pricePaise: number;
+  startDate: string;
+  expiryDate: string;
+  status: PtPackageStatus;
+  notes: string | null;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PtSession {
+  id: number;
+  gymId: number;
+  packageId: number;
+  sessionNumber: number;
+  sessionDate: string;
+  notes: string | null;
+  trainerUserId: number;
+  trainerName?: string;
+  signedOffByMember: boolean;
+  createdAt: number;
+}
+
+// ============================================================
+// POS & Retail Inventory
+// ============================================================
+export interface Product {
+  id: number;
+  gymId: number;
+  name: string;
+  sku: string | null;
+  category: string;
+  pricePaise: number;
+  costPaise: number;
+  stockQuantity: number;
+  lowStockThreshold: number;
+  taxRate: number;
+  isActive: boolean;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface PosSale {
+  id: number;
+  gymId: number;
+  receiptNumber: string;
+  memberId: number | null;
+  memberName?: string | null;
+  subtotalPaise: number;
+  taxPaise: number;
+  totalPaise: number;
+  paymentMode: PaymentMode;
+  notes: string | null;
+  createdAt: number;
+  items?: PosSaleItem[];
+}
+
+export interface PosSaleItem {
+  id: number;
+  gymId: number;
+  saleId: number;
+  productId: number;
+  productName?: string;
+  quantity: number;
+  unitPricePaise: number;
+  totalPaise: number;
+}
+
+// ============================================================
+// Expenses & P&L
+// ============================================================
+export interface ExpenseCategory {
+  id: number;
+  gymId: number;
+  name: string;
+  createdAt: number;
+}
+
+export interface Expense {
+  id: number;
+  gymId: number;
+  categoryId: number;
+  categoryName?: string;
+  title: string;
+  amountPaise: number;
+  expenseDate: string; // YYYY-MM-DD
+  paymentMode: PaymentMode;
+  vendor: string | null;
+  receiptUrl: string | null;
+  createdByUserId: number | null;
+  createdAt: number;
+}
+
+// ============================================================
+// Lockers
+// ============================================================
+export interface Locker {
+  id: number;
+  gymId: number;
+  lockerNumber: string;
+  zone: string | null;
+  status: LockerStatus;
+  currentAllocation?: LockerAllocation | null;
+  createdAt: number;
+}
+
+export interface LockerAllocation {
+  id: number;
+  gymId: number;
+  lockerId: number;
+  lockerNumber?: string;
+  memberId: number;
+  memberName?: string;
+  memberCode?: string;
+  startDate: string;
+  endDate: string;
+  depositPaise: number;
+  rentPaise: number;
+  status: LockerAllocationStatus;
+  createdAt: number;
+}
+
+// ============================================================
+// Member Referral Tracking
+// ============================================================
+export interface MemberReferral {
+  id: number;
+  gymId: number;
+  referrerMemberId: number;
+  referrerName?: string;
+  referredMemberId: number;
+  referredName?: string;
+  rewardStatus: 'PENDING' | 'AWARDED' | 'DISMISSED';
+  rewardNotes: string | null;
+  createdAt: number;
 }
 

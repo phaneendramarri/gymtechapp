@@ -40,6 +40,28 @@ import {
   PlatformCommunicationsConfig,
   SendNotificationRequest,
   MenuItem,
+  ClassItem,
+  ClassSchedule,
+  ClassBooking,
+  CreateClassRequest,
+  CreateScheduleRequest,
+  BookClassRequest,
+  Product,
+  PosSale,
+  CreateProductRequest,
+  CreatePosSaleRequest,
+  Expense,
+  ExpenseCategory,
+  CreateExpenseRequest,
+  CreateExpenseCategoryRequest,
+  Locker,
+  LockerAllocation,
+  CreateLockerRequest,
+  AllocateLockerRequest,
+  PtPackage,
+  PtSession,
+  CreatePtPackageRequest,
+  LogPtSessionRequest,
 } from '@gymtech/shared';
 
 // The Hono API is served from the same origin as the SPA (single Cloudflare
@@ -936,6 +958,274 @@ class ApiClient {
     roleId?: number; password?: string;
   }): Promise<{ id: number }> {
     return this.request<{ id: number }>('/api/admin/users', { method: 'POST', body: JSON.stringify(data) });
+  }
+
+  // --- Classes & Timetable ---
+  async getClasses(gymId?: number): Promise<{ classes: ClassItem[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ classes: ClassItem[] }>(`/api/classes${qs ? `?${qs}` : ''}`);
+  }
+
+  async createClass(data: CreateClassRequest, gymId?: number): Promise<{ id: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number }>(`/api/classes${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateClass(id: number, data: Partial<CreateClassRequest>, gymId?: number): Promise<{ success: boolean }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean }>(`/api/classes/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteClass(id: number, gymId?: number): Promise<{ success: boolean }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean }>(`/api/classes/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getClassSchedules(params?: { classId?: number; dayOfWeek?: number; gymId?: number }): Promise<{ schedules: ClassSchedule[] }> {
+    const q = this.gymParams(params?.gymId);
+    if (params?.classId) q.set('classId', String(params.classId));
+    if (params?.dayOfWeek !== undefined) q.set('dayOfWeek', String(params.dayOfWeek));
+    const qs = q.toString();
+    return this.request<{ schedules: ClassSchedule[] }>(`/api/classes/schedules${qs ? `?${qs}` : ''}`);
+  }
+
+  async createClassSchedule(data: CreateScheduleRequest, gymId?: number): Promise<{ id: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number }>(`/api/classes/schedules${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteClassSchedule(id: number, gymId?: number): Promise<{ success: boolean }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean }>(`/api/classes/schedules/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getClassBookings(scheduleId: number, bookingDate: string, gymId?: number): Promise<{ bookings: ClassBooking[] }> {
+    const q = this.gymParams(gymId);
+    q.set('scheduleId', String(scheduleId));
+    q.set('bookingDate', bookingDate);
+    const qs = q.toString();
+    return this.request<{ bookings: ClassBooking[] }>(`/api/classes/bookings${qs ? `?${qs}` : ''}`);
+  }
+
+  async bookClass(data: BookClassRequest, gymId?: number): Promise<{ id: number; bookingStatus: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number; bookingStatus: string }>(`/api/classes/bookings${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async cancelClassBooking(id: number, gymId?: number): Promise<{ success: boolean }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean }>(`/api/classes/bookings/${id}/cancel${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+    });
+  }
+
+  // --- POS & Retail ---
+  async getProducts(gymId?: number): Promise<{ products: Product[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ products: Product[] }>(`/api/pos/products${qs ? `?${qs}` : ''}`);
+  }
+
+  async createProduct(data: CreateProductRequest, gymId?: number): Promise<{ id: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number }>(`/api/pos/products${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async updateProduct(id: number, data: Partial<CreateProductRequest>, gymId?: number): Promise<{ success: boolean }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean }>(`/api/pos/products/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteProduct(id: number, gymId?: number): Promise<{ success: boolean }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean }>(`/api/pos/products/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getPosSales(gymId?: number): Promise<{ sales: PosSale[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ sales: PosSale[] }>(`/api/pos/sales${qs ? `?${qs}` : ''}`);
+  }
+
+  async createPosSale(data: CreatePosSaleRequest, gymId?: number): Promise<{ id: number; invoiceNumber: string; totalPaise: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number; invoiceNumber: string; totalPaise: number }>(`/api/pos/sales${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  // --- Expenses & P&L ---
+  async getExpenseCategories(gymId?: number): Promise<{ categories: ExpenseCategory[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ categories: ExpenseCategory[] }>(`/api/expenses/categories${qs ? `?${qs}` : ''}`);
+  }
+
+  async createExpenseCategory(data: CreateExpenseCategoryRequest, gymId?: number): Promise<{ id: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number }>(`/api/expenses/categories${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getExpenses(params?: { categoryId?: number; from?: string; to?: string; gymId?: number }): Promise<{ expenses: Expense[] }> {
+    const q = this.gymParams(params?.gymId);
+    if (params?.categoryId) q.set('categoryId', String(params.categoryId));
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString();
+    return this.request<{ expenses: Expense[] }>(`/api/expenses${qs ? `?${qs}` : ''}`);
+  }
+
+  async createExpense(data: CreateExpenseRequest, gymId?: number): Promise<{ id: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number }>(`/api/expenses${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async deleteExpense(id: number, gymId?: number): Promise<{ success: boolean }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean }>(`/api/expenses/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'DELETE',
+    });
+  }
+
+  async getProfitLoss(params?: { from?: string; to?: string; gymId?: number }): Promise<{
+    revenuePaise: number;
+    expensePaise: number;
+    netProfitPaise: number;
+    from: string;
+    to: string;
+  }> {
+    const q = this.gymParams(params?.gymId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString();
+    return this.request<{
+      revenuePaise: number;
+      expensePaise: number;
+      netProfitPaise: number;
+      from: string;
+      to: string;
+    }>(`/api/expenses/profit-loss${qs ? `?${qs}` : ''}`);
+  }
+
+  // --- Lockers ---
+  async getLockers(gymId?: number): Promise<{ lockers: Locker[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ lockers: Locker[] }>(`/api/lockers${qs ? `?${qs}` : ''}`);
+  }
+
+  async createLocker(data: CreateLockerRequest, gymId?: number): Promise<{ id: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number }>(`/api/lockers${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getLockerAllocations(status?: string, gymId?: number): Promise<{ allocations: LockerAllocation[] }> {
+    const q = this.gymParams(gymId);
+    if (status) q.set('status', status);
+    const qs = q.toString();
+    return this.request<{ allocations: LockerAllocation[] }>(`/api/lockers/allocations${qs ? `?${qs}` : ''}`);
+  }
+
+  async allocateLocker(data: AllocateLockerRequest, gymId?: number): Promise<{ id: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number }>(`/api/lockers/allocations${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async releaseLocker(id: number, gymId?: number): Promise<{ success: boolean }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean }>(`/api/lockers/allocations/${id}/release${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+    });
+  }
+
+  // --- PT Packages & Sessions ---
+  async getPtPackages(params?: { memberId?: number; trainerId?: number; gymId?: number }): Promise<{ packages: PtPackage[] }> {
+    const q = this.gymParams(params?.gymId);
+    if (params?.memberId) q.set('memberId', String(params.memberId));
+    if (params?.trainerId) q.set('trainerId', String(params.trainerId));
+    const qs = q.toString();
+    return this.request<{ packages: PtPackage[] }>(`/api/pt/packages${qs ? `?${qs}` : ''}`);
+  }
+
+  async createPtPackage(data: CreatePtPackageRequest, gymId?: number): Promise<{ id: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number }>(`/api/pt/packages${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getPtSessions(params?: { packageId?: number; memberId?: number; gymId?: number }): Promise<{ sessions: PtSession[] }> {
+    const q = this.gymParams(params?.gymId);
+    if (params?.packageId) q.set('packageId', String(params.packageId));
+    if (params?.memberId) q.set('memberId', String(params.memberId));
+    const qs = q.toString();
+    return this.request<{ sessions: PtSession[] }>(`/api/pt/sessions${qs ? `?${qs}` : ''}`);
+  }
+
+  async logPtSession(data: LogPtSessionRequest, gymId?: number): Promise<{ id: number; remainingSessions: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ id: number; remainingSessions: number }>(`/api/pt/sessions${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
   }
 }
 

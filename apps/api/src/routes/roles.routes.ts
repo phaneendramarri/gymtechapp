@@ -10,6 +10,7 @@ import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { RoleRepository } from '../repositories/role.repository';
 import { MenuRepository } from '../repositories/menu.repository';
+import { UserRepository } from '../repositories/user.repository';
 import { auditGymFromCtx } from '../services/audit.service';
 import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 
@@ -154,17 +155,11 @@ roleRoutes.delete('/:id', requireGym, requirePermission('staff'), safeHandler(as
     return jsonErr('The primary Gym Owner role cannot be deleted', 403);
   }
 
-  // Clear roleId on users who were assigned this deleted role
-  await ctx.env.DB
-    .prepare('UPDATE users SET role_id = NULL, updated_at = unixepoch() WHERE role_id = ? AND gym_id = ?')
-    .bind(id, ctx.gymId!)
-    .run();
-
-  // Delete role-menu links
-  await ctx.env.DB
-    .prepare('DELETE FROM role_menus WHERE role_id = ? AND gym_id = ?')
-    .bind(id, ctx.gymId!)
-    .run();
+  // Detach users and menu links via the table owners.
+  const userRepository = new UserRepository(ctx.env.DB);
+  const menuRepository = new MenuRepository(ctx.env.DB);
+  await userRepository.clearRoleAssignment(ctx.gymId!, id);
+  await menuRepository.clearRoleMenus(ctx.gymId!, id);
 
   await roleRepo.softDelete(id);
   await auditGymFromCtx(c, 'role.delete', 'role', id, { before: { name: role.name } });

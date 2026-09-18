@@ -199,13 +199,14 @@ export interface RecordPaymentResponse {
 
 export const CheckInRequestSchema = z.object({
   memberIdOrCode: z.string().min(1, 'Member ID or code is required'),
-  method: z.enum(['MANUAL', 'QR', 'FACE_ID']).default('MANUAL'),
+  method: z.enum(['MANUAL', 'QR', 'FACE_ID', 'KIOSK']).default('MANUAL'),
   override: z.boolean().optional(),
 });
 export type CheckInRequest = z.infer<typeof CheckInRequestSchema>;
 
 export interface CheckInResponse {
   success?: boolean;
+  message?: string;
   alreadyCheckedIn?: boolean;
   attendance?: Attendance;
   member: {
@@ -738,5 +739,138 @@ export const AdminRoleResponseSchema = z.object({
   deletedAt: z.number().int().positive().nullable(),
 });
 export type AdminRoleResponse = z.infer<typeof AdminRoleResponseSchema>;
+
+// ==========================================
+// 16. GROUP FITNESS CLASSES CONTRACTS
+// ==========================================
+
+export const CreateClassRequestSchema = z.object({
+  name: z.string().min(1, 'Class name is required').max(100),
+  description: z.string().max(500).optional().nullable(),
+  durationMinutes: z.number().int().positive().default(60),
+  maxCapacity: z.number().int().positive().default(20),
+  color: z.string().default('#4f46e5'),
+});
+export type CreateClassRequest = z.infer<typeof CreateClassRequestSchema>;
+
+export const UpdateClassRequestSchema = CreateClassRequestSchema.partial();
+export type UpdateClassRequest = z.infer<typeof UpdateClassRequestSchema>;
+
+export const CreateScheduleRequestSchema = z.object({
+  classId: z.number().int().positive(),
+  trainerUserId: z.number().int().positive().optional().nullable(),
+  dayOfWeek: z.number().int().min(0).max(6),
+  startTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid start time format (HH:MM)'),
+  endTime: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Invalid end time format (HH:MM)'),
+  date: z.string().optional().nullable(),
+  maxCapacity: z.number().int().positive().optional(),
+});
+export type CreateScheduleRequest = z.infer<typeof CreateScheduleRequestSchema>;
+
+export const BookClassRequestSchema = z.object({
+  scheduleId: z.number().int().positive(),
+  memberId: z.number().int().positive(),
+  bookingDate: z.string().optional(),
+});
+export type BookClassRequest = z.infer<typeof BookClassRequestSchema>;
+
+// ==========================================
+// 17. PT PACKAGES & SESSIONS CONTRACTS
+// ==========================================
+
+export const CreatePtPackageRequestSchema = z.object({
+  memberId: z.number().int().positive(),
+  trainerId: z.number().int().positive(),
+  packageName: z.string().min(1).max(100).default('Personal Training'),
+  totalSessions: z.number().int().positive(),
+  amountPaise: z.number().int().nonnegative(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid start date format (YYYY-MM-DD)').optional(),
+  expiryDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid expiry date format (YYYY-MM-DD)').optional().nullable(),
+  notes: z.string().optional().nullable(),
+});
+export type CreatePtPackageRequest = z.infer<typeof CreatePtPackageRequestSchema>;
+
+export const LogPtSessionRequestSchema = z.object({
+  packageId: z.number().int().positive(),
+  sessionDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)').optional(),
+  sessionNotes: z.string().optional().nullable(),
+  feedback: z.string().optional().nullable(),
+  signedOffByMember: z.boolean().default(true).optional(),
+});
+export type LogPtSessionRequest = z.infer<typeof LogPtSessionRequestSchema>;
+
+// ==========================================
+// 18. POS & INVENTORY CONTRACTS
+// ==========================================
+
+export const CreateProductRequestSchema = z.object({
+  name: z.string().min(1, 'Product name is required').max(100),
+  sku: z.string().max(50).optional().nullable(),
+  category: z.string().default('General'),
+  pricePaise: z.number().int().nonnegative(),
+  costPaise: z.number().int().nonnegative().default(0),
+  stockQuantity: z.number().int().nonnegative().default(0),
+  lowStockThreshold: z.number().int().nonnegative().default(5),
+  taxRate: z.number().min(0).max(100).default(0),
+});
+export type CreateProductRequest = z.infer<typeof CreateProductRequestSchema>;
+
+export const UpdateProductRequestSchema = CreateProductRequestSchema.partial();
+export type UpdateProductRequest = z.infer<typeof UpdateProductRequestSchema>;
+
+export const PosSaleItemSchema = z.object({
+  productId: z.number().int().positive(),
+  quantity: z.number().int().positive(),
+  unitPricePaise: z.number().int().nonnegative(),
+});
+
+export const CreatePosSaleRequestSchema = z.object({
+  memberId: z.number().int().positive().optional().nullable(),
+  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER']),
+  items: z.array(PosSaleItemSchema).min(1, 'At least one item is required'),
+  notes: z.string().optional().nullable(),
+});
+export type CreatePosSaleRequest = z.infer<typeof CreatePosSaleRequestSchema>;
+
+// ==========================================
+// 19. EXPENSES CONTRACTS
+// ==========================================
+
+export const CreateExpenseCategoryRequestSchema = z.object({
+  name: z.string().min(1, 'Category name is required').max(50),
+});
+export type CreateExpenseCategoryRequest = z.infer<typeof CreateExpenseCategoryRequestSchema>;
+
+export const CreateExpenseRequestSchema = z.object({
+  categoryId: z.number().int().positive(),
+  title: z.string().min(1, 'Expense title is required').max(150),
+  amountPaise: z.number().int().positive(),
+  expenseDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  paymentMode: z.enum(['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER']).default('CASH'),
+  vendor: z.string().max(100).optional().nullable(),
+  receiptUrl: z.string().url().optional().nullable(),
+});
+export type CreateExpenseRequest = z.infer<typeof CreateExpenseRequestSchema>;
+
+// ==========================================
+// 20. LOCKERS CONTRACTS
+// ==========================================
+
+export const CreateLockerRequestSchema = z.object({
+  lockerNumber: z.string().min(1, 'Locker number is required').max(20),
+  zone: z.string().max(50).optional().nullable(),
+});
+export type CreateLockerRequest = z.infer<typeof CreateLockerRequestSchema>;
+
+export const AllocateLockerRequestSchema = z.object({
+  lockerId: z.number().int().positive(),
+  memberId: z.number().int().positive(),
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid start date format (YYYY-MM-DD)'),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid end date format (YYYY-MM-DD)'),
+  depositPaise: z.number().int().nonnegative().default(0),
+  rentPaise: z.number().int().nonnegative().default(0),
+});
+export type AllocateLockerRequest = z.infer<typeof AllocateLockerRequestSchema>;
+
 
 

@@ -23,6 +23,7 @@ import {
 import { requireAuth } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
+import { PasswordResetRepository } from '../repositories/password-reset.repository';
 import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 
 export const authRoutes = new Hono();
@@ -220,10 +221,12 @@ authRoutes.post('/forgot-password', safeHandler(async (c) => {
   const tokenHash = await hashOpaqueToken(token, ctx.env.JWT_SECRET);
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
 
-  await ctx.env.DB
-    .prepare(`INSERT INTO user_password_resets (gym_id, user_id, token_hash, expires_at, created_at) VALUES (?, ?, ?, ?, unixepoch())`)
-    .bind(user.gym_id, user.id, tokenHash, expiresAt)
-    .run();
+  await new PasswordResetRepository(ctx.env.DB).create({
+    gymId: user.gym_id,
+    userId: user.id,
+    tokenHash,
+    expiresAt: expiresAt,
+  });
 
   const emailService = new EmailService(ctx.env);
   const sendResult = await emailService.sendPasswordResetEmail({ to: user.email, name: user.name, token });
@@ -246,10 +249,8 @@ authRoutes.post('/reset-password', safeHandler(async (c) => {
 
   const { token, newPassword } = parsed.data;
   const tokenHash = await hashOpaqueToken(token, ctx.env.JWT_SECRET);
-  const resetRecord: any = await ctx.env.DB
-    .prepare(`SELECT * FROM user_password_resets WHERE token_hash = ? AND used_at IS NULL AND expires_at > unixepoch() LIMIT 1`)
-    .bind(tokenHash)
-    .first();
+  const resetRepo = new PasswordResetRepository(ctx.env.DB);
+  const resetRecord = await resetRepo.findValidByTokenHash(tokenHash);
   if (!resetRecord) return jsonErr('Reset link is invalid or has expired.', 400);
 
   const user: any = await ctx.env.DB
@@ -259,10 +260,12 @@ authRoutes.post('/reset-password', safeHandler(async (c) => {
   if (!user) return jsonErr('Associated user account was not found', 404);
 
   const newHash = await hashPassword(newPassword);
-  await ctx.env.DB.batch([
-    ctx.env.DB.prepare(`UPDATE users SET password_hash = ?, updated_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(newHash, user.id, resetRecord.gym_id),
-    ctx.env.DB.prepare(`UPDATE user_password_resets SET used_at = unixepoch() WHERE id = ? AND gym_id = ?`).bind(resetRecord.id, resetRecord.gym_id),
-  ]);
+  await resetRepo.consumeAndSetPassword({
+    gymId: resetRecord.gym_id,
+    userId: resetRecord.user_id,
+    resetId: resetRecord.id,
+    passwordHash: newHash,
+  });
 
   const emailService = new EmailService(ctx.env);
   await emailService.sendPasswordResetConfirmation({ to: user.email, name: user.name });

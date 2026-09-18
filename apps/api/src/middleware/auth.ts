@@ -10,9 +10,6 @@ import { getCtx, setUser, type RequestContext } from './context';
 import { jsonError, checkRole, isPlatformAdmin, hasUnrestrictedGymAccess } from '../lib/roles';
 import { auditSaasFromCtx } from '../services/audit.service';
 
-// Re-export for convenience — routes still import these from middleware/auth.
-export { jsonError, checkRole };
-
 export interface TenantResolution {
   gym: Gym;
   license: License;

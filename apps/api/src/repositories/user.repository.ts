@@ -279,6 +279,14 @@ export class UserRepository {
     await this.db.update(users).set(setCols).where(and(eq(users.id, id), eq(users.gymId, gymId)));
   }
 
+  /** Detach every user in a gym from a role being deleted. */
+  async clearRoleAssignment(gymId: number, roleId: number): Promise<void> {
+    await this.db
+      .update(users)
+      .set({ roleId: null, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(and(eq(users.gymId, gymId), eq(users.roleId, roleId), isNull(users.deletedAt)));
+  }
+
   async updateLastLogin(id: number): Promise<void> {
     await this.db
       .update(users)
@@ -359,6 +367,13 @@ export class UserRepository {
     await this.db
       .update(platformAdmins)
       .set({ passwordHash: newHash, updatedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(platformAdmins.id, id));
+  }
+
+  async touchPlatformAdminLogin(id: number): Promise<void> {
+    await this.db
+      .update(platformAdmins)
+      .set({ lastLoginAt: Math.floor(Date.now() / 1000) })
       .where(eq(platformAdmins.id, id));
   }
 

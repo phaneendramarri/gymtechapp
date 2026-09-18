@@ -147,22 +147,28 @@ describe('Production Hardening & System Invariants', () => {
   });
 
   describe('License & Membership Expiry Sweep', () => {
-    it('updates status to EXPIRED for past-expiry licenses and memberships', async () => {
+    it('runs gym-scoped expiry sweeps for licenses, memberships and members', async () => {
       const mockDb = createMockDb();
       const licenseService = new LicenseService(mockDb, GYM_ID);
 
       const res = await licenseService.sweepExpiries();
 
       const stmts = mockDb.getStatements();
-      const updateLic = stmts.find((s) => s.sql.includes('UPDATE licenses SET status = \'EXPIRED\''));
-      const updateMem = stmts.find((s) => s.sql.includes('UPDATE memberships SET status = \'EXPIRED\''));
+      // Each sweep UPDATE is issued gym-scoped from its table's repository.
+      const updateLic = stmts.find((s) => /update\s+"?licenses"?/i.test(s.sql));
+      const updateMem = stmts.find((s) => /update\s+"?memberships"?/i.test(s.sql));
+      const updateMember = stmts.find((s) => /update\s+"?members\b/i.test(s.sql));
 
       expect(updateLic).toBeDefined();
       expect(updateMem).toBeDefined();
+      expect(updateMember).toBeDefined();
       expect(updateLic!.bindings).toContain(GYM_ID);
       expect(updateMem!.bindings).toContain(GYM_ID);
+      expect(updateMember!.bindings).toContain(GYM_ID);
+      // Sweep counts flow from the repository rows-changed values.
       expect(res.expiredLicenses).toBe(1);
       expect(res.expiredMemberships).toBe(1);
+      expect(res.expiredMembers).toBe(1);
     });
   });
 

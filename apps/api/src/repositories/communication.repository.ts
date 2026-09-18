@@ -60,10 +60,15 @@ export class CommunicationRepository {
       .run();
   }
 
-  /**
-   * GDPR Art. 17 helper: purge a member's messages before their row is
-   * anonymised — once `phone` is nulled there is nothing left to match on.
-   */
+  /** Daily-cron purge: remove rows whose retention window has elapsed. */
+  async purgeExpired(gymId: number, nowUnix: number): Promise<number> {
+    const res = await this.d1
+      .prepare('DELETE FROM communication_logs WHERE gym_id = ? AND retention_until <= ?')
+      .bind(gymId, nowUnix)
+      .run();
+    return res.meta.changes ?? 0;
+  }
+
   async purgeForMember(gymId: number, memberId: number): Promise<void> {
     await this.d1
       .prepare('DELETE FROM communication_logs WHERE gym_id = ? AND member_id = ?')

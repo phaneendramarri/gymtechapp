@@ -4,7 +4,7 @@
  *
  * Scheduled by `triggers.crons` in wrangler.jsonc:
  *   - "0 * * * *"  — hourly: license expiry sweep, PT-freeze expiry sweep
- *   - "0 2 * * *"  — daily 02:00 UTC: invoice generation, attendance rollups
+ *   - "0 2 * * *"  — daily 02:00 UTC: comms retention purge, invoice generation, attendance rollups
  *
  * Each job MUST:
  *   1. Catch and log its own errors (no throw — one bad job must not
@@ -66,17 +66,26 @@ const hourlyJobs: Job[] = [
   },
 ];
 
-/** Daily batch — invoice generation, attendance rollups. */
+/** Daily batch — retention purge, invoice generation, attendance rollups. */
 const dailyJobs: Job[] = [
   async (env, event) => {
     console.log('[scheduled] daily jobs start', {
       cron: event.cron,
       ts: event.scheduledTime,
     });
-    // Placeholder — wire to services/invoice.service.ts once it exists.
-    // Intentionally a no-op so the cron returns cleanly today.
-    void env;
-    void event;
+    // GDPR retention: delete communication logs past their retention window.
+    // Invoices + attendance rollups arrive with their tables in later phases.
+    const { CommunicationRepository } = await import('./repositories/communication.repository');
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const ids = await listActiveGymIds(env);
+    for (const gymId of ids) {
+      try {
+        const purged = await new CommunicationRepository(env.DB).purgeExpired(gymId, nowUnix);
+        if (purged > 0) console.log(`[scheduled] gym ${gymId}: purged ${purged} expired comms logs`);
+      } catch (err) {
+        console.error('[scheduled] comms retention purge failed for gym', gymId, err);
+      }
+    }
   },
 ];
 

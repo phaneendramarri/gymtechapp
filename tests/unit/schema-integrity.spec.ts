@@ -160,23 +160,12 @@ describe('Schema integrity — table parity with the Drizzle schema', () => {
     expect(orphaned).toEqual([]);
   });
 
-  it('dropped zombie tables are gone for good', () => {
+  it('dropped legacy dead tables are gone for good', () => {
     const removed = [
       'gym_features',
       'gym_settings',
       'user_permissions',
       'saas_audit_events',
-      'member_notes',
-      'member_goals',
-      'member_measurements',
-      'member_documents',
-      'workout_plans',
-      'workout_sessions',
-      'class_schedules',
-      'class_bookings',
-      'member_referrals',
-      'expense_categories',
-      'expenses',
     ];
     for (const table of removed) {
       expect(migrationTables.has(table), `${table} should not exist`).toBe(false);
