@@ -55,12 +55,9 @@ const hourlyJobs: Job[] = [
     for (const gymId of ids) {
       try {
         const svc = new LicenseService(env.DB, gymId);
-        // `sweepExpiries()` may not exist yet on LicenseService — guarded
-        // call so today's deploy still succeeds. Implement the method
-        // when license auto-expiry logic is ready.
-        const sweep = (svc as unknown as { sweepExpiries?: () => Promise<void> }).sweepExpiries;
-        if (typeof sweep === 'function') {
-          await sweep.call(svc);
+        const result = await svc.sweepExpiries();
+        if (result.expiredLicenses > 0 || result.expiredMemberships > 0 || result.expiredMembers > 0) {
+          console.log(`[scheduled] gym ${gymId} sweep completed:`, result);
         }
       } catch (err) {
         console.error('[scheduled] license sweep failed for gym', gymId, err);

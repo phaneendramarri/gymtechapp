@@ -128,6 +128,13 @@ export const DashboardPage: React.FC = () => {
   const avgAttendance = last7Days.length > 0 ? Math.round(last7Days.reduce((a, b) => a + b, 0) / last7Days.length) : 0;
   const attendanceGrowth = avgAttendance > 0 ? Math.round(((todayCount - avgAttendance) / avgAttendance) * 100) : 0;
 
+  // Real MoM revenue growth calculation from actual database records
+  const prevMonthRevenue = monthlyTrend.length >= 2 ? (monthlyTrend[monthlyTrend.length - 2]?.revenue || 0) : 0;
+  const currMonthRevenue = monthlyTrend.length >= 1 ? (monthlyTrend[monthlyTrend.length - 1]?.revenue || 0) : 0;
+  const momGrowth = prevMonthRevenue > 0
+    ? Math.round(((currMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100)
+    : null;
+
   return (
     <AppShell
       breadcrumb={[{ label: 'Dashboard' }, { label: 'Overview' }]}
@@ -202,7 +209,15 @@ export const DashboardPage: React.FC = () => {
                       {formatCurrency(mtd * 100)}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+18.2%</span> from last month
+                      {momGrowth !== null ? (
+                        <>
+                          <span className={cn('font-semibold', momGrowth >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
+                            {momGrowth >= 0 ? `+${momGrowth}%` : `${momGrowth}%`}
+                          </span> vs last month
+                        </>
+                      ) : (
+                        <span>Current calendar month</span>
+                      )}
                     </p>
                   </CardContent>
                 </Card>
@@ -220,7 +235,13 @@ export const DashboardPage: React.FC = () => {
                       +{active}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
-                      <span className="text-emerald-600 dark:text-emerald-400 font-semibold">+8.4%</span> retention rate
+                      {expiring.length > 0 ? (
+                        <>
+                          <span className="text-amber-600 dark:text-amber-400 font-semibold">{expiring.length}</span> renewing in 7 days
+                        </>
+                      ) : (
+                        <span className="text-muted-foreground">All memberships active</span>
+                      )}
                     </p>
                   </CardContent>
                 </Card>

@@ -276,7 +276,6 @@ export const AdminPage: React.FC = () => {
     name: string;
     email: string;
     phone: string;
-    role: string;
     status: string;
     passwordPlain: string;
     showPassword?: boolean;
@@ -289,7 +288,6 @@ export const AdminPage: React.FC = () => {
     name: '',
     email: '',
     phone: '',
-    role: 'MANAGER',
     status: 'ACTIVE',
     passwordPlain: '',
     showPassword: false,
@@ -305,7 +303,6 @@ export const AdminPage: React.FC = () => {
       name: '',
       email: '',
       phone: '',
-      role: 'MANAGER',
       status: 'ACTIVE',
       passwordPlain: '',
       showPassword: false,
@@ -324,11 +321,12 @@ export const AdminPage: React.FC = () => {
     if (!usersModal.editingUser) return;
     setUsersModal((prev) => ({ ...prev, saving: true }));
     try {
+      // Role is intentionally absent: role assignment is gym-scoped and lives in
+      // the gym's own Staff screen.
       const patch: any = {
         name: usersModal.name,
         email: usersModal.email,
         phone: usersModal.phone,
-        role: usersModal.role,
         status: usersModal.status,
       };
       if (usersModal.passwordPlain) {
@@ -1166,7 +1164,6 @@ export const AdminPage: React.FC = () => {
           name: usersModal.name,
           email: usersModal.email,
           phone: usersModal.phone,
-          role: usersModal.role,
           status: usersModal.status,
           passwordPlain: usersModal.passwordPlain,
           showPassword: usersModal.showPassword,
@@ -1178,7 +1175,6 @@ export const AdminPage: React.FC = () => {
             name: u.name,
             email: u.email,
             phone: u.phone || '',
-            role: u.role,
             status: u.status,
             passwordPlain: '',
           })

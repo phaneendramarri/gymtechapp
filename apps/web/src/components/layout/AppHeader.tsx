@@ -78,13 +78,12 @@ const ROUTE_LABELS: Record<string, { parent?: { label: string; href: string }; l
   '/plans': { label: 'Membership Plans' },
   '/staff': { label: 'Staff Management' },
   '/reports': { label: 'Reports & Analytics' },
-  '/settings/notifications': { parent: { label: 'Settings', href: '/settings/notifications' }, label: 'Notifications' },
+  '/settings': { label: 'Settings' },
+  '/settings/notifications': { parent: { label: 'Settings', href: '/settings' }, label: 'Notifications' },
   '/audit-logs': { label: 'Audit Logs' },
-  '/communications': { label: 'Communications' },
   '/admin': { parent: { label: 'Platform', href: '/admin' }, label: 'Gyms & Tenants' },
   '/platform/users': { parent: { label: 'Platform', href: '/admin' }, label: 'Platform Users' },
   '/platform/roles': { parent: { label: 'Platform', href: '/admin' }, label: 'Roles & Governance' },
-  '/platform/menus': { parent: { label: 'Platform', href: '/admin' }, label: 'Menu Management' },
 };
 
 export const AppHeader: React.FC<AppHeaderProps> = ({

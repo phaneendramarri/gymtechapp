@@ -81,15 +81,19 @@ export class PaymentRepository {
 
   async getNextReceiptNumber(): Promise<string> {
     const year = new Date().getFullYear();
-    // H4 fix: use atomic upsert-returning to eliminate TOCTOU race between count and insert.
+    // Receipt numbers restart each calendar year, so the counter is year-scoped
+    // ('receipt:2026'). Without the year in the key the sequence kept climbing
+    // across years, producing gaps like RCP-2027-0842 for a fresh period.
+    const counterType = `receipt:${year}`;
+    // Atomic upsert-returning: no TOCTOU race between read and increment.
     const result = await this.d1
       .prepare(`
         INSERT INTO counters (gym_id, counter_type, value)
-        VALUES (?, 'receipt', 1)
+        VALUES (?, ?, 1)
         ON CONFLICT (gym_id, counter_type) DO UPDATE SET value = value + 1
         RETURNING value AS next_val
       `)
-      .bind(this.gymId)
+      .bind(this.gymId, counterType)
       .all<{ next_val: number }>();
     const nextVal = result.results?.[0]?.next_val ?? 1;
     return `RCP-${year}-${String(nextVal).padStart(4, '0')}`;

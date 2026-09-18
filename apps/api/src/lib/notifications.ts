@@ -21,8 +21,48 @@
 export interface NotificationPayload {
   recipientPhone: string;
   recipientName: string;
-  type: 'WELCOME' | 'PAYMENT_RECEIPT' | 'EXPIRY_REMINDER' | 'RENEWAL_CONFIRMATION' | 'CUSTOM';
+  type: NotificationType;
   params: Record<string, string | number>;
+}
+
+export type NotificationType =
+  | 'WELCOME'
+  | 'PAYMENT_RECEIPT'
+  | 'EXPIRY_REMINDER'
+  | 'RENEWAL_CONFIRMATION'
+  | 'CUSTOM';
+
+// ---------------------------------------------------------------------------
+// GDPR policy for communication logs — the single owner of these rules.
+// Every logged message records why it was lawful to send and how long it may
+// be kept, so erasure requests have something concrete to act on.
+// ---------------------------------------------------------------------------
+
+/** How long message metadata may be retained (GDPR Art. 5(1)(e)). */
+export const COMMS_RETENTION_DAYS = 90;
+
+/**
+ * Lawful basis per message type (GDPR Art. 6):
+ *   CONTRACT              service the member already signed up for
+ *   LEGITIMATE_INTEREST   service-related nudges (renewal reminders)
+ *   CONSENT               promotional / free-form messaging
+ */
+export function lawfulBasisFor(messageType: string): string {
+  switch (messageType) {
+    case 'PAYMENT_RECEIPT':
+    case 'RENEWAL_CONFIRMATION':
+      return 'CONTRACT';
+    case 'EXPIRY_REMINDER':
+      return 'LEGITIMATE_INTEREST';
+    default:
+      return 'CONSENT';
+  }
+}
+
+/** Unix seconds until which a log row for `messageType` may be retained. */
+export function retentionUntilFor(messageType: string, sentAtUnix: number): number {
+  void messageType; // retention is currently uniform; per-type rules live here
+  return sentAtUnix + COMMS_RETENTION_DAYS * 24 * 60 * 60;
 }
 
 export class NotificationService {

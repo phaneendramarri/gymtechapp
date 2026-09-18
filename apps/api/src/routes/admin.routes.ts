@@ -121,7 +121,7 @@ adminRoutes.put('/gyms/:id/features', safeHandler(async (c) => {
   const before = await adminRepo.getGymFeatures(id);
   await adminRepo.updateGymFeatures(id, parsed.data.features);
   const after = await adminRepo.getGymFeatures(id);
-  await auditSaas(ctx, 'gym.features_update', id, 'gym_features', id, { before, after });
+  await auditSaas(ctx, 'gym.features_update', id, 'license', id, { before, after });
   return jsonOk({ success: true, features: after });
 }));
 
@@ -139,13 +139,15 @@ adminRoutes.put('/users/:id', safeHandler(async (c) => {
   const parsed = AdminUserUpdateRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid user update payload');
   const adminRepo = new AdminRepository(ctx.env.DB);
-  const before = await ctx.env.DB.prepare(`SELECT id, gym_id, name, email, phone, role, status FROM users WHERE id = ?`).bind(id).first();
+  // `role` is not a column: read the role name through the join instead.
+  const userSnapshotSql = `SELECT u.id, u.gym_id, u.name, u.email, u.phone, u.status, u.role_id, r.name AS role_name FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = ?`;
+  const before = await ctx.env.DB.prepare(userSnapshotSql).bind(id).first();
   if (!before) return jsonErr('User not found', 404);
   await adminRepo.updateGymUser(id, {
     name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone,
-    role: parsed.data.role, status: parsed.data.status, passwordPlain: parsed.data.password,
+    status: parsed.data.status, passwordPlain: parsed.data.password,
   });
-  const after = await ctx.env.DB.prepare(`SELECT id, gym_id, name, email, phone, role, status FROM users WHERE id = ?`).bind(id).first();
+  const after = await ctx.env.DB.prepare(userSnapshotSql).bind(id).first();
   await auditSaas(ctx, 'user.admin_update', (before as any).gym_id, 'user', id, { before, after });
   return jsonOk({ success: true, user: after });
 }));
@@ -216,7 +218,6 @@ adminRoutes.post('/communications/test-smtp', safeHandler(async (c) => {
     apiKey: smtp.password || ctx.env.RESEND_API_KEY,
     fromEmail: smtp.fromEmail || (smtp.provider === 'RESEND' ? 'GymTech <onboarding@resend.dev>' : undefined),
   });
-  // H-14: Audit platform admin SMTP test (no specific gym context)
   await auditSaas(ctx, 'communications.test_smtp', null, 'platform_settings', null, { after: { testRecipient } });
   return jsonOk(result);
 }));

@@ -18,7 +18,9 @@
     "db:migrate:local": "wrangler d1 migrations apply gymtechapp --local -c ../../wrangler.jsonc",
     "db:migrate:staging": "wrangler d1 migrations apply gymtechapp-d1-staging --remote -c ../../wrangler.jsonc --env staging",
     "db:migrate:production": "wrangler d1 migrations apply gymtechapp --remote -c ../../wrangler.jsonc --env production",
-    "db:seed:local": "wrangler d1 execute gymtechapp --local --file=./seed/seed_production.sql -c ../../wrangler.jsonc",
+    "db:seed:local": "node ./scripts/seed.mjs --target local",
+    "db:seed:staging": "node ./scripts/seed.mjs --target staging",
+    "db:seed:production": "node ./scripts/seed.mjs --target production --confirm",
     "db:schema:pull:local": "drizzle-kit pull --local",
     "db:generate": "drizzle-kit generate"
   },

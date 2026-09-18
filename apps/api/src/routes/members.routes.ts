@@ -25,7 +25,7 @@ export const memberRoutes = new Hono();
 const auditGym = auditGymFromCtx;
 
 // ----- List members -----
-memberRoutes.get('/', requireGym, safeHandler(async (c) => {
+memberRoutes.get('/', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const search = c.req.query('search') || undefined;
   const status = c.req.query('status') || undefined;
@@ -49,7 +49,7 @@ memberRoutes.get('/', requireGym, safeHandler(async (c) => {
 }));
 
 // ----- Create member -----
-memberRoutes.post('/', requireGym, safeHandler(async (c) => {
+memberRoutes.post('/', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const body = await c.req.json().catch(() => ({}));
@@ -94,7 +94,7 @@ memberRoutes.post('/', requireGym, safeHandler(async (c) => {
 }));
 
 // ----- Bulk import -----
-memberRoutes.post('/bulk-import', requireGym, safeHandler(async (c) => {
+memberRoutes.post('/bulk-import', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = BulkImportMembersRequestSchema.safeParse(body);
@@ -109,7 +109,7 @@ memberRoutes.post('/bulk-import', requireGym, safeHandler(async (c) => {
 }));
 
 // ----- Get by id -----
-memberRoutes.get('/:id', requireGym, requirePermission('members'), safeHandler(async (c) => {
+memberRoutes.get('/:id', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const id = paramId(c.req.param() as Record<string, string>);
@@ -120,7 +120,7 @@ memberRoutes.get('/:id', requireGym, requirePermission('members'), safeHandler(a
 }));
 
 // ----- Update -----
-memberRoutes.put('/:id', requireGym, safeHandler(async (c) => {
+memberRoutes.put('/:id', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -156,7 +156,7 @@ memberRoutes.put('/:id', requireGym, safeHandler(async (c) => {
 }));
 
 // ----- Soft delete -----
-memberRoutes.delete('/:id', requireGym, requireFeature('members'), requirePermission('members', 'delete'), safeHandler(async (c) => {
+memberRoutes.delete('/:id', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
@@ -170,8 +170,8 @@ memberRoutes.delete('/:id', requireGym, requireFeature('members'), requirePermis
 }));
 
 // ----- GDPR Article 17 erasure (right to be forgotten) -----
-// DELETE /members/:id/personal-data — OWNER only — wipes all personal data, deletes comms logs, clears biometric
-memberRoutes.delete('/:id/personal-data', requireGym, requireFeature('members'), requirePermission('members', 'erase'), safeHandler(async (c) => {
+// DELETE /members/:id/personal-data — wipes all personal data, deletes comms logs, clears biometric
+memberRoutes.delete('/:id/personal-data', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
@@ -193,7 +193,7 @@ memberRoutes.delete('/:id/personal-data', requireGym, requireFeature('members'),
 
 // ----- Data portability export (GDPR Article 20) -----
 // GET /members/:id/export — returns all personal data for the member
-memberRoutes.get('/:id/export', requireGym, requireFeature('members'), requirePermission('members', 'export'), safeHandler(async (c) => {
+memberRoutes.get('/:id/export', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const id = paramId(c.req.param() as Record<string, string>);
@@ -219,7 +219,7 @@ memberRoutes.get('/:id/export', requireGym, requireFeature('members'), requirePe
 }));
 
 // ----- Restore -----
-memberRoutes.post('/:id/restore', requireGym, requireFeature('members'), requirePermission('members', 'restore'), safeHandler(async (c) => {
+memberRoutes.post('/:id/restore', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const licenseService = new LicenseService(ctx.env.DB, ctx.gymId!);
@@ -234,7 +234,7 @@ memberRoutes.post('/:id/restore', requireGym, requireFeature('members'), require
 }));
 
 // ----- Renew -----
-memberRoutes.post('/:id/renew', requireGym, requireFeature('members'), safeHandler(async (c) => {
+memberRoutes.post('/:id/renew', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };
   const id = paramId(c.req.param() as Record<string, string>);
@@ -261,7 +261,7 @@ memberRoutes.post('/:id/renew', requireGym, requireFeature('members'), safeHandl
 }));
 
 // ----- Freeze -----
-memberRoutes.post('/:id/freeze', requireGym, requirePermission('members', 'freeze'), safeHandler(async (c) => {
+memberRoutes.post('/:id/freeze', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -282,7 +282,7 @@ memberRoutes.post('/:id/freeze', requireGym, requirePermission('members', 'freez
 }));
 
 // ----- Unfreeze -----
-memberRoutes.post('/:id/unfreeze', requireGym, requirePermission('members', 'unfreeze'), safeHandler(async (c) => {
+memberRoutes.post('/:id/unfreeze', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
 

@@ -6,17 +6,24 @@ import { LicenseService } from '../../apps/api/src/services/license.service';
 
 describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
   describe('1. Centralized Feature Definitions & Registry', () => {
-    it('defines all platform core modules in GYM_FEATURES registry', () => {
-      expect(GYM_FEATURES).toContain('dashboard');
-      expect(GYM_FEATURES).toContain('members');
-      expect(GYM_FEATURES).toContain('attendance');
-      expect(GYM_FEATURES).toContain('payments');
-      expect(GYM_FEATURES).toContain('pt_collections');
-      expect(GYM_FEATURES).toContain('plans');
-      expect(GYM_FEATURES).toContain('staff');
-      expect(GYM_FEATURES).toContain('reports');
-      expect(GYM_FEATURES).toContain('settings');
-      expect(GYM_FEATURES.length).toBe(10);
+    it('defines every shipped product module in the GYM_FEATURES registry', () => {
+      // One key per shipped area. Keys must match real functionality —
+      // speculative keys (workout_plans/classes/referrals/expenses) were
+      // removed along with the tables and routes that never existed.
+      expect([...GYM_FEATURES].sort()).toEqual(
+        [
+          'attendance',
+          'audit_logs',
+          'dashboard',
+          'members',
+          'payments',
+          'plans',
+          'pt_collections',
+          'reports',
+          'settings',
+          'staff',
+        ].sort(),
+      );
     });
 
     it('has human-readable labels and descriptions for every feature key', () => {

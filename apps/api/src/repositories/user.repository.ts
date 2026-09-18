@@ -1,19 +1,36 @@
 /**
  * User repository — Drizzle ORM query builder.
  *
- * Raw SQL (this.db.prepare(...)) is replaced with Drizzle's type-safe
- * query builder. Complex dynamic WHERE clauses use the sql`` template tag
- * to keep parameterized queries while preserving readability.
+ * STRUCTURE (keep it this way):
+ *   `projectUserRow`  the ONLY place a user row becomes an API shape
+ *   `userDtoColumns`  the shared column set for serialisable reads
+ *   `findByEmail`     the only read that returns the password hash
+ *   `findById`        single user, safe to serialise
+ *   `listGymStaff` / `listAllPlatformUsers`  joins, never follow-up queries
+ *
+ * Role resolution is NOT implemented here: `deriveCoarseRole` and
+ * `resolvePermissions` live in `lib/roles.ts` and own that policy. This file
+ * only wires columns to those functions.
  *
  * NOTE: We use Drizzle as a query builder only — migrations are hand-written
  * SQL under migrations/. The schema.ts file provides full type inference.
  */
-import { eq, and, isNull, inArray, sql } from 'drizzle-orm';
+import { eq, and, isNull, sql } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
-import type { User } from '@gymtech/shared';
-import { users, userPermissions, platformAdmins, roles } from '../db/schema';
+import type { User, UserRole } from '@gymtech/shared';
+import { users, platformAdmins, roles, gyms } from '../db/schema';
 import type { PlatformAdmin } from '../db/schema';
+import { deriveCoarseRole, resolvePermissions } from '../lib/roles';
+
+/**
+ * A user as the API exposes it: the password hash is deliberately absent and the
+ * coarse role is derived from the assigned role rather than stored.
+ */
+export type UserDto = Omit<User, 'passwordHash'> & {
+  role: UserRole;
+  roleName: string | null;
+};
 
 export type StaffListItem = {
   id: number;
@@ -28,8 +45,52 @@ export type StaffListItem = {
   lastLoginAt: number | null;
   createdAt: number;
   updatedAt: number;
+  /** Effective permission keys, resolved from the assigned role (owners: all). */
   permissions: string[];
+  /** Name of the assigned role, when one is set. */
+  roleName: string | null;
 };
+
+/** Columns every serialisable user read shares — never the password hash. */
+const userDtoColumns = {
+  id: users.id,
+  gymId: users.gymId,
+  name: users.name,
+  email: users.email,
+  phone: users.phone,
+  roleId: users.roleId,
+  status: users.status,
+  isOwner: users.isOwner,
+  lastLoginAt: users.lastLoginAt,
+  failedLoginCount: users.failedLoginCount,
+  lockedUntil: users.lockedUntil,
+  createdAt: users.createdAt,
+  updatedAt: users.updatedAt,
+  deletedAt: users.deletedAt,
+  roleName: roles.name,
+  roleIsOwner: roles.isOwner,
+} as const;
+
+/**
+ * The ONLY place a user's role is resolved into an API shape.
+ *
+ * Reads JOIN `roles` (never a per-row follow-up query) and hand the joined row
+ * here. Adding a new read path means reusing this — not re-deriving.
+ */
+function projectUserRow<T extends { roleName?: string | null; roleIsOwner?: boolean | null }>(
+  row: T
+) {
+  const { roleName = null, roleIsOwner = null, ...rest } = row;
+  return {
+    ...rest,
+    roleName,
+    role: deriveCoarseRole({
+      isOwner: (rest as { isOwner?: boolean }).isOwner,
+      roleIsOwner,
+      roleName,
+    }),
+  } as Omit<T, 'roleName' | 'roleIsOwner'> & { roleName: string | null; role: UserRole };
+}
 
 export class UserRepository {
   private db: Database;
@@ -38,136 +99,84 @@ export class UserRepository {
     this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
   }
 
-  async findByEmail(email: string): Promise<User | null> {
+  // -------------------------------------------------------------------------
+  // Reads
+  // -------------------------------------------------------------------------
+
+  /**
+   * Look up a user for authentication — the only read that returns the password
+   * hash, so the result must never be serialised to a client.
+   */
+  async findByEmail(email: string): Promise<(UserDto & { passwordHash: string }) | null> {
     const rows = await this.db
-      .select()
+      .select({ ...userDtoColumns, passwordHash: users.passwordHash })
       .from(users)
+      .leftJoin(roles, eq(roles.id, users.roleId))
       .where(and(eq(users.email, email.toLowerCase().trim()), isNull(users.deletedAt)))
       .limit(1);
-    return rows[0] ?? null;
+    return rows[0] ? (projectUserRow(rows[0]) as UserDto & { passwordHash: string }) : null;
   }
 
-  async findById(id: number): Promise<User | null> {
+  /** Single user by id. Safe to serialise — no password hash is selected. */
+  async findById(id: number): Promise<UserDto | null> {
     const rows = await this.db
-      .select()
+      .select(userDtoColumns)
       .from(users)
+      .leftJoin(roles, eq(roles.id, users.roleId))
       .where(and(eq(users.id, id), isNull(users.deletedAt)))
       .limit(1);
-    return rows[0] ?? null;
+    return rows[0] ? projectUserRow(rows[0]) : null;
   }
 
-  async findByIdFull(id: number): Promise<(User & { roleName: string | null }) | null> {
-    const rows = await this.db
-      .select({
-        id: users.id,
-        gymId: users.gymId,
-        name: users.name,
-        email: users.email,
-        phone: users.phone,
-        roleId: users.roleId,
-        role: users.role,
-        status: users.status,
-        isOwner: users.isOwner,
-        permissions: users.permissions,
-        lastLoginAt: users.lastLoginAt,
-        failedLoginCount: users.failedLoginCount,
-        lockedUntil: users.lockedUntil,
-        createdAt: users.createdAt,
-        updatedAt: users.updatedAt,
-        deletedAt: users.deletedAt,
-      })
+  async listGymStaff(gymId: number): Promise<StaffListItem[]> {
+    const staffRows = await this.db
+      .select({ ...userDtoColumns, rolePermissions: roles.permissions })
       .from(users)
-      .where(and(eq(users.id, id), isNull(users.deletedAt)))
-      .limit(1);
-    if (!rows[0]) return null;
-    const u = rows[0] as any;
+      .leftJoin(roles, eq(roles.id, users.roleId))
+      .where(and(eq(users.gymId, gymId), isNull(users.deletedAt)))
+      .orderBy(users.createdAt);
 
-    let roleName: string | null = null;
-    if (u.roleId) {
-      const roleRows = await this.db
-        .select({ name: roles.name })
-        .from(roles)
-        .where(and(eq(roles.id, u.roleId), isNull(roles.deletedAt)))
-        .limit(1);
-      roleName = roleRows[0]?.name ?? null;
-    }
-    return { ...u, roleName };
-  }
-
-  async update(id: number, data: Partial<{ roleId: number | null; disabledAt: number | null; status: 'ACTIVE' | 'DISABLED' }>): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    const setCols: Record<string, unknown> = { updatedAt: now };
-    if (data.roleId !== undefined) setCols.roleId = data.roleId;
-    if (data.disabledAt !== undefined) setCols.disabledAt = data.disabledAt;
-    if (data.status !== undefined) setCols.status = data.status;
-    await this.db.update(users).set(setCols).where(eq(users.id, id));
+    return staffRows.map((row) => {
+      const { rolePermissions, ...rest } = row;
+      return {
+        ...projectUserRow(rest),
+        permissions: resolvePermissions({
+          isOwner: row.isOwner,
+          rolePermissionsJson: rolePermissions,
+        }),
+      } as StaffListItem;
+    });
   }
 
   async listAllPlatformUsers(opts: {
     page: number; limit: number; search?: string; gymId?: number;
-  }): Promise<{ users: (User & { roleName: string | null; gymName: string | null })[]; total: number }> {
-    const { page, limit, gymId } = opts;
+  }): Promise<{ users: (UserDto & { gymName: string | null })[]; total: number }> {
+    const { page, limit } = opts;
     const offset = (page - 1) * limit;
-
-    // Import gym schema here to avoid circular deps
-    const { gyms } = await import('../db/schema');
-
     const baseCond = isNull(users.deletedAt);
 
-    // Simple count
     const countRows = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(users)
       .where(baseCond);
-    const total = Number(countRows[0]?.count ?? 0);
 
-    // Paginated fetch
+    // One query: user + role + gym, so no follow-up lookups or id→name maps.
     const rows = await this.db
-      .select({
-        id: users.id,
-        gymId: users.gymId,
-        name: users.name,
-        email: users.email,
-        phone: users.phone,
-        roleId: users.roleId,
-        role: users.role,
-        status: users.status,
-        isOwner: users.isOwner,
-        permissions: users.permissions,
-        lastLoginAt: users.lastLoginAt,
-        createdAt: users.createdAt,
-        updatedAt: users.updatedAt,
-      })
+      .select({ ...userDtoColumns, gymName: gyms.name })
       .from(users)
+      .leftJoin(roles, eq(roles.id, users.roleId))
+      .leftJoin(gyms, eq(gyms.id, users.gymId))
       .where(baseCond)
       .orderBy(users.createdAt)
       .limit(limit)
       .offset(offset);
 
-    if (rows.length === 0) return { users: [], total };
-
-    // Resolve role names
-    const roleIds = [...new Set(rows.map((u) => u.roleId).filter((r): r is number => r !== null))];
-    const roleRows = roleIds.length
-      ? await this.db.select({ id: roles.id, name: roles.name }).from(roles).where(inArray(roles.id, roleIds))
-      : [];
-    const roleMap = new Map(roleRows.map((r) => [r.id, r.name]));
-
-    // Resolve gym names
-    const gymIds = [...new Set(rows.map((u) => u.gymId))];
-    const gymRows = await this.db
-      .select({ id: gyms.id, name: gyms.name })
-      .from(gyms)
-      .where(inArray(gyms.id, gymIds));
-    const gymMap = new Map(gymRows.map((g) => [g.id, g.name]));
-
     return {
-      users: rows.map((u) => ({
-        ...(u as any),
-        roleName: u.roleId ? (roleMap.get(u.roleId) ?? null) : null,
-        gymName: gymMap.get(u.gymId) ?? null,
-      })),
-      total,
+      users: rows.map((row) => {
+        const { gymName, ...rest } = row;
+        return { ...projectUserRow(rest), gymName: gymName ?? null };
+      }),
+      total: Number(countRows[0]?.count ?? 0),
     };
   }
 
@@ -178,76 +187,6 @@ export class UserRepository {
       .where(and(eq(platformAdmins.email, email.toLowerCase().trim()), isNull(platformAdmins.deletedAt)))
       .limit(1);
     return rows[0] ?? null;
-  }
-
-  async listGymStaff(gymId: number): Promise<StaffListItem[]> {
-    const staffRows = await this.db
-      .select({
-        id: users.id,
-        gymId: users.gymId,
-        name: users.name,
-        email: users.email,
-        phone: users.phone,
-        roleId: users.roleId,
-        role: users.role,
-        status: users.status,
-        isOwner: users.isOwner,
-        lastLoginAt: users.lastLoginAt,
-        createdAt: users.createdAt,
-        updatedAt: users.updatedAt,
-      })
-      .from(users)
-      .where(and(eq(users.gymId, gymId), isNull(users.deletedAt)))
-      .orderBy(users.createdAt);
-
-    if (staffRows.length === 0) return [];
-
-    const ids = staffRows.map((u) => u.id);
-    const permRows = await this.db
-      .select({ userId: userPermissions.userId, permissionKey: userPermissions.permissionKey })
-      .from(userPermissions)
-      .where(and(inArray(userPermissions.userId, ids), isNull(userPermissions.deletedAt)));
-
-    const permMap: Record<number, string[]> = {};
-    for (const row of permRows) {
-      if (!permMap[row.userId]) permMap[row.userId] = [];
-      permMap[row.userId].push(row.permissionKey);
-    }
-
-    return staffRows.map((u) => ({ ...u, permissions: permMap[u.id] ?? [] }));
-  }
-
-  async getPermissionsForUser(userId: number): Promise<string[]> {
-    // 1. Direct per-user permission grants
-    const userPermRows = await this.db
-      .select({ permissionKey: userPermissions.permissionKey })
-      .from(userPermissions)
-      .where(and(eq(userPermissions.userId, userId), isNull(userPermissions.deletedAt)));
-    const userPerms = userPermRows.map((r) => r.permissionKey);
-
-    // 2. Role permissions (merged with user perms — deduplicated via Set)
-    const userRow = await this.db
-      .select({ roleId: users.roleId })
-      .from(users)
-      .where(eq(users.id, userId))
-      .limit(1);
-    if (userRow[0]?.roleId) {
-      const roleRow = await this.db
-        .select({ permissions: roles.permissions })
-        .from(roles)
-        .where(and(eq(roles.id, userRow[0].roleId), isNull(roles.deletedAt)))
-        .limit(1);
-      if (roleRow[0]) {
-        try {
-          const rolePerms = JSON.parse(roleRow[0].permissions) as string[];
-          return [...new Set([...rolePerms, ...userPerms])];
-        } catch {
-          // Ignore parse errors — fall through to user perms only
-        }
-      }
-    }
-
-    return userPerms;
   }
 
   async listPlatformAdmins(): Promise<Pick<PlatformAdmin, 'id' | 'email' | 'name' | 'status' | 'createdAt'>[]> {
@@ -261,6 +200,83 @@ export class UserRepository {
       })
       .from(platformAdmins)
       .where(isNull(platformAdmins.deletedAt));
+  }
+
+  /**
+   * Effective permission keys for a user — resolved by the same policy the
+   * staff list uses, so the session payload and the UI can never disagree.
+   */
+  async getPermissionsForUser(userId: number): Promise<string[]> {
+    const rows = await this.db
+      .select({ isOwner: users.isOwner, rolePermissions: roles.permissions })
+      .from(users)
+      .leftJoin(roles, eq(roles.id, users.roleId))
+      .where(and(eq(users.id, userId), isNull(users.deletedAt)))
+      .limit(1);
+
+    const row = rows[0];
+    if (!row) return [];
+    return resolvePermissions({ isOwner: row.isOwner, rolePermissionsJson: row.rolePermissions });
+  }
+
+  // -------------------------------------------------------------------------
+  // Writes
+  // -------------------------------------------------------------------------
+
+  async create(data: {
+    gymId: number;
+    name: string;
+    email: string;
+    phone?: string | null;
+    passwordHash: string;
+    roleId?: number | null;
+    isOwner?: boolean;
+    status?: 'ACTIVE' | 'DISABLED';
+  }): Promise<number> {
+    const now = Math.floor(Date.now() / 1000);
+    const row = await this.db
+      .insert(users)
+      .values({
+        gymId: data.gymId,
+        name: data.name,
+        email: data.email.toLowerCase().trim(),
+        phone: data.phone ?? null,
+        passwordHash: data.passwordHash,
+        roleId: data.roleId ?? null,
+        isOwner: data.isOwner ?? false,
+        status: data.status ?? 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning({ id: users.id });
+    return row[0]!.id;
+  }
+
+  async update(id: number, data: Partial<{ roleId: number | null; status: 'ACTIVE' | 'DISABLED' }>): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    const setCols: Record<string, unknown> = { updatedAt: now };
+    if (data.roleId !== undefined) setCols.roleId = data.roleId;
+    if (data.status !== undefined) setCols.status = data.status;
+    await this.db.update(users).set(setCols).where(eq(users.id, id));
+  }
+
+  async updateStaff(
+    id: number,
+    gymId: number,
+    data: Partial<{
+      name: string;
+      phone: string | null;
+      roleId: number | null;
+      status: 'ACTIVE' | 'DISABLED';
+    }>
+  ): Promise<void> {
+    const now = Math.floor(Date.now() / 1000);
+    const setCols: Record<string, unknown> = { updatedAt: now };
+    if (data.name !== undefined) setCols.name = data.name;
+    if (data.phone !== undefined) setCols.phone = data.phone;
+    if (data.roleId !== undefined) setCols.roleId = data.roleId;
+    if (data.status !== undefined) setCols.status = data.status;
+    await this.db.update(users).set(setCols).where(and(eq(users.id, id), eq(users.gymId, gymId)));
   }
 
   async updateLastLogin(id: number): Promise<void> {
@@ -332,21 +348,14 @@ export class UserRepository {
       .where(eq(platformAdmins.id, id));
   }
 
-  async upgradePasswordHash(
-    id: number,
-    gymId: number,
-    newHash: string,
-  ): Promise<void> {
+  async upgradePasswordHash(id: number, gymId: number, newHash: string): Promise<void> {
     await this.db
       .update(users)
       .set({ passwordHash: newHash, updatedAt: Math.floor(Date.now() / 1000) })
       .where(and(eq(users.id, id), eq(users.gymId, gymId)));
   }
 
-  async upgradePlatformAdminPasswordHash(
-    id: number,
-    newHash: string,
-  ): Promise<void> {
+  async upgradePlatformAdminPasswordHash(id: number, newHash: string): Promise<void> {
     await this.db
       .update(platformAdmins)
       .set({ passwordHash: newHash, updatedAt: Math.floor(Date.now() / 1000) })
@@ -369,102 +378,5 @@ export class UserRepository {
       .where(and(eq(users.id, id), eq(users.gymId, gymId), sql`${users.deletedAt} IS NOT NULL`))
       .returning({ id: users.id });
     return (row[0]?.id ?? null) !== null;
-  }
-
-  async updateStaff(
-    id: number,
-    gymId: number,
-    data: Partial<{
-      name: string;
-      phone: string | null;
-      role: string;
-      roleId: number | null;
-      status: 'ACTIVE' | 'DISABLED';
-      permissions: string;
-    }>
-  ): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    const setCols: Record<string, unknown> = { updatedAt: now };
-    if (data.name !== undefined) setCols.name = data.name;
-    if (data.phone !== undefined) setCols.phone = data.phone;
-    if (data.role !== undefined) setCols.role = data.role;
-    if (data.roleId !== undefined) setCols.roleId = data.roleId;
-    if (data.status !== undefined) setCols.status = data.status;
-    if (data.permissions !== undefined) setCols.permissions = data.permissions;
-    await this.db.update(users).set(setCols).where(and(eq(users.id, id), eq(users.gymId, gymId)));
-  }
-
-  async create(
-    data: Omit<User, 'id' | 'createdAt' | 'updatedAt' | 'lastLoginAt' | 'failedLoginCount' | 'lockedUntil' | 'deletedAt' | 'passwordHash'> & {
-      passwordHash: string;
-    }
-  ): Promise<number> {
-    const now = Math.floor(Date.now() / 1000);
-    const row = await this.db
-      .insert(users)
-      .values({
-        gymId: data.gymId,
-        name: data.name,
-        email: data.email.toLowerCase().trim(),
-        phone: data.phone ?? null,
-        passwordHash: data.passwordHash,
-        roleId: (data as any).roleId ?? null,
-        role: data.role as string,
-        status: 'ACTIVE',
-        permissions: data.permissions ?? '{}',
-        createdAt: now,
-        updatedAt: now,
-      })
-      .returning({ id: users.id });
-    return row[0]!.id;
-  }
-
-  /**
-   * Grant a permission key to a user (idempotent — upsert on composite PK).
-   */
-  async grantPermission(userId: number, permissionKey: string, grantedBy: number): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    await this.db
-      .insert(userPermissions)
-      .values({ userId, permissionKey, grantedBy, grantedAt: now })
-      .onConflictDoUpdate({
-        target: [userPermissions.userId, userPermissions.permissionKey],
-        // M-8: Clear deletedAt to undelete if this permission was previously revoked.
-        set: { grantedBy, grantedAt: now, deletedAt: null },
-      });
-  }
-
-  /**
-   * Revoke a specific permission from a user.
-   * M-8: Soft-delete instead of hard-delete.
-   */
-  async revokePermission(userId: number, permissionKey: string): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    await this.db
-      .update(userPermissions)
-      .set({ deletedAt: now })
-      .where(and(eq(userPermissions.userId, userId), eq(userPermissions.permissionKey, permissionKey), isNull(userPermissions.deletedAt)));
-  }
-
-  /**
-   * Sync all permissions for a user (replaces existing grant set).
-   * M-8: Soft-deletes existing permissions, then upserts new ones (undeleting any
-   * previously revoked permissions that are being re-granted).
-   */
-  async setPermissions(userId: number, permissionKeys: string[], grantedBy: number): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    // Soft-delete all existing (non-deleted) permissions for this user.
-    await this.db
-      .update(userPermissions)
-      .set({ deletedAt: now })
-      .where(and(eq(userPermissions.userId, userId), isNull(userPermissions.deletedAt)));
-    if (permissionKeys.length > 0) {
-      await this.db.insert(userPermissions).values(
-        permissionKeys.map((key) => ({ userId, permissionKey: key, grantedBy, grantedAt: now }))
-      ).onConflictDoUpdate({
-        target: [userPermissions.userId, userPermissions.permissionKey],
-        set: { grantedBy, grantedAt: now, deletedAt: null },
-      });
-    }
   }
 }

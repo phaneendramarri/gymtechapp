@@ -27,7 +27,6 @@ interface GymUsersDialogProps {
     name: string;
     email: string;
     phone: string;
-    role: string;
     status: string;
     passwordPlain: string;
     showPassword?: boolean;
@@ -90,24 +89,9 @@ export const GymUsersDialog: React.FC<GymUsersDialogProps> = ({
                 />
               </div>
             </div>
+            {/* No role picker: roles are gym-defined rows owned by the gym's own
+                Staff screen, so the platform console edits identity and status. */}
             <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <Label className="text-xs font-semibold">Role</Label>
-                <Select
-                  value={formData.role}
-                  onValueChange={(val) => onChangeField('role', val)}
-                >
-                  <SelectTrigger className="text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="OWNER">OWNER</SelectItem>
-                    <SelectItem value="MANAGER">MANAGER</SelectItem>
-                    <SelectItem value="STAFF">STAFF</SelectItem>
-                    <SelectItem value="TRAINER">TRAINER</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
               <div className="space-y-1">
                 <Label className="text-xs font-semibold">Status</Label>
                 <Select
@@ -182,7 +166,7 @@ export const GymUsersDialog: React.FC<GymUsersDialogProps> = ({
                     <TableCell className="text-xs font-medium">{u.name}</TableCell>
                     <TableCell className="text-xs font-mono text-muted-foreground">{u.email}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[10px] font-mono">{u.role}</Badge>
+                      <Badge variant="outline" className="text-[10px] font-mono">{u.roleName || u.role}</Badge>
                     </TableCell>
                     <TableCell>
                       <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-semibold ${u.status === 'ACTIVE' ? 'bg-ok/10 text-ok' : 'bg-destructive/10 text-destructive'}`}>

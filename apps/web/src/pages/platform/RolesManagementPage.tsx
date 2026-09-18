@@ -31,9 +31,10 @@ import { GYM_FEATURES, GYM_FEATURE_LABELS } from '@gymtech/shared';
 import { cn } from '@/lib/utils';
 
 // ---- Permission catalog ----
+// GYM_FEATURES already contains `audit_logs`; adding it again would render a
+// duplicate checkbox, so only the platform-only key is appended.
 const PERMISSIONS = [
   ...GYM_FEATURES,
-  'audit_logs',
   'superadmin',
 ] as const;
 type Perm = (typeof PERMISSIONS)[number];

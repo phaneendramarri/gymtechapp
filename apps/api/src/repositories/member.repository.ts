@@ -9,7 +9,8 @@ import { eq, and, isNull, like, desc, sql } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Member, MemberStatus, MemberListItem } from '@gymtech/shared';
-import { members, memberships, membershipPlans, counters, communicationLogs, attendance } from '../db/schema';
+import { members, memberships, membershipPlans, counters, attendance } from '../db/schema';
+import { CommunicationRepository } from './communication.repository';
 
 /** Returns today's date as YYYYMMDD integer. */
 export function todayYyyymmdd(): number {
@@ -500,7 +501,13 @@ export class MemberRepository {
   async erasePersonalData(id: number): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
 
-    // H-9: Anonymise + soft-delete the member record.
+    // GDPR Art. 17: purge the member's communication logs before the row is
+    // anonymised — once `phone` is nulled there is nothing left to match on.
+    // The credit ledger itself lives on `licenses`, so totals stay correct.
+    // The table's owner module performs the purge (single writer rule).
+    await new CommunicationRepository(this.d1).purgeForMember(this.gymId, id);
+
+    // Anonymise + soft-delete the member record.
     await this.db
       .update(members)
       .set({
@@ -518,15 +525,6 @@ export class MemberRepository {
         deletedAt: now,
       } as unknown as Partial<typeof members.$inferInsert>)
       .where(and(eq(members.id, id), eq(members.gymId, this.gymId)));
-
-    // H-9: Purge all communication log entries linked to this member.
-    // This satisfies Article 17 GDPR "right to erasure" — the communication
-    // history must be removed when the data subject exercises their right.
-    // Backward-compat: rows with member_id = NULL (pre-migration) are preserved
-    // as they cannot be attributed to a specific member.
-    await this.db
-      .delete(communicationLogs)
-      .where(and(eq(communicationLogs.memberId, id), eq(communicationLogs.gymId, this.gymId)));
   }
 }
 

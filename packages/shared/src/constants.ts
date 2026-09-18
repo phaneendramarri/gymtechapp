@@ -10,23 +10,20 @@
 // STRING LABELS (used by the frontend & Zod schemas)
 // =====================================================
 
+// The ONE role vocabulary. The API derives its built-in role list from this
+// (`lib/roles.ts`), so backend policy, contracts and UI can never disagree
+// about which role names exist. Gym-defined custom roles are rows in `roles`
+// and deliberately are not part of this list — they map onto STAFF plus their
+// own permission keys.
 export const USER_ROLES = {
-  PLATFORM_ADMIN: 'PLATFORM_ADMIN',
-  OWNER: 'OWNER', // kept in DB for rollback compat only; replaced by is_owner flag
-  MEMBER: 'MEMBER',
+  PLATFORM_ADMIN: 'PLATFORM_ADMIN', // platform operator, not a tenant user
+  OWNER: 'OWNER', // the gym's primary owner (users.is_owner / roles.is_owner)
+  MANAGER: 'MANAGER',
+  STAFF: 'STAFF',
+  TRAINER: 'TRAINER',
+  MEMBER: 'MEMBER', // member portal
 } as const;
 
-export const USER_ROLE_NUMERIC: Record<string, number> = {
-  PLATFORM_ADMIN: 0,
-  OWNER: 1, // kept for rollback compat only
-  MEMBER: 2,
-};
-
-export const NUMERIC_USER_ROLE: Record<number, string> = {
-  0: 'PLATFORM_ADMIN',
-  1: 'OWNER',
-  2: 'MEMBER',
-};
 
 export const GYM_STATUSES = {
   ACTIVE: 'ACTIVE',
@@ -34,17 +31,6 @@ export const GYM_STATUSES = {
   CANCELLED: 'CANCELLED',
 } as const;
 
-export const GYM_STATUS_NUMERIC: Record<string, number> = {
-  ACTIVE: 1,
-  SUSPENDED: 2,
-  CANCELLED: 3,
-};
-
-export const NUMERIC_GYM_STATUS: Record<number, string> = {
-  1: 'ACTIVE',
-  2: 'SUSPENDED',
-  3: 'CANCELLED',
-};
 
 export const LICENSE_STATUSES = {
   ACTIVE: 'ACTIVE',
@@ -52,17 +38,6 @@ export const LICENSE_STATUSES = {
   SUSPENDED: 'SUSPENDED',
 } as const;
 
-export const LICENSE_STATUS_NUMERIC: Record<string, number> = {
-  ACTIVE: 1,
-  EXPIRED: 2,
-  SUSPENDED: 3,
-};
-
-export const NUMERIC_LICENSE_STATUS: Record<number, string> = {
-  1: 'ACTIVE',
-  2: 'EXPIRED',
-  3: 'SUSPENDED',
-};
 
 export const MEMBER_STATUSES = {
   ACTIVE: 'ACTIVE',
@@ -73,21 +48,6 @@ export const MEMBER_STATUSES = {
   CANCELLED: 'CANCELLED',
 } as const;
 
-export const MEMBER_STATUS_NUMERIC: Record<string, number> = {
-  ACTIVE: 1,
-  INACTIVE: 2,
-  BLOCKED: 3,
-  EXPIRED: 4,
-  FROZEN: 5,
-};
-
-export const NUMERIC_MEMBER_STATUS: Record<number, string> = {
-  1: 'ACTIVE',
-  2: 'INACTIVE',
-  3: 'BLOCKED',
-  4: 'EXPIRED',
-  5: 'FROZEN',
-};
 
 export const MEMBERSHIP_STATUSES = {
   ACTIVE: 'ACTIVE',
@@ -96,29 +56,12 @@ export const MEMBERSHIP_STATUSES = {
   CANCELLED: 'CANCELLED',
 } as const;
 
-export const MEMBERSHIP_STATUS_NUMERIC: Record<string, number> = {
-  ACTIVE: 1,
-  EXPIRED: 2,
-  FROZEN: 3,
-  CANCELLED: 4,
-};
-
-export const NUMERIC_MEMBERSHIP_STATUS: Record<number, string> = {
-  1: 'ACTIVE',
-  2: 'EXPIRED',
-  3: 'FROZEN',
-  4: 'CANCELLED',
-};
 
 export const PAYMENT_TYPES = {
   GYM: 'GYM',
   PERSONAL_TRAINING: 'PERSONAL_TRAINING',
 } as const;
 
-export const PAYMENT_TYPE_NUMERIC: Record<string, number> = {
-  GYM: 1,
-  PERSONAL_TRAINING: 2,
-};
 
 export const PAYMENT_MODES = {
   CASH: 'CASH',
@@ -128,21 +71,6 @@ export const PAYMENT_MODES = {
   OTHER: 'OTHER',
 } as const;
 
-export const PAYMENT_MODE_NUMERIC: Record<string, number> = {
-  CASH: 1,
-  UPI: 2,
-  CARD: 3,
-  BANK_TRANSFER: 4,
-  OTHER: 5,
-};
-
-export const NUMERIC_PAYMENT_MODE: Record<number, string> = {
-  1: 'CASH',
-  2: 'UPI',
-  3: 'CARD',
-  4: 'BANK_TRANSFER',
-  5: 'OTHER',
-};
 
 export const PAYMENT_STATUSES = {
   COMPLETED: 'COMPLETED',
@@ -150,11 +78,6 @@ export const PAYMENT_STATUSES = {
   VOID: 'VOID',
 } as const;
 
-export const PAYMENT_STATUS_NUMERIC: Record<string, number> = {
-  COMPLETED: 1,
-  REFUNDED: 2,
-  VOID: 3,
-};
 
 export const ATTENDANCE_METHODS = {
   MANUAL: 'MANUAL',
@@ -162,11 +85,6 @@ export const ATTENDANCE_METHODS = {
   FACE_ID: 'FACE_ID',
 } as const;
 
-export const ATTENDANCE_METHOD_NUMERIC: Record<string, number> = {
-  MANUAL: 1,
-  QR: 2,
-  FACE_ID: 3,
-};
 
 export const GENDERS = {
   MALE: 'MALE',
@@ -174,31 +92,18 @@ export const GENDERS = {
   OTHER: 'OTHER',
 } as const;
 
-export const GENDER_NUMERIC: Record<string, number> = {
-  MALE: 1,
-  FEMALE: 2,
-  OTHER: 3,
-};
 
 export const BILLING_PERIODS = {
   MONTHLY: 'MONTHLY',
   YEARLY: 'YEARLY',
 } as const;
 
-export const BILLING_PERIOD_NUMERIC: Record<string, number> = {
-  MONTHLY: 1,
-  YEARLY: 2,
-};
 
 export const COMMISSION_STATUSES = {
   PENDING: 'PENDING',
   PAID: 'PAID',
 } as const;
 
-export const COMMISSION_STATUS_NUMERIC: Record<string, number> = {
-  PENDING: 1,
-  PAID: 2,
-};
 
 // =====================================================
 // Display labels (for the UI)
@@ -271,6 +176,10 @@ export type CommissionStatus = (typeof COMMISSION_STATUSES)[keyof typeof COMMISS
 // =====================================================
 // Centralized Feature Catalog
 // =====================================================
+// One key per shipped product area. A gym's enabled keys live in
+// `licenses.features` (JSON) and gate both the API (`requireFeature`) and
+// the sidebar/platform-admin feature toggles.
+// An EMPTY feature map means "all features enabled" (legacy/default license).
 export const GYM_FEATURES = [
   'dashboard',
   'members',

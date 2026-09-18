@@ -6,8 +6,13 @@ import {
   isLegacyHash,
   createSessionToken,
   verifySessionToken,
-  hasAllowedRole,
 } from '../../apps/api/src/lib/session';
+// Role policy has one owner: lib/roles.ts (session.ts is token mechanics only).
+import {
+  hasAllowedRole,
+  deriveCoarseRole,
+  hasUnrestrictedGymAccess,
+} from '../../apps/api/src/lib/roles';
 
 describe('Auth & Cryptographic Security', () => {
   const secret = 'test-secret-key-12345678901234567890';

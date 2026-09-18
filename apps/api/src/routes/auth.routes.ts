@@ -17,6 +17,8 @@ import {
   buildCsrfCookie,
   buildClearSessionCookie,
   generateCsrfToken,
+  readCookie,
+  COOKIE_NAMES,
 } from '../lib/cookies';
 import { requireAuth } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
@@ -68,13 +70,14 @@ authRoutes.post('/login', safeHandler(async (c) => {
     // (e.g. mobile apps), but the web app will ignore the body and rely
     // on the cookies.
     const csrf = generateCsrfToken();
-    return jsonOk(res, 200, {
-      'Set-Cookie': [
-        buildSessionCookie(res.token, ctx.env.APP_ENV),
-        buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ].join(', '),
-      'X-CSRF-Token': csrf,
-    });
+    // Cookies go through jsonOk's dedicated `cookies` argument so each gets its
+    // own Set-Cookie header. Folding them into one header with ", " makes
+    // browsers keep only the first cookie, so `gym_csrf` would never arrive and
+    // every subsequent write would need a CSRF re-fetch.
+    return jsonOk(res, 200, { 'X-CSRF-Token': csrf }, [
+      buildSessionCookie(res.token, ctx.env.APP_ENV),
+      buildCsrfCookie(csrf, ctx.env.APP_ENV),
+    ]);
   } catch (e: any) {
     try {
       const u = await ctx.env.DB
@@ -111,9 +114,10 @@ authRoutes.post('/platform-login', safeHandler(async (c) => {
   try {
     const res = await authService.loginPlatformAdmin(parsed.data.email, parsed.data.password);
     const audit = new AuditService(ctx.env.DB);
-    await audit.recordSaasEvent({
-      actorAdminId: res.user.id,
-      affectedGymId: null,
+    await audit.recordGymEvent({
+      gymId: 0,
+      actorUserId: res.user.id,
+      actorRole: 'PLATFORM_ADMIN',
       action: 'auth.platform_login.success',
       entityType: 'platform_admin',
       entityId: res.user.id,
@@ -121,16 +125,39 @@ authRoutes.post('/platform-login', safeHandler(async (c) => {
       userAgent: client.userAgent,
     });
     const csrf = generateCsrfToken();
-    return jsonOk(res, 200, {
-      'Set-Cookie': [
-        buildSessionCookie(res.token, ctx.env.APP_ENV),
-        buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ].join(', '),
-      'X-CSRF-Token': csrf,
-    });
+    // Cookies go through jsonOk's dedicated `cookies` argument so each gets its
+    // own Set-Cookie header. Folding them into one header with ", " makes
+    // browsers keep only the first cookie, so `gym_csrf` would never arrive and
+    // every subsequent write would need a CSRF re-fetch.
+    return jsonOk(res, 200, { 'X-CSRF-Token': csrf }, [
+      buildSessionCookie(res.token, ctx.env.APP_ENV),
+      buildCsrfCookie(csrf, ctx.env.APP_ENV),
+    ]);
   } catch (e: any) {
     return jsonErr(e.message, 401);
   }
+}));
+
+/**
+ * GET /auth/csrf — bootstrap a CSRF token for cookie-based sessions.
+ *
+ * The double-submit pattern requires a non-httpOnly `gym_csrf` cookie plus a
+ * matching `X-CSRF-Token` header. Login responses already set both, but the
+ * SPA can land on a page (new tab, expired session) without one — this
+ * endpoint issues a fresh pair. It is CSRF-exempt because it only *creates*
+ * a token and requires no session.
+ */
+authRoutes.get('/csrf', safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const csrf = generateCsrfToken();
+  return jsonOk(
+    { csrfToken: csrf },
+    200,
+    {
+      'Set-Cookie': buildCsrfCookie(csrf, ctx.env.APP_ENV),
+      'X-CSRF-Token': csrf,
+    }
+  );
 }));
 
 authRoutes.get('/me', requireAuth, safeHandler(async (c) => {
@@ -158,16 +185,16 @@ authRoutes.post('/refresh', safeHandler(async (c) => {
   if (!result) return jsonErr('Invalid or expired refresh token', 401);
 
   const csrf = generateCsrfToken();
+  // Separate Set-Cookie headers — see the login handler for why folding breaks
+  // the CSRF double-submit cookie.
   return jsonOk(
     { token: result.token, refreshToken: result.refreshToken, user: result.user },
     200,
-    {
-      'Set-Cookie': [
-        buildSessionCookie(result.token, ctx.env.APP_ENV),
-        buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ].join(', '),
-      'X-CSRF-Token': csrf,
-    }
+    { 'X-CSRF-Token': csrf },
+    [
+      buildSessionCookie(result.token, ctx.env.APP_ENV),
+      buildCsrfCookie(csrf, ctx.env.APP_ENV),
+    ]
   );
 }));
 
@@ -313,20 +340,20 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
       gym: { id: member.gym_id, name: member.gym_name, slug: member.gym_slug },
     },
     200,
-    {
-      'Set-Cookie': [
-        buildSessionCookie(token, ctx.env.APP_ENV),
-        buildCsrfCookie(csrf, ctx.env.APP_ENV),
-      ].join(', '),
-      'X-CSRF-Token': csrf,
-    }
+    { 'X-CSRF-Token': csrf },
+    [
+      buildSessionCookie(token, ctx.env.APP_ENV),
+      buildCsrfCookie(csrf, ctx.env.APP_ENV),
+    ]
   );
 }));
 
 authRoutes.get('/portal', safeHandler(async (c) => {
   const ctx = getCtx(c);
+  const cookieToken = readCookie(c.req.header('Cookie'), COOKIE_NAMES.SESSION);
   const authHeader = c.req.header('Authorization') || '';
-  const token = authHeader.replace(/^Bearer\s+/i, '').trim();
+  const bearerToken = authHeader.replace(/^Bearer\s+/i, '').trim();
+  const token = cookieToken || bearerToken;
   if (!token) return jsonErr('Unauthorized: Member token required', 401);
 
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
@@ -369,12 +396,11 @@ authRoutes.post('/logout', requireAuth, safeHandler(async (c) => {
   return jsonOk(
     { success: true, message: 'Logged out.' },
     200,
-    {
-      'Set-Cookie': [
-        buildClearSessionCookie(ctx.env.APP_ENV),
-        // CSRF cookie: clear by setting Max-Age=0
-        buildCsrfCookie('', ctx.env.APP_ENV).replace(/Max-Age=\d+/, 'Max-Age=0'),
-      ].join(', '),
-    }
+    undefined,
+    [
+      buildClearSessionCookie(ctx.env.APP_ENV),
+      // CSRF cookie: clear by setting Max-Age=0
+      buildCsrfCookie('', ctx.env.APP_ENV).replace(/Max-Age=\d+/, 'Max-Age=0'),
+    ]
   );
 }));

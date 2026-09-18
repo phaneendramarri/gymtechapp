@@ -62,8 +62,12 @@ export function createRateLimitMiddleware(
     const tier = getTier(c);
     const { limit, windowSecs } = TIERS[tier];
 
+    // The tier MUST be part of the key. A single per-IP bucket would let
+    // ordinary read traffic consume the much smaller auth budget: after five
+    // requests of any kind, `POST /api/auth/login` from that IP returned 429
+    // and the user could not sign in at all for the rest of the window.
     const { allowed, remaining, resetAt } = await store.check({
-      key: `rl:${ip}`,
+      key: `rl:${tier}:${ip}`,
       limit,
       windowSecs,
     });

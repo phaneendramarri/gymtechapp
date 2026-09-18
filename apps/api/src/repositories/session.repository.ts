@@ -11,6 +11,7 @@ export class SessionRepository {
   }
 
   async create(params: {
+    /** Null for platform admins — stored as 0, since the column is NOT NULL. */
     gymId: number | null;
     userId: number;
     tokenHash: string;
@@ -22,7 +23,7 @@ export class SessionRepository {
     userAgent?: string;
   }): Promise<void> {
     await this.db.insert(userSessions).values({
-      gymId: params.gymId,
+      gymId: params.gymId ?? 0,
       userId: params.userId,
       tokenHash: params.tokenHash,
       refreshTokenHash: params.refreshTokenHash ?? null,

@@ -44,9 +44,10 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/dashboard" replace />;
   }
 
-  // Permission guard — PLATFORM_ADMIN bypasses all permission checks so they have
-  // full read/write access across every gym's modules (members, payments, etc.)
-  if (requiredPermissions && requiredPermissions.length > 0 && !isPlatformAdmin) {
+  // Permission guard — PLATFORM_ADMIN and gym OWNER bypass all permission checks so they have
+  // full access across every gym module (members, payments, etc.)
+  const isOwner = user.role === 'OWNER' || Boolean(user.isOwner);
+  if (requiredPermissions && requiredPermissions.length > 0 && !isPlatformAdmin && !isOwner) {
     const hasAll = requiredPermissions.every((perm) => user.permissions?.includes(perm));
     if (!hasAll) {
       return <Navigate to="/dashboard" replace />;

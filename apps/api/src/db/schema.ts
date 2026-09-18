@@ -1,22 +1,25 @@
 // filepath: apps/api/src/db/schema.ts
 /**
- * Drizzle schema — TypeScript mirror of `apps/api/migrations/*.sql`.
+ * Drizzle schema — TypeScript mirror of the SQL baseline in `apps/api/migrations`.
  *
- * Source of truth: the 4 SQL migrations. This file is read-only with
- * respect to D1; we never write generated SQL from it. Run
- *   `pnpm db:schema:pull:local`
- * to diff against the D1 local DB and confirm parity.
+ * This file describes the 17 tables that the application actually uses.
+ * Tables with no routes/services/repositories behind them were removed as
+ * part of the schema consolidation (see `0000_init.sql`).
  *
- * Conventions:
- *   - All money columns end in `_paise` (integer paise).
+ * Conventions (kept invariant across the whole schema):
+ *   - All money columns end in `_paise` (INTEGER paise; ₹1 = 100 paise).
  *   - All timestamps are unix seconds (INTEGER).
- *   - `attendance_date` is YYYYMMDD INTEGER.
- *   - Composite FKs (gym_id, id) mirror the DB-level tenant invariants.
+ *   - `attendance_date` is YYYYMMDD INTEGER (fast range scans).
+ *   - Every tenant-owned table carries `gym_id`, and composite
+ *     `(gym_id, id)` foreign keys mirror the DB-level tenant invariants.
+ *   - Any parent referenced by a composite FK MUST expose a UNIQUE index on
+ *     the referenced columns, otherwise SQLite raises "foreign key mismatch".
  */
-import { sqliteTable, integer, text, real, uniqueIndex, index, primaryKey } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+import { sqliteTable, integer, text, real, uniqueIndex, index, primaryKey, foreignKey } from 'drizzle-orm/sqlite-core';
 
 // ============================================================
-// 1. platform_admins
+// 1. platform_admins (platform-level operators, not tenant users)
 // ============================================================
 export const platformAdmins = sqliteTable('platform_admins', {
   id: integer('id').primaryKey(),
@@ -27,13 +30,15 @@ export const platformAdmins = sqliteTable('platform_admins', {
   failedLoginCount: integer('failed_login_count').notNull().default(0),
   lockedUntil: integer('locked_until'),
   lastLoginAt: integer('last_login_at'),
+  /** JSON array of gym IDs this admin may access; null/empty = full access. */
+  authorizedGyms: text('authorized_gyms'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   deletedAt: integer('deleted_at'),
 });
 
 // ============================================================
-// 2. gyms
+// 2. gyms (tenants)
 // ============================================================
 export const gyms = sqliteTable('gyms', {
   id: integer('id').primaryKey(),
@@ -53,14 +58,16 @@ export const gyms = sqliteTable('gyms', {
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   deletedAt: integer('deleted_at'),
-});
+}, (t) => ({
+  statusIdx: index('idx_gyms_status').on(t.status, t.deletedAt),
+}));
 
 // ============================================================
-// 3. licenses
+// 3. licenses (one commercial license per gym — quotas + feature flags)
 // ============================================================
 export const licenses = sqliteTable('licenses', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().unique(),
+  gymId: integer('gym_id').notNull().unique().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   code: text('code').notNull(),
   pricePaise: integer('price_paise').notNull(),
@@ -75,27 +82,34 @@ export const licenses = sqliteTable('licenses', {
   smsUsed: integer('sms_used').notNull().default(0),
   whatsappUsed: integer('whatsapp_used').notNull().default(0),
   emailUsed: integer('email_used').notNull().default(0),
+  /**
+   * JSON object of feature flags, e.g. {"reports": true, "pt_collections": true}.
+   * This is the authoritative source for `requireFeature()` gating; a missing
+   * key means the feature is disabled.
+   */
   features: text('features').notNull().default('{}'),
   startedAt: integer('started_at').notNull(),
   expiresAt: integer('expires_at').notNull(),
   status: text('status', { enum: ['ACTIVE', 'EXPIRED', 'SUSPENDED'] }).notNull().default('ACTIVE'),
+  renewalReminderSentAt: integer('renewal_reminder_sent_at'),
+  trialEndsAt: integer('trial_ends_at'),
   createdByAdminId: integer('created_by_admin_id'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (t) => ({
-  // H-15: Unique constraint on license code — prevents duplicate codes.
-  licenseCodeUq: uniqueIndex('licenses_code_unique').on(t.code),
+  codeUq: uniqueIndex('licenses_code_unique').on(t.code),
 }));
 
 // ============================================================
-// 4. roles (owner-defined, per-gym)
+// 4. roles (owner-defined, per-gym; permissions are role-scoped)
 // ============================================================
 export const roles = sqliteTable('roles', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  permissions: text('permissions').notNull().default('[]'), // JSON array of permission keys
-  // True for the gym's primary owner role — grants gym-level ownership privileges
+  /** JSON array of permission keys, e.g. ["members","payments"]. */
+  permissions: text('permissions').notNull().default('[]'),
+  /** True for the gym's primary owner role — grants unrestricted gym access. */
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
   isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('created_at').notNull(),
@@ -103,38 +117,26 @@ export const roles = sqliteTable('roles', {
   deletedAt: integer('deleted_at'),
 }, (t) => ({
   gymNameUq: uniqueIndex('roles_gym_name_unique').on(t.gymId, t.name),
-  gymIdx: index('idx_roles_gym').on(t.gymId),
+  gymIdx: index('idx_roles_gym').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
-// 5. user_permissions (per-user permission overrides, in addition to role)
-// ============================================================
-export const userPermissions = sqliteTable('user_permissions', {
-  userId: integer('user_id').notNull().references(() => users.id),
-  permissionKey: text('permission_key').notNull(),
-  grantedBy: integer('granted_by').notNull(),
-  grantedAt: integer('granted_at').notNull(),
-  deletedAt: integer('deleted_at'),
-}, (t) => ({
-  pk: primaryKey({ columns: [t.userId, t.permissionKey] }),
-}));
-
-// ============================================================
-// 6. users
+// 5. users (gym staff/owners; platform admins live in platform_admins)
 // ============================================================
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   email: text('email').notNull(),
   phone: text('phone'),
   passwordHash: text('password_hash').notNull(),
-  // roleId: FK to gym's custom role. Null for platform admins.
+  /**
+   * The only role reference. A denormalized role-name column used to live here;
+   * it could not represent custom role names (its CHECK constraint rejected
+   * them) and could drift from the role it mirrored.
+   */
   roleId: integer('role_id').references(() => roles.id, { onDelete: 'set null' }),
-  // Legacy role column kept for display/rollback compat only — app reads roleId + isOwner
-  role: text('role').notNull().default('STAFF'),
   status: text('status', { enum: ['ACTIVE', 'DISABLED'] }).notNull().default('ACTIVE'),
-  permissions: text('permissions').notNull().default('{}'),
   isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
   lastLoginAt: integer('last_login_at'),
   failedLoginCount: integer('failed_login_count').notNull().default(0),
@@ -143,6 +145,7 @@ export const users = sqliteTable('users', {
   updatedAt: integer('updated_at').notNull(),
   deletedAt: integer('deleted_at'),
 }, (t) => ({
+  gymIdUq: uniqueIndex('users_gym_id_unique').on(t.gymId, t.id),
   gymEmailUq: uniqueIndex('users_gym_email_unique').on(t.gymId, t.email),
   gymOwnerIdx: index('idx_users_gym_owner').on(t.gymId, t.isOwner),
   gymStatusIdx: index('idx_users_gym_status').on(t.gymId, t.status, t.deletedAt),
@@ -150,21 +153,11 @@ export const users = sqliteTable('users', {
 }));
 
 // ============================================================
-// 5. gym_settings
-// ============================================================
-export const gymSettings = sqliteTable('gym_settings', {
-  gymId: integer('gym_id').primaryKey(),
-  settings: text('settings').notNull().default('{}'),
-  updatedByUserId: integer('updated_by_user_id'),
-  updatedAt: integer('updated_at').notNull(),
-});
-
-// ============================================================
-// 6. membership_plans
+// 6. membership_plans (gym-level catalog sold to members)
 // ============================================================
 export const membershipPlans = sqliteTable('membership_plans', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
   durationMonths: integer('duration_months').notNull(),
@@ -172,21 +165,24 @@ export const membershipPlans = sqliteTable('membership_plans', {
   admissionFeePaise: integer('admission_fee_paise').notNull().default(0),
   taxPercentage: real('tax_percentage').notNull().default(0),
   isActive: integer('is_active').notNull().default(1),
-  billingPeriod: text('billing_period', { enum: ['MONTHLY', 'YEARLY'] }).notNull().default('MONTHLY'), // L9/L10: revenue bucketing
+  /** Revenue bucketing (MONTHLY vs YEARLY billing). */
+  billingPeriod: text('billing_period', { enum: ['MONTHLY', 'YEARLY'] }).notNull().default('MONTHLY'),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   deletedAt: integer('deleted_at'),
 }, (t) => ({
+  // Required parent key for memberships(gym_id, membership_plan_id) FK.
+  gymIdUq: uniqueIndex('membership_plans_gym_id_unique').on(t.gymId, t.id),
   gymNameUq: uniqueIndex('membership_plans_gym_name_unique').on(t.gymId, t.name),
   gymActiveIdx: index('idx_membership_plans_gym_active').on(t.gymId, t.isActive, t.deletedAt),
 }));
 
 // ============================================================
-// 7. members
+// 7. members (gym customers)
 // ============================================================
 export const members = sqliteTable('members', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   memberCode: text('member_code').notNull(),
   firstName: text('first_name').notNull(),
   lastName: text('last_name'),
@@ -196,8 +192,8 @@ export const members = sqliteTable('members', {
   dateOfBirth: integer('date_of_birth'),
   photoUrl: text('photo_url'),
   faceEmbedding: text('face_embedding'),
-  // Phase 4.1: Biometric consent
-  biometricConsentGiven: integer('biometric_consent_given').default(0),
+  /** 0/1 consent flag (kept as INTEGER to match the shared DTO contract). */
+  biometricConsentGiven: integer('biometric_consent_given').notNull().default(0),
   biometricConsentAt: integer('biometric_consent_at'),
   biometricConsentVersion: text('biometric_consent_version').default('1.0'),
   address: text('address'),
@@ -206,12 +202,15 @@ export const members = sqliteTable('members', {
   emergencyContactName: text('emergency_contact_name'),
   emergencyContactPhone: text('emergency_contact_phone'),
   healthNotes: text('health_notes'),
-  status: text('status', { enum: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'EXPIRED', 'FROZEN', 'CANCELLED'] }).notNull().default('ACTIVE'),
+  status: text('status', {
+    enum: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'EXPIRED', 'FROZEN', 'CANCELLED'],
+  }).notNull().default('ACTIVE'),
   joinedDate: integer('joined_date').notNull(),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
   deletedAt: integer('deleted_at'),
 }, (t) => ({
+  gymIdUq: uniqueIndex('members_gym_id_unique').on(t.gymId, t.id),
   gymCodeUq: uniqueIndex('members_gym_member_code_unique').on(t.gymId, t.memberCode),
   gymPhoneUq: uniqueIndex('members_gym_phone_unique').on(t.gymId, t.phone),
   gymStatusIdx: index('idx_members_gym_status').on(t.gymId, t.status, t.deletedAt),
@@ -219,11 +218,11 @@ export const members = sqliteTable('members', {
 }));
 
 // ============================================================
-// 8. memberships
+// 8. memberships (a member's instance of a plan)
 // ============================================================
 export const memberships = sqliteTable('memberships', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   memberId: integer('member_id').notNull(),
   membershipPlanId: integer('membership_plan_id').notNull(),
   startDate: integer('start_date').notNull(),
@@ -241,18 +240,18 @@ export const memberships = sqliteTable('memberships', {
   updatedAt: integer('updated_at').notNull(),
   deletedAt: integer('deleted_at'),
 }, (t) => ({
-  gymIdIdx: uniqueIndex('memberships_gym_id').on(t.gymId, t.id),
+  gymIdUq: uniqueIndex('memberships_gym_id_unique').on(t.gymId, t.id),
   gymMemberIdx: index('idx_memberships_gym_member').on(t.gymId, t.memberId),
   gymStatusDatesIdx: index('idx_memberships_gym_status_dates').on(t.gymId, t.status, t.endDate),
   gymEndDateIdx: index('idx_memberships_gym_end_date').on(t.gymId, t.endDate),
 }));
 
 // ============================================================
-// 9. payments
+// 9. payments (fee receipts; also links PT payments)
 // ============================================================
 export const payments = sqliteTable('payments', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   memberId: integer('member_id').notNull(),
   membershipId: integer('membership_id'),
   paymentType: text('payment_type', { enum: ['GYM', 'PERSONAL_TRAINING'] }).notNull().default('GYM'),
@@ -275,11 +274,11 @@ export const payments = sqliteTable('payments', {
 }));
 
 // ============================================================
-// 10. pt_collections
+// 10. pt_collections (personal-training sessions + commission)
 // ============================================================
 export const ptCollections = sqliteTable('pt_collections', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   memberId: integer('member_id').notNull(),
   trainerId: integer('trainer_id').notNull(),
   sessions: integer('sessions').notNull().default(0),
@@ -298,17 +297,22 @@ export const ptCollections = sqliteTable('pt_collections', {
 }, (t) => ({
   gymDateIdx: index('idx_pt_collections_gym_date').on(t.gymId, t.paymentDate),
   gymTrainerIdx: index('idx_pt_collections_gym_trainer').on(t.gymId, t.trainerId, t.commissionStatus),
+  // Partial unique index: receipts are optional, but never duplicated per gym.
+  receiptUq: uniqueIndex('pt_collections_gym_receipt_unique')
+    .on(t.gymId, t.receiptNumber)
+    .where(sql`${t.receiptNumber} IS NOT NULL`),
 }));
 
 // ============================================================
-// 11. attendance (soft-deletable — deleted_at added in migration 0002)
+// 11. attendance (floor check-ins, soft-deletable)
 // ============================================================
 export const attendance = sqliteTable('attendance', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   memberId: integer('member_id').notNull(),
   checkInTime: integer('check_in_time').notNull(),
   checkOutTime: integer('check_out_time'),
+  /** YYYYMMDD — enables day-range scans without time arithmetic. */
   attendanceDate: integer('attendance_date').notNull(),
   method: text('method', { enum: ['MANUAL', 'QR', 'FACE_ID'] }).notNull(),
   recordedByUserId: integer('recorded_by_user_id'),
@@ -322,20 +326,22 @@ export const attendance = sqliteTable('attendance', {
 }));
 
 // ============================================================
-// 12. user_sessions
+// 12. user_sessions (access + refresh token registry)
 // ============================================================
 export const userSessions = sqliteTable('user_sessions', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id'), // nullable: platform admin sessions have null gymId; gym sessions have gymId
+  /** Platform-admin sessions are stored with gym_id = 0 (no tenant). */
+  gymId: integer('gym_id').notNull().default(0),
   userId: integer('user_id').notNull(),
-  tokenHash: text('token_hash').notNull().unique(), // access token jti hash
-  refreshTokenHash: text('refresh_token_hash'),    // refresh token jti hash (for rotation)
-  refreshTokenExpiresAt: integer('refresh_token_expires_at'), // Unix ts — expiry of refresh token
+  tokenHash: text('token_hash').notNull().unique(),
+  refreshTokenHash: text('refresh_token_hash'),
+  refreshTokenExpiresAt: integer('refresh_token_expires_at'),
   ip: text('ip'),
   userAgent: text('user_agent'),
   issuedAt: integer('issued_at').notNull(),
   expiresAt: integer('expires_at').notNull(),
   revokedAt: integer('revoked_at'),
+  userType: text('user_type', { enum: ['GYM_USER', 'PLATFORM_ADMIN'] }).notNull().default('GYM_USER'),
 }, (t) => ({
   gymUserIdx: index('idx_user_sessions_gym_user').on(t.gymId, t.userId),
   expiresIdx: index('idx_user_sessions_expires').on(t.expiresAt),
@@ -355,7 +361,7 @@ export const userPasswordResets = sqliteTable('user_password_resets', {
 });
 
 // ============================================================
-// 14. audit_events (gym-scoped)
+// 14. audit_events (append-only; platform-admin actions use gym_id = 0)
 // ============================================================
 export const auditEvents = sqliteTable('audit_events', {
   id: integer('id').primaryKey(),
@@ -379,28 +385,19 @@ export const auditEvents = sqliteTable('audit_events', {
 }));
 
 // ============================================================
-// 15. saas_audit_events
+// 15. counters (atomic sequences: receipt numbers, member codes)
 // ============================================================
-export const saasAuditEvents = sqliteTable('saas_audit_events', {
-  id: integer('id').primaryKey(),
-  actorAdminId: integer('actor_admin_id').notNull(),
-  affectedGymId: integer('affected_gym_id'),
-  action: text('action').notNull(),
-  entityType: text('entity_type'),
-  entityId: integer('entity_id'),
-  beforeState: text('before_state'),
-  afterState: text('after_state'),
-  ip: text('ip'),
-  userAgent: text('user_agent'),
-  metadata: text('metadata'),
-  createdAt: integer('created_at').notNull(),
+export const counters = sqliteTable('counters', {
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  // 'member_code' (lifetime per gym) | 'receipt:<YYYY>' (per calendar year)
+  counterType: text('counter_type').notNull(),
+  value: integer('value').notNull().default(0),
 }, (t) => ({
-  adminCreatedIdx: index('idx_saas_audit_admin_created').on(t.actorAdminId, t.createdAt),
-  gymCreatedIdx: index('idx_saas_audit_gym_created').on(t.affectedGymId, t.createdAt),
+  pk: primaryKey({ columns: [t.gymId, t.counterType] }),
 }));
 
 // ============================================================
-// 16. platform_settings
+// 16. platform_settings (global key/value config: gateways, SMTP…)
 // ============================================================
 export const platformSettings = sqliteTable('platform_settings', {
   key: text('key').primaryKey(),
@@ -409,92 +406,73 @@ export const platformSettings = sqliteTable('platform_settings', {
 });
 
 // ============================================================
-// 17. gym_features
-// ============================================================
-export const gymFeatures = sqliteTable('gym_features', {
-  gymId: integer('gym_id').notNull(),
-  featureKey: text('feature_key').notNull(),
-  isEnabled: integer('is_enabled').notNull().default(1),
-  updatedAt: integer('updated_at').notNull(),
-}, (t) => ({
-  pk: uniqueIndex('gym_features_pk').on(t.gymId, t.featureKey),
-  lookupIdx: index('idx_gym_features_lookup').on(t.gymId, t.isEnabled),
-}));
-
-// ============================================================
-// 18. communication_logs
+// 17. communication_logs (per-message credit consumption + GDPR basis)
 // ============================================================
 export const communicationLogs = sqliteTable('communication_logs', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
-  memberId: integer('member_id'), // H-9: nullable FK; enables GDPR erasure of comm logs by member
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  /** Nullable: gym-wide broadcasts have no single member. */
+  memberId: integer('member_id'),
   channel: text('channel', { enum: ['SMS', 'WHATSAPP', 'EMAIL'] }).notNull(),
   recipientPhone: text('recipient_phone'),
   recipientName: text('recipient_name'),
   messageType: text('message_type').notNull(),
   creditsDeducted: integer('credits_deducted').notNull().default(1),
   remainingBalance: integer('remaining_balance').notNull(),
+  lawfulBasis: text('lawful_basis'),
+  retentionUntil: integer('retention_until'),
   dispatchedById: integer('dispatched_by_id'),
   ip: text('ip'),
   createdAt: integer('created_at').notNull(),
-  // Phase 4.4: Retention + lawful basis
-  lawfulBasis: text('lawful_basis'),
-  retentionUntil: integer('retention_until'),
 }, (t) => ({
   gymIdx: index('idx_comm_logs_gym').on(t.gymId, t.createdAt),
-  memberIdx: index('idx_comm_logs_member').on(t.memberId), // H-9: fast lookup for GDPR erasure
+  memberIdx: index('idx_comm_logs_member').on(t.memberId),
+  // Gym-scoped (a single-column FK allowed cross-tenant member references).
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }),
 }));
 
 // ============================================================
-// 19. menu_groups  (platform-wide, not gym-scoped)
-// ============================================================
-export const menuGroups = sqliteTable('menu_groups', {
-  id: integer('id').primaryKey(),
-  key: text('key').notNull().unique(),        // e.g. 'members', 'payments', 'platform'
-  label: text('label').notNull(),              // e.g. 'Members', 'Payments'
-  icon: text('icon').notNull(),               // lucide icon name, e.g. 'Users'
-  order: integer('order').notNull().default(0), // sidebar sort order
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-});
-
-// ============================================================
-// 20. menu_items  (platform-wide, not gym-scoped)
+// 18. menu_items (database catalog of system routes & pages)
 // ============================================================
 export const menuItems = sqliteTable('menu_items', {
-  id: integer('id').primaryKey(),
-  groupKey: text('group_key').notNull().references(() => menuGroups.key, { onDelete: 'cascade' }),
-  key: text('key').notNull().unique(),              // e.g. 'members_list', 'payments_add'
-  label: text('label').notNull(),                    // e.g. 'All Members'
-  href: text('href'),                                // URL path, null for context actions
-  icon: text('icon'),                                // lucide icon name
-  order: integer('order').notNull().default(0),     // sort within group
-  permissions: text('permissions').notNull().default('[]'), // JSON array, e.g. ['members','add']
-  featureKey: text('feature_key'),                  // optional feature gate
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  key: text('key').notNull().unique(),
+  label: text('label').notNull(),
+  href: text('href'),
+  icon: text('icon'),
+  groupKey: text('group_key').notNull().default('main'),
+  order: integer('order').notNull().default(10),
+  featureKey: text('feature_key'),
   adminOnly: integer('admin_only', { mode: 'boolean' }).notNull().default(false),
   isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('created_at').notNull(),
   updatedAt: integer('updated_at').notNull(),
 }, (t) => ({
   groupOrderIdx: index('idx_menu_items_group_order').on(t.groupKey, t.order),
-  activeIdx: index('idx_menu_items_active').on(t.isActive),
 }));
 
 // ============================================================
-// 21. counters (atomic sequence generator for receipts and member codes)
+// 19. role_menus (junction table: gym role -> menu access)
 // ============================================================
-export const counters = sqliteTable('counters', {
-  gymId: integer('gym_id').notNull(),
-  counterType: text('counter_type').notNull(),  // 'receipt' | 'member_code'
-  value: integer('value').notNull().default(0),
+export const roleMenus = sqliteTable('role_menus', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  menuItemId: integer('menu_item_id').notNull().references(() => menuItems.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at').notNull(),
 }, (t) => ({
-  pk: primaryKey({ columns: [t.gymId, t.counterType] }),
+  roleMenuUq: uniqueIndex('role_menus_role_menu_unique').on(t.gymId, t.roleId, t.menuItemId),
+  gymRoleIdx: index('idx_role_menus_gym_role').on(t.gymId, t.roleId),
+  gymMenuIdx: index('idx_role_menus_gym_menu').on(t.gymId, t.menuItemId),
 }));
 
 // ============================================================
-// Inferred row types (use throughout the codebase for type safety)
+// Inferred row types
 // ============================================================
+export type PlatformAdmin = typeof platformAdmins.$inferSelect;
 export type Gym = typeof gyms.$inferSelect;
 export type License = typeof licenses.$inferSelect;
 export type Role = typeof roles.$inferSelect;
@@ -505,11 +483,11 @@ export type Membership = typeof memberships.$inferSelect;
 export type Payment = typeof payments.$inferSelect;
 export type PtCollection = typeof ptCollections.$inferSelect;
 export type Attendance = typeof attendance.$inferSelect;
-export type AuditEvent = typeof auditEvents.$inferSelect;
-export type SaasAuditEvent = typeof saasAuditEvents.$inferSelect;
-export type GymFeature = typeof gymFeatures.$inferSelect;
-export type CommunicationLog = typeof communicationLogs.$inferSelect;
-export type PlatformSettings = typeof platformSettings.$inferSelect;
-export type PlatformAdmin = typeof platformAdmins.$inferSelect;
 export type UserSession = typeof userSessions.$inferSelect;
 export type UserPasswordReset = typeof userPasswordResets.$inferSelect;
+export type AuditEvent = typeof auditEvents.$inferSelect;
+export type Counter = typeof counters.$inferSelect;
+export type PlatformSetting = typeof platformSettings.$inferSelect;
+export type CommunicationLog = typeof communicationLogs.$inferSelect;
+export type MenuItem = typeof menuItems.$inferSelect;
+export type RoleMenu = typeof roleMenus.$inferSelect;

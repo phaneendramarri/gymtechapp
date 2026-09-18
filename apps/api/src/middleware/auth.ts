@@ -4,10 +4,10 @@ import type { D1Database } from '@cloudflare/workers-types';
 import type { AppEnv } from '../app';
 import { verifySessionToken, payloadToSessionUser } from '../lib/session';
 import { readCookie, COOKIE_NAMES } from '../lib/cookies';
-import { GYM_FEATURES } from '@gymtech/shared';
 import type { Gym, License, GymFeatureKey, UserRole } from '@gymtech/shared';
+import { parseEnabledFeatures } from '../lib/features';
 import { getCtx, setUser, type RequestContext } from './context';
-import { jsonError, checkRole } from '../lib/roles';
+import { jsonError, checkRole, isPlatformAdmin, hasUnrestrictedGymAccess } from '../lib/roles';
 import { auditSaasFromCtx } from '../services/audit.service';
 
 // Re-export for convenience — routes still import these from middleware/auth.
@@ -114,7 +114,7 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   // Resolve gymId: platform admins use ?gymId= query param to scope themselves;
   // regular users always have gymId set in their JWT.
   const user = payloadToSessionUser(session);
-  if (user.role === 'PLATFORM_ADMIN') {
+  if (isPlatformAdmin(user)) {
     const gymIdParam = c.req.query('gymId');
     if (!gymIdParam) {
       return jsonError('Platform admin must specify target gym via ?gymId= query parameter', 400);
@@ -124,16 +124,28 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
       return jsonError('Invalid gymId parameter', 400);
     }
 
-    // H-11 fix: Validate the gymId references an actual gym before setting it.
-    // NOTE: Full authorized-gym enforcement requires a platform_admins.authorized_gyms
-    // column (or junction table). Currently all platform admins can access all gyms.
-    // TODO(DB-migration): Add authorized_gyms column to platform_admins.
     const gymExists = await c.env.DB
       .prepare(`SELECT id FROM gyms WHERE id = ? AND deleted_at IS NULL LIMIT 1`)
       .bind(gymId)
       .first();
     if (!gymExists) {
       return jsonError('Target gym does not exist or has been deactivated', 403);
+    }
+
+    // Enforce platform_admins.authorized_gyms restriction when configured
+    const adminRecord = await c.env.DB
+      .prepare(`SELECT authorized_gyms FROM platform_admins WHERE id = ? AND deleted_at IS NULL LIMIT 1`)
+      .bind(user.id)
+      .first<{ authorized_gyms: string | null }>();
+    if (adminRecord?.authorized_gyms) {
+      try {
+        const allowedGyms = JSON.parse(adminRecord.authorized_gyms);
+        if (Array.isArray(allowedGyms) && allowedGyms.length > 0 && !allowedGyms.includes(gymId)) {
+          return jsonError('You are not authorized to access this gym', 403);
+        }
+      } catch {
+        return jsonError('Invalid authorization configuration', 403);
+      }
     }
 
     setUser(c, user, gymId);
@@ -164,14 +176,8 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
     if (license.status !== 'ACTIVE') return jsonError(`Gym license is ${license.status}.`, 403);
     if (license.expiresAt < Math.floor(Date.now() / 1000)) return jsonError('Gym license has expired.', 403);
 
-    const featureRows = await c.env.DB
-      .prepare(`SELECT feature_key FROM gym_features WHERE gym_id = ? AND is_enabled = 1`)
-      .bind(gymId)
-      .all<{ feature_key: string }>();
-    const enabledFeatures: GymFeatureKey[] =
-      featureRows.results?.length
-        ? (featureRows.results.map((r) => r.feature_key as GymFeatureKey))
-        : [...GYM_FEATURES];
+    // Feature flags come from the license; an empty map means "all enabled".
+    const enabledFeatures: GymFeatureKey[] = parseEnabledFeatures(license.features);
 
     const tenant: TenantResolution = { gym: { ...gym, enabledFeatures }, license, enabledFeatures };
     c.set('tenant', tenant);
@@ -193,17 +199,34 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
       .bind(roleId)
       .first<{ permissions: string; is_owner: number }>();
     if (roleRow) {
-      try {
-        // DB role permissions are the authoritative source — JWT permissions are
-        // ignored to prevent a stolen/modified JWT from escalating privileges.
-        const rolePerms = JSON.parse(roleRow.permissions) as string[];
-        user.permissions = rolePerms;
-      } catch {
-        // Fallback to empty permissions if DB parse fails.
-        user.permissions = [];
-      }
-      // M3: role.isOwner is the canonical source of truth (supersedes legacy users.is_owner)
       user.isOwner = Boolean(roleRow.is_owner);
+      if (user.isOwner) {
+        user.permissions = ['*'];
+      } else {
+        try {
+          const roleMenuRows = await c.env.DB
+            .prepare(
+              `SELECT m.key FROM role_menus rm
+               JOIN menu_items m ON m.id = rm.menu_item_id
+               WHERE rm.gym_id = ? AND rm.role_id = ? AND m.is_active = 1`
+            )
+            .bind(session.gymId, roleId)
+            .all<{ key: string }>();
+
+          const dbKeys = (roleMenuRows.results || []).map((r) => r.key);
+          if (dbKeys.length > 0) {
+            user.permissions = dbKeys;
+          } else {
+            user.permissions = JSON.parse(roleRow.permissions || '[]') as string[];
+          }
+        } catch {
+          try {
+            user.permissions = JSON.parse(roleRow.permissions || '[]') as string[];
+          } catch {
+            user.permissions = [];
+          }
+        }
+      }
     }
   }
 
@@ -230,14 +253,7 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
     return jsonError('Gym license has expired.', 403);
   }
 
-  const featureRows = await c.env.DB
-    .prepare(`SELECT feature_key FROM gym_features WHERE gym_id = ? AND is_enabled = 1`)
-    .bind(ctx.gymId)
-    .all<{ feature_key: string }>();
-  const enabledFeatures: GymFeatureKey[] =
-    featureRows.results?.length
-      ? (featureRows.results.map((r) => r.feature_key as GymFeatureKey))
-      : [...GYM_FEATURES];
+  const enabledFeatures: GymFeatureKey[] = parseEnabledFeatures(license.features);
 
   const tenant: TenantResolution = { gym: { ...gym, enabledFeatures: enabledFeatures }, license, enabledFeatures };
   c.set('tenant', tenant);
@@ -253,20 +269,18 @@ export function requireRole(...allowed: (UserRole | string)[]) {
 }
 
 /**
- * Shared helper: load enabled gym features from D1.
+ * Shared helper: load a gym's enabled features from its license.
  * Used by requireGym and by routes that need features but use only requireAuth.
  */
 export async function getGymFeatures(
   db: D1Database,
   gymId: number,
 ): Promise<GymFeatureKey[]> {
-  const rows = await db
-    .prepare(`SELECT feature_key FROM gym_features WHERE gym_id = ? AND is_enabled = 1`)
+  const row = await db
+    .prepare(`SELECT features FROM licenses WHERE gym_id = ? LIMIT 1`)
     .bind(gymId)
-    .all<{ feature_key: string }>();
-  return rows.results?.length
-    ? (rows.results.map((r) => r.feature_key as GymFeatureKey))
-    : [...GYM_FEATURES];
+    .first<{ features: string | null }>();
+  return parseEnabledFeatures(row?.features);
 }
 
 /**
@@ -290,8 +304,8 @@ export function requirePermission(...required: string[]) {
 
     if (!user) return jsonError('Authentication required', 401);
 
-    // PLATFORM_ADMIN bypasses all permission checks
-    if (user.role === 'PLATFORM_ADMIN') return next();
+    // Bypass policy is defined once, in lib/roles.ts.
+    if (hasUnrestrictedGymAccess(user)) return next();
 
     // Check: does the user have ALL required permission keys?
     const hasAll = required.every((key) => user.permissions?.includes(key));
@@ -309,8 +323,8 @@ export function requirePermission(...required: string[]) {
 export function requireFeature(featureKey: GymFeatureKey) {
   return async (c: AuthContext, next: () => Promise<void>) => {
     const ctx = getCtx(c);
-    // PLATFORM_ADMIN bypasses all feature gates
-    if (ctx.user?.role === 'PLATFORM_ADMIN') return next();
+    // Platform admins bypass all feature gates.
+    if (isPlatformAdmin(ctx.user)) return next();
 
     const tenant = c.get('tenant');
     if (!tenant) return jsonError('Tenant not resolved', 500);
@@ -336,7 +350,7 @@ export const requireSuperAdminMiddleware: MiddlewareHandler<{ Bindings: AppEnv; 
 
   setUser(c, payloadToSessionUser(session), session.gymId ?? undefined);
 
-  if (session.role !== 'PLATFORM_ADMIN') {
+  if (!isPlatformAdmin(session)) {
     return jsonError('Platform Super Admin privileges required', 403);
   }
   return next();

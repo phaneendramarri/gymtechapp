@@ -84,19 +84,9 @@ settingsRoutes.get('/notifications', requireGym, safeHandler(async (c) => {
   const smsBalance: ChannelBalance = { total: maxSms, used: smsUsed, remaining: Math.max(0, maxSms - smsUsed) };
   const whatsappBalance: ChannelBalance = { total: maxWhatsapp, used: whatsappUsed, remaining: Math.max(0, maxWhatsapp - whatsappUsed) };
 
-  let emailServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = 'NOT_CONFIGURED';
-  let smsServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = 'NOT_CONFIGURED';
-  let whatsappServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = 'NOT_CONFIGURED';
-
-  try {
-    const row = await ctx.env.DB.prepare(`SELECT value_json FROM platform_settings WHERE key = 'communications'`).first<{ value_json: string }>();
-    if (row?.value_json) {
-      const comms = JSON.parse(row.value_json);
-      if (comms?.smtp?.enabled) emailServiceStatus = 'ACTIVE';
-      if (comms?.smsGateway?.enabled) smsServiceStatus = 'ACTIVE';
-      if (comms?.whatsappGateway?.enabled) whatsappServiceStatus = 'ACTIVE';
-    }
-  } catch {}
+  const emailServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = ctx.env.RESEND_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED';
+  const smsServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = 'NOT_CONFIGURED';
+  const whatsappServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = 'NOT_CONFIGURED';
 
   const res: NotificationSettingsResponse = {
     ...DEFAULT_NOTIFICATION_SETTINGS, ...saved,
@@ -126,7 +116,19 @@ settingsRoutes.post('/notifications/dispatch', requireGym, requirePermission('se
   const parsed = SendNotificationRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid dispatch payload');
 
-  const { channel, recipientPhone, recipientName, type, params } = parsed.data;
+  const { channel, recipientPhone, recipientName, type, params, memberId } = parsed.data;
+
+  // A message attributed to a member must belong to this gym. The log row's
+  // composite FK enforces this at the DB level, but a clear 404 is friendlier
+  // than a constraint violation.
+  if (memberId) {
+    const owned = await ctx.env.DB
+      .prepare('SELECT id FROM members WHERE id = ? AND gym_id = ? AND deleted_at IS NULL')
+      .bind(memberId, ctx.gymId!)
+      .first();
+    if (!owned) return jsonErr('Member not found in this gym', 404);
+  }
+
   const licenseRepo = new LicenseRepository(ctx.env.DB, ctx.gymId!);
   const license = await licenseRepo.findByGymId(ctx.gymId!);
   if (!license) return jsonErr('Gym license not found', 400);
@@ -137,14 +139,14 @@ settingsRoutes.post('/notifications/dispatch', requireGym, requirePermission('se
   if (channel === 'SMS') {
     const deduction = await licenseService.consumeCommunicationQuota({
       channel: 'SMS', credits: 1, recipientPhone, recipientName,
-      messageType: type, dispatchedById: ctx.user?.id, ip: client.ip,
+      messageType: type, memberId: memberId ?? null, dispatchedById: ctx.user?.id, ip: client.ip,
     });
     if (!deduction.success) return jsonErr(deduction.error || 'Insufficient SMS balance.', 402);
     return jsonOk({ success: true, channel: 'SMS', recipientPhone, remainingCredits: deduction.remainingCredits, message: `SMS dispatched to ${recipientName}.` });
   } else if (channel === 'WHATSAPP') {
     const deduction = await licenseService.consumeCommunicationQuota({
       channel: 'WHATSAPP', credits: 1, recipientPhone, recipientName,
-      messageType: type, dispatchedById: ctx.user?.id, ip: client.ip,
+      messageType: type, memberId: memberId ?? null, dispatchedById: ctx.user?.id, ip: client.ip,
     });
     if (!deduction.success) return jsonErr(deduction.error || 'Insufficient WhatsApp balance.', 402);
     const notifService = new NotificationService(tenant.gym.name);

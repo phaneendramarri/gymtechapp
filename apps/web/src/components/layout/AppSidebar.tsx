@@ -17,15 +17,9 @@ import {
   ChevronLeft,
   ChevronRight,
   UserCog,
-  Bell,
   Sliders,
   Building2,
   Shield,
-  Key,
-  Download,
-  PlusCircle,
-  Menu as MenuIcon,
-  Folder,
   type LucideIcon,
 } from 'lucide-react';
 import { useAuth } from '@/lib/auth';
@@ -35,52 +29,10 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from '@/components/ui/tooltip';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import { Logo } from '@/components/shared/Logo';
-import type { MenuNode } from '@gymtech/shared';
-
-/**
- * Server-driven icon resolver for MenuNode[].
- */
-const ICON_MAP: Record<string, LucideIcon> = {
-  LayoutDashboard,
-  Users,
-  CalendarCheck,
-  Tag,
-  CreditCard,
-  BarChart3,
-  Settings,
-  X,
-  LogOut,
-  Trophy,
-  ChevronLeft,
-  ChevronRight,
-  UserCog,
-  Bell,
-  Sliders,
-  Building2,
-  Shield,
-  Key,
-  Download,
-  PlusCircle,
-  Menu: MenuIcon,
-  Folder,
-};
-
-function resolveIcon(name?: string): LucideIcon {
-  if (name && name in ICON_MAP) return ICON_MAP[name];
-  return Folder;
-}
 
 interface NavItem {
   key: string;
@@ -103,7 +55,6 @@ const MAIN_NAV: NavItem[] = [
 
 const ADMIN_NAV: NavItem[] = [
   { key: 'staff', label: 'Staff Management', href: '/staff', icon: UserCog, requiredPermission: 'staff' },
-  { key: 'communications', label: 'Communications', href: '/communications', icon: Bell, requiredPermission: 'settings' },
   { key: 'audit_logs', label: 'Audit Logs', href: '/audit-logs', icon: Sliders, requiredPermission: 'audit_logs' },
   { key: 'settings', label: 'Settings', href: '/settings', icon: Settings, requiredPermission: 'settings' },
 ];
@@ -112,7 +63,6 @@ const PLATFORM_ADMIN_NAV: NavItem[] = [
   { key: 'admin_gyms', label: 'Gyms & Tenants', href: '/admin', icon: Building2 },
   { key: 'platform_users', label: 'Platform Users', href: '/platform/users', icon: Users },
   { key: 'platform_roles', label: 'Roles & Governance', href: '/platform/roles', icon: Shield },
-  { key: 'platform_menus', label: 'Menu Management', href: '/platform/menus', icon: MenuIcon },
 ];
 
 export interface AppSidebarProps {
@@ -129,11 +79,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onCloseMobile,
 }) => {
   const location = useLocation();
-  const { gym, user, menu, logout } = useAuth();
+  const { gym, user, logout } = useAuth();
 
   const isSuperAdmin = user?.role === 'PLATFORM_ADMIN' || user?.permissions?.includes('superadmin');
-  const isOwner = user?.role === 'OWNER';
-  const showPlatformNav = isSuperAdmin || (isOwner && location.pathname.startsWith('/admin'));
+  const isOwner = user?.role === 'OWNER' || Boolean(user?.isOwner);
+  const showPlatformNav = isSuperAdmin;
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return location.pathname === '/dashboard';
@@ -229,69 +179,33 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
       {/* Mobile Navigation List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        {menu.length > 0 ? (
-          menu.map((node) => {
-            const Icon = resolveIcon(node.icon);
-            if (node.children && node.children.length > 0) {
-              return (
-                <div key={node.key} className="space-y-1">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                    {node.label}
-                  </p>
-                  {node.children.map((child) => (
-                    <NavItemComponent
-                      key={child.key}
-                      item={{
-                        key: child.key,
-                        label: child.label,
-                        href: child.href || '#',
-                        icon: resolveIcon(child.icon),
-                      }}
-                      onClick={onCloseMobile}
-                    />
-                  ))}
-                </div>
-              );
-            }
-            return (
-              <NavItemComponent
-                key={node.key}
-                item={{ key: node.key, label: node.label, href: node.href || '#', icon: Icon }}
-                onClick={onCloseMobile}
-              />
-            );
-          })
-        ) : (
-          <>
-            <div className="space-y-1">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                Operations
-              </p>
-              {MAIN_NAV.filter(hasAccess).map((item) => (
-                <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
-              ))}
-            </div>
+        <div className="space-y-1">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
+            Operations
+          </p>
+          {MAIN_NAV.filter(hasAccess).map((item) => (
+            <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
+          ))}
+        </div>
 
-            <div className="space-y-1 pt-2 border-t border-border/50">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                Management
-              </p>
-              {ADMIN_NAV.filter(hasAccess).map((item) => (
-                <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
-              ))}
-            </div>
+        <div className="space-y-1 pt-2 border-t border-border/50">
+          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
+            Management
+          </p>
+          {ADMIN_NAV.filter(hasAccess).map((item) => (
+            <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
+          ))}
+        </div>
 
-            {showPlatformNav && (
-              <div className="space-y-1 pt-2 border-t border-border/50">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                  Platform
-                </p>
-                {PLATFORM_ADMIN_NAV.map((item) => (
-                  <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
-                ))}
-              </div>
-            )}
-          </>
+        {showPlatformNav && (
+          <div className="space-y-1 pt-2 border-t border-border/50">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
+              Platform
+            </p>
+            {PLATFORM_ADMIN_NAV.map((item) => (
+              <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
+            ))}
+          </div>
         )}
       </div>
 
@@ -376,80 +290,42 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
         {/* Navigation Group Items */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-          {menu.length > 0 ? (
-            menu.map((node) => {
-              const Icon = resolveIcon(node.icon);
-              if (node.children && node.children.length > 0) {
-                return (
-                  <div key={node.key} className="space-y-1">
-                    {!collapsed && (
-                      <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                        {node.label}
-                      </p>
-                    )}
-                    {node.children.map((child) => (
-                      <NavItemComponent
-                        key={child.key}
-                        item={{
-                          key: child.key,
-                          label: child.label,
-                          href: child.href || '#',
-                          icon: resolveIcon(child.icon),
-                        }}
-                        collapsedMode={collapsed}
-                      />
-                    ))}
-                  </div>
-                );
-              }
-              return (
-                <NavItemComponent
-                  key={node.key}
-                  item={{ key: node.key, label: node.label, href: node.href || '#', icon: Icon }}
-                  collapsedMode={collapsed}
-                />
-              );
-            })
-          ) : (
-            <>
-              {/* Operations Group */}
-              <div className="space-y-1">
-                {!collapsed && (
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                    Operations
-                  </p>
-                )}
-                {MAIN_NAV.filter(hasAccess).map((item) => (
-                  <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
-                ))}
-              </div>
+          {/* Operations Group */}
+          <div className="space-y-1">
+            {!collapsed && (
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
+                Operations
+              </p>
+            )}
+            {MAIN_NAV.filter(hasAccess).map((item) => (
+              <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
+            ))}
+          </div>
 
-              {/* Management Group */}
-              <div className="space-y-1 pt-2 border-t border-border/50">
-                {!collapsed && (
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                    Management
-                  </p>
-                )}
-                {ADMIN_NAV.filter(hasAccess).map((item) => (
-                  <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
-                ))}
-              </div>
+          {/* Management Group */}
+          <div className="space-y-1 pt-2 border-t border-border/50">
+            {!collapsed && (
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
+                Management
+              </p>
+            )}
+            {ADMIN_NAV.filter(hasAccess).map((item) => (
+              <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
+            ))}
+          </div>
 
-              {/* Platform Group */}
-              {showPlatformNav && (
-                <div className="space-y-1 pt-2 border-t border-border/50">
-                  {!collapsed && (
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                      Platform
-                    </p>
-                  )}
-                  {PLATFORM_ADMIN_NAV.map((item) => (
-                    <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
-                  ))}
-                </div>
+          {/* Platform Group */}
+          {showPlatformNav && (
+            <div className="space-y-1 pt-2 border-t border-border/50">
+              {!collapsed && (
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
+                  Platform
+                </p>
               )}
-            </>
+              {PLATFORM_ADMIN_NAV.map((item) => (
+                <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
+              ))}
+            </div>
           )}
         </nav>
 
@@ -477,8 +353,4 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     </TooltipProvider>
   );
 };
-
-// Backwards compatibility alias
-export const AppSidebarNew = AppSidebar;
-export type AppSidebarNewProps = AppSidebarProps;
 

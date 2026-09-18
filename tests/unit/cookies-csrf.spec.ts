@@ -111,4 +111,99 @@ describe('CSRF double-submit pattern (Phase 1.2)', () => {
     const csrf = buildCsrfCookie('csrf-tok', 'production');
     expect(csrf).toContain('SameSite=Lax');
   });
+
+  describe('csrfMiddleware enforcement', () => {
+    const createMockContext = (method: string, path: string, headers: Record<string, string> = {}) => {
+      let status: number | null = null;
+      let body: any = null;
+      return {
+        c: {
+          req: {
+            method,
+            path,
+            header: (name: string) => {
+              const lower = name.toLowerCase();
+              for (const [k, v] of Object.entries(headers)) {
+                if (k.toLowerCase() === lower) return v;
+              }
+              return undefined;
+            },
+          },
+          json: (data: any, statusCode: number) => {
+            status = statusCode;
+            body = data;
+            return { status, body } as any;
+          },
+        } as any,
+        getStatus: () => status,
+        getBody: () => body,
+      };
+    };
+
+    it('exempts safe methods (GET, HEAD, OPTIONS)', async () => {
+      const { csrfMiddleware } = await import('../../apps/api/src/middleware/csrf');
+      for (const method of ['GET', 'HEAD', 'OPTIONS']) {
+        let nextCalled = false;
+        const { c } = createMockContext(method, '/api/members');
+        await csrfMiddleware(c, async () => { nextCalled = true; });
+        expect(nextCalled).toBe(true);
+      }
+    });
+
+    it('exempts /api/auth/refresh from CSRF check', async () => {
+      const { csrfMiddleware } = await import('../../apps/api/src/middleware/csrf');
+      let nextCalled = false;
+      const { c } = createMockContext('POST', '/api/auth/refresh', {
+        Cookie: `${COOKIE_NAMES.CSRF}=tok123`,
+      });
+      await csrfMiddleware(c, async () => { nextCalled = true; });
+      expect(nextCalled).toBe(true);
+    });
+
+    it('exempts Bearer-authenticated requests from CSRF check', async () => {
+      const { csrfMiddleware } = await import('../../apps/api/src/middleware/csrf');
+      let nextCalled = false;
+      const { c } = createMockContext('POST', '/api/members', {
+        Authorization: 'Bearer eyJhbGciOi...',
+      });
+      await csrfMiddleware(c, async () => { nextCalled = true; });
+      expect(nextCalled).toBe(true);
+    });
+
+    it('blocks state-changing request when X-CSRF-Token is missing', async () => {
+      const { csrfMiddleware } = await import('../../apps/api/src/middleware/csrf');
+      let nextCalled = false;
+      const { c, getStatus, getBody } = createMockContext('POST', '/api/members', {
+        Cookie: `${COOKIE_NAMES.CSRF}=secret-csrf-val`,
+      });
+      await csrfMiddleware(c, async () => { nextCalled = true; });
+      expect(nextCalled).toBe(false);
+      expect(getStatus()).toBe(403);
+      expect(getBody()?.code).toBe('CSRF_MISSING');
+    });
+
+    it('blocks state-changing request when CSRF token does not match', async () => {
+      const { csrfMiddleware } = await import('../../apps/api/src/middleware/csrf');
+      let nextCalled = false;
+      const { c, getStatus, getBody } = createMockContext('POST', '/api/members', {
+        Cookie: `${COOKIE_NAMES.CSRF}=valid-token`,
+        'X-CSRF-Token': 'wrong-token',
+      });
+      await csrfMiddleware(c, async () => { nextCalled = true; });
+      expect(nextCalled).toBe(false);
+      expect(getStatus()).toBe(403);
+      expect(getBody()?.code).toBe('CSRF_MISMATCH');
+    });
+
+    it('allows request when CSRF cookie and X-CSRF-Token match exactly', async () => {
+      const { csrfMiddleware } = await import('../../apps/api/src/middleware/csrf');
+      let nextCalled = false;
+      const { c } = createMockContext('POST', '/api/members', {
+        Cookie: `${COOKIE_NAMES.CSRF}=secret-matching-token`,
+        'X-CSRF-Token': 'secret-matching-token',
+      });
+      await csrfMiddleware(c, async () => { nextCalled = true; });
+      expect(nextCalled).toBe(true);
+    });
+  });
 });

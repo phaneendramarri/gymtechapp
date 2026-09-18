@@ -49,7 +49,7 @@ adminUserRoutes.get('/:id', requireSuperAdminMiddleware, safeHandler(async (c) =
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const userRepo = new UserRepository(ctx.db);
-  const user = await userRepo.findByIdFull(id);
+  const user = await userRepo.findById(id);
   if (!user) return jsonErr('User not found', 404);
   return jsonOk(user);
 }));
@@ -75,10 +75,8 @@ adminUserRoutes.post('/', requireSuperAdminMiddleware, safeHandler(async (c) => 
     phone: parsed.data.phone ?? null,
     passwordHash,
     roleId: parsed.data.roleId ?? null,
-    role: 'STAFF',
     status: 'ACTIVE',
     isOwner: false,
-    permissions: '[]',
   });
 
   return jsonOk({ id }, 201);
@@ -93,7 +91,7 @@ adminUserRoutes.put('/:id/role', requireSuperAdminMiddleware, safeHandler(async 
   if (!parsed.success) return jsonErr('Invalid payload', 400);
 
   const userRepo = new UserRepository(ctx.db);
-  const user = await userRepo.findByIdFull(id);
+  const user = await userRepo.findById(id);
   if (!user) return jsonErr('User not found', 404);
 
   if (parsed.data.roleId !== null) {
@@ -116,10 +114,12 @@ adminUserRoutes.put('/:id/disable', requireSuperAdminMiddleware, safeHandler(asy
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const userRepo = new UserRepository(ctx.db);
-  const user = await userRepo.findByIdFull(id);
+  const user = await userRepo.findById(id);
   if (!user) return jsonErr('User not found', 404);
 
-  await userRepo.update(id, { disabledAt: Date.now() });
+  await userRepo.update(id, { status: 'DISABLED' });
+  const sessionRepo = new SessionRepository(ctx.db);
+  await sessionRepo.revokeAllForUser(user.gymId, id);
   return jsonOk({ success: true });
 }));
 
@@ -128,7 +128,10 @@ adminUserRoutes.put('/:id/enable', requireSuperAdminMiddleware, safeHandler(asyn
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const userRepo = new UserRepository(ctx.db);
-  await userRepo.update(id, { disabledAt: null });
+  const user = await userRepo.findById(id);
+  if (!user) return jsonErr('User not found', 404);
+
+  await userRepo.update(id, { status: 'ACTIVE' });
   return jsonOk({ success: true });
 }));
 
@@ -137,7 +140,7 @@ adminUserRoutes.get('/:id/available-roles', requireSuperAdminMiddleware, safeHan
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const userRepo = new UserRepository(ctx.db);
-  const user = await userRepo.findByIdFull(id);
+  const user = await userRepo.findById(id);
   if (!user) return jsonErr('User not found', 404);
 
   const roleRepo = new RoleRepository(ctx.db);

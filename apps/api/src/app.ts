@@ -20,17 +20,15 @@ import { paymentRoutes } from './routes/payments.routes';
 import { planRoutes } from './routes/plans.routes';
 import { staffRoutes } from './routes/staff.routes';
 import { roleRoutes } from './routes/roles.routes';
+import { menuRoutes } from './routes/menu.routes';
 import { settingsRoutes } from './routes/settings.routes';
 import { ptRoutes } from './routes/pt.routes';
 import { reportRoutes } from './routes/reports.routes';
 import { mediaRoutes } from './routes/media.routes';
 import { adminRoutes } from './routes/admin.routes';
 import { adminRoleRoutes } from './routes/admin/roles.routes';
-import { adminMenuRoutes } from './routes/admin/menus.routes';
 import { adminUserRoutes } from './routes/admin/users.routes';
 import { auditRoutes } from './routes/audit.routes';
-import { menuRoutes } from './routes/menu.routes';
-import { communicationsRoutes } from './routes/communications.routes';
 
 import type { Database } from './db/client';
 
@@ -104,21 +102,29 @@ app.use('/api/*', csrfMiddleware as unknown as MiddlewareHandler<{ Bindings: App
 // Rate limiting — KV-backed sliding window; falls back to in-memory when
 // RATELIMIT_KV is not bound. Applied before auth so attackers can be blocked
 // before consuming CPU on password hashing.
-// Tier derivation: auth routes use tier 'auth' (5 req/min), all others default 'read' (100 req/min).
+// Tier derivation: auth routes use tier 'auth' (5 req/min), other safe methods
+// 'read' (100 req/min) and other writes 'write' (20 req/min). Each tier keeps a
+// separate per-IP bucket.
 app.use('/api/*', (c, next) => {
   const kv = c.env?.RATELIMIT_KV;
   const store = kv ? kvRateLimiterStore(kv) : undefined;
   const getTier = (cc: Context<{ Bindings: AppEnv; Variables: AppVars }>): RateLimitTier => {
     const path = cc.req.path;
+    const method = cc.req.method.toUpperCase();
     // Auth routes get the stricter 'auth' tier (5 req/min).
     if (path.startsWith('/api/auth/login') ||
         path.startsWith('/api/auth/member-login') ||
+        path.startsWith('/api/auth/platform-login') ||
         path.startsWith('/api/auth/forgot-password') ||
         path.startsWith('/api/auth/reset-password') ||
         path.startsWith('/api/auth/phone-login')) {
       return 'auth';
     }
-    return 'read';
+    // Safe methods are reads; everything else is a write. Each tier keeps its
+    // own bucket (see middleware/ratelimit.ts), so this is what the TIERS
+    // table documents: auth 5/min, write 20/min, read 100/min.
+    if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return 'read';
+    return 'write';
   };
   const mw = createRateLimitMiddleware(store as any, getTier);
   return mw(c, next);
@@ -127,7 +133,7 @@ app.use('/api/*', (c, next) => {
 app.get('/api/health', (c) =>
   c.json({ status: 'ok', service: 'gym-saas-api', runtime: 'cloudflare-pages-hono' })
 );
-app.get('/', (c) =>
+app.get('/api', (c) =>
   c.json({ name: 'Gym SaaS API', status: 'online', runtime: 'Cloudflare Pages + Hono' })
 );
 
@@ -139,19 +145,15 @@ app.route('/api/payments', paymentRoutes);
 app.route('/api/plans', planRoutes);
 app.route('/api/staff', staffRoutes);
 app.route('/api/roles', roleRoutes);
+app.route('/api/menus', menuRoutes);
 app.route('/api/settings', settingsRoutes);
-app.route('/api/notifications', settingsRoutes);
-app.route('/api/member', authRoutes);
 app.route('/api/pt', ptRoutes);
 app.route('/api/reports', reportRoutes);
 app.route('/api/v1/media', mediaRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/admin/roles', adminRoleRoutes);
-app.route('/api/admin/menus', adminMenuRoutes);
 app.route('/api/admin/users', adminUserRoutes);
 app.route('/api/audit-logs', auditRoutes);
-app.route('/api/menu', menuRoutes);
-app.route('/api/communications', communicationsRoutes);
 
 // SPA catch-all — fetch and serve index.html from Workers Static Assets (ASSETS)
 // so that BrowserRouter clean URLs (e.g. /login, /dashboard) work correctly.

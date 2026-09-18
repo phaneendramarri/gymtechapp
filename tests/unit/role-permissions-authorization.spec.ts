@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { hasAllowedRole } from '../../apps/api/src/lib/session';
+// `hasAllowedRole` lives in lib/roles — the single owner of authorization
+// policy. lib/session owns only token mechanics.
+import { hasAllowedRole } from '../../apps/api/src/lib/roles';
 
 describe('Role-Based Access Control & Permission Authorization Invariants', () => {
   describe('hasAllowedRole utility', () => {

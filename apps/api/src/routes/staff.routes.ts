@@ -39,25 +39,14 @@ staffRoutes.post('/', requireGym, requireFeature('staff'), requirePermission('st
   const id = await userRepo.create({
     gymId: ctx.gymId!, name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone,
     passwordHash, isOwner: false,
+    // Role assignment is by id only — the role's name/permissions live in `roles`.
     roleId: parsed.data.roleId ?? null,
-    role: parsed.data.role ?? 'STAFF',
     status: 'ACTIVE',
-    permissions: JSON.stringify(parsed.data.permissions ?? []),
   });
 
-  // Insert explicit permission rows for the new user
-  const permissions: string[] = parsed.data.permissions ?? [];
-  if (permissions.length > 0) {
-    const now = Math.floor(Date.now() / 1000);
-    for (const perm of permissions) {
-      await ctx.env.DB
-        .prepare(`INSERT OR IGNORE INTO user_permissions (user_id, permission_key, granted_by, granted_at) VALUES (?, ?, ?, ?)`)
-        .bind(id, perm, ctx.user!.id, now)
-        .run();
-    }
-  }
-
-  await auditGym(ctx, 'staff.create', 'user', id, { after: { email: parsed.data.email, permissions } });
+  await auditGym(ctx, 'staff.create', 'user', id, {
+    after: { email: parsed.data.email, roleId: parsed.data.roleId ?? null },
+  });
   const created = await userRepo.findById(id);
   return jsonOk(created, 201);
 }));
@@ -93,23 +82,18 @@ staffRoutes.patch('/:id', requireGym, requireFeature('staff'), requirePermission
   if (!before || before.gymId !== ctx.gymId!) return jsonErr('Staff member not found in this gym', 404);
 
   const body = await c.req.json().catch(() => ({}));
-  const { name, phone, role, roleId, status, permissions } = body;
+  const { name, phone, roleId, status } = body;
 
   const updateData: any = {};
   if (name !== undefined) updateData.name = String(name).trim();
   if (phone !== undefined) updateData.phone = phone ? String(phone).trim() : null;
-  if (role !== undefined) updateData.role = String(role);
+  // Role changes are by id; assigning a role never writes a name onto the user.
   if (roleId !== undefined) updateData.roleId = roleId ? Number(roleId) : null;
   if (status !== undefined) updateData.status = status === 'DISABLED' ? 'DISABLED' : 'ACTIVE';
-  if (permissions !== undefined) updateData.permissions = JSON.stringify(permissions);
 
   await userRepo.updateStaff(id, ctx.gymId!, updateData);
 
-  if (Array.isArray(permissions)) {
-    await userRepo.setPermissions(id, permissions, ctx.user!.id);
-  }
-
-  const after = await userRepo.findByIdFull(id);
+  const after = await userRepo.findById(id);
   await auditGym(ctx, 'staff.update', 'user', id, { before, after });
   return jsonOk(after);
 }));

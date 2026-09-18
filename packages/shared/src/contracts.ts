@@ -8,6 +8,7 @@ import {
   License,
   SessionUser,
   DashboardMetrics,
+  GymFeature,
 } from './types';
 
 /**
@@ -225,6 +226,7 @@ export interface CheckInResponse {
 
 export const CreateRoleRequestSchema = z.object({
   name: z.string().min(1, 'Role name is required').max(50),
+  menuItemIds: z.array(z.number().int().positive()).default([]),
   permissions: z.array(z.string()).default([]),
   isDefault: z.boolean().default(false),
 });
@@ -232,6 +234,7 @@ export type CreateRoleRequest = z.infer<typeof CreateRoleRequestSchema>;
 
 export const UpdateRoleRequestSchema = z.object({
   name: z.string().min(1).max(50).optional(),
+  menuItemIds: z.array(z.number().int().positive()).optional(),
   permissions: z.array(z.string()).optional(),
   isDefault: z.boolean().optional(),
 });
@@ -247,18 +250,11 @@ export const CreateStaffRequestSchema = z.object({
   phone: z.string().min(10, 'Valid phone required'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   /**
-   * FK to the gym's custom role. Required for non-owner staff.
-   * The owner is created with roleId = null.
+   * FK to the gym's role. Required for non-owner staff; the owner is created
+   * with roleId = null. There is intentionally no role *name* field — roles are
+   * rows, and a name copy could not represent custom roles.
    */
   roleId: z.number().int().positive().nullable().optional(),
-  /**
-   * Legacy display label stored on the user row.
-   * Defaults to 'STAFF'. Ignored when roleId is set.
-   * @deprecated use roleId instead
-   */
-  role: z.string().optional().default('STAFF'),
-  /** Additional per-user permission overrides (merged with role permissions) */
-  permissions: z.array(z.string()).default([]),
 });
 export type CreateStaffRequest = z.infer<typeof CreateStaffRequestSchema>;
 
@@ -469,6 +465,12 @@ export const SendNotificationRequestSchema = z.object({
   recipientName: z.string().min(1),
   channel: z.enum(['SMS', 'WHATSAPP']),
   type: z.enum(['WELCOME', 'PAYMENT_RECEIPT', 'EXPIRY_REMINDER', 'CUSTOM']),
+  /**
+   * Member the message concerns. Enables the GDPR audit trail: the log row keeps
+   * member_id + lawful basis + retention, so erasure can purge it. Omit for
+   * messages that are not about a specific member.
+   */
+  memberId: z.number().int().positive().optional(),
   customMessage: z.string().optional(),
   params: z.record(z.union([z.string(), z.number()])).optional(),
 });
@@ -569,11 +571,12 @@ export const UpdateLicenseLimitsRequestSchema = z.object({
 });
 export type UpdateLicenseLimitsRequest = z.infer<typeof UpdateLicenseLimitsRequestSchema>;
 
+// Gym role assignment is deliberately NOT here: roles are gym-scoped rows, so
+// assigning one belongs to the gym's own staff screen, not the platform console.
 export const AdminUserUpdateRequestSchema = z.object({
   name: z.string().min(1).optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
-  role: z.enum(['OWNER', 'MANAGER']).optional(),
   status: z.enum(['ACTIVE', 'DISABLED']).optional(),
   password: z.string().min(6).optional(),
 });
@@ -603,17 +606,17 @@ export const MenuItemSchema = z.object({
   groupKey: z.string(),
   key: z.string(),
   label: z.string(),
-  href: z.string().nullable(),
-  icon: z.string().nullable(),
+  href: z.string().nullable().optional(),
+  icon: z.string().nullable().optional(),
   order: z.number().int(),
-  permissions: z.array(z.string()),
-  featureKey: z.string().nullable(),
-  adminOnly: z.boolean(),
-  isActive: z.boolean(),
+  permissions: z.array(z.string()).optional(),
+  featureKey: z.string().nullable().optional(),
+  adminOnly: z.boolean().default(false),
+  isActive: z.boolean().default(true),
   createdAt: z.number().int().positive(),
   updatedAt: z.number().int().positive(),
 });
-export type MenuItem = z.infer<typeof MenuItemSchema>;
+export type MenuItemContract = z.infer<typeof MenuItemSchema>;
 
 export const PlatformRoleSchema = z.object({
   id: z.number().int().positive(),
@@ -735,4 +738,5 @@ export const AdminRoleResponseSchema = z.object({
   deletedAt: z.number().int().positive().nullable(),
 });
 export type AdminRoleResponse = z.infer<typeof AdminRoleResponseSchema>;
+
 

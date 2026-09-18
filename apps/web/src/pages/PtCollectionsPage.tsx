@@ -67,10 +67,20 @@ export const PtCollectionsPage: React.FC = () => {
     queryFn: () => api.getStaff(),
   });
 
-  const trainers = useMemo(
-    () => (staffData?.staff || []).filter((s: any) => s.role === 'TRAINER'),
-    [staffData]
-  );
+  const trainers = useMemo(() => {
+    const allStaff = staffData?.staff || [];
+    const matched = allStaff.filter((s: any) => {
+      const roleUpper = (s.role || '').toUpperCase();
+      const roleName = (s.roleName || '').toLowerCase();
+      return (
+        roleUpper === 'TRAINER' ||
+        roleName.includes('train') ||
+        roleName.includes('coach') ||
+        roleName.includes('instructor')
+      );
+    });
+    return matched.length > 0 ? matched : allStaff;
+  }, [staffData]);
 
   const recordMutation = useMutation({
     mutationFn: () =>
@@ -329,7 +339,7 @@ export const PtCollectionsPage: React.FC = () => {
               </Select>
               {trainers.length === 0 && (
                 <p className="text-[11px] text-muted-foreground">
-                  No trainers found. Add a staff member with the Trainer role first.
+                  No staff members found. Add a staff member first.
                 </p>
               )}
             </div>

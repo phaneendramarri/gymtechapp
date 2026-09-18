@@ -181,6 +181,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
               recipientName: m.firstName,
               channel: 'WHATSAPP',
               type: 'EXPIRY_REMINDER',
+              // Attributes the log row to this member so GDPR erasure can purge it.
+              memberId: m.id,
               params: { memberCode: m.memberCode, expiryDate: 'upcoming renewal' },
             });
             sent++;

@@ -122,6 +122,8 @@ export const MemberDetailPage: React.FC = () => {
         recipientName: member.firstName,
         channel: 'WHATSAPP',
         type: 'CUSTOM',
+        // Attributes the log row to this member so GDPR erasure can purge it.
+        memberId: member.id,
         params: { memberCode: member.memberCode },
       });
       toast('success', 'WhatsApp Dispatched', `1 credit deducted. (${res.remainingCredits} credits remaining)`);
@@ -144,6 +146,7 @@ export const MemberDetailPage: React.FC = () => {
         recipientName: member.firstName,
         channel: 'SMS',
         type: 'CUSTOM',
+        memberId: member.id,
         params: { memberCode: member.memberCode },
       });
       toast('success', 'SMS Dispatched', `SMS sent to ${member.firstName}. 1 credit deducted. (${res.remainingCredits} credits remaining)`);

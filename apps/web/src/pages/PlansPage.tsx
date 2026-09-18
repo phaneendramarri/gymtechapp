@@ -28,7 +28,8 @@ import { CreatePlanRequestSchema } from '@gymtech/shared';
 export const PlansPage: React.FC = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const canManage = user?.permissions?.includes('plans');
+  const isOwner = user?.role === 'OWNER' || Boolean(user?.isOwner);
+  const canManage = isOwner || user?.permissions?.includes('plans');
 
   const { data, isLoading } = useQuery({
     queryKey: ['plans'],

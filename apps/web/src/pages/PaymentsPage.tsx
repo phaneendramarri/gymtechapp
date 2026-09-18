@@ -12,6 +12,7 @@ import { PaymentTable } from '@/components/payments/PaymentTable';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
 import { InvoiceDialog } from '@/components/billing/InvoiceDialog';
 import { EmptyState } from '@/components/shared/EmptyState';
+import { useToast } from '@/components/ui/toast';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, formatCurrency } from '@/lib/utils';
@@ -27,8 +28,11 @@ const fadeUp = (delay = 0) => ({
 
 export const PaymentsPage: React.FC = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const queryClient = useQueryClient();
-  const canCollect = user?.permissions?.includes('payments');
+  const isOwner = user?.role === 'OWNER' || Boolean(user?.isOwner);
+  const canCollect = isOwner || user?.permissions?.includes('payments');
+  const [isExporting, setIsExporting] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['payments'],
@@ -84,6 +88,18 @@ export const PaymentsPage: React.FC = () => {
     return Array.from(buckets.entries()).sort().map(([, v]) => v);
   }, [payments]);
 
+  const handleExportCsv = async () => {
+    setIsExporting(true);
+    try {
+      await api.downloadReportExport('payments');
+      toast('success', 'Export ready', 'Payments ledger downloaded as CSV.');
+    } catch (err: any) {
+      toast('error', 'Export failed', err.message || 'Could not download payments export.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   return (
     <AppShell
       title="Payments"
@@ -93,11 +109,12 @@ export const PaymentsPage: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open('/api/reports/export?type=payments', '_blank')}
+            onClick={handleExportCsv}
+            disabled={isExporting}
             className="border-border gap-1.5"
           >
-            <ArrowDownToLine className="h-3.5 w-3.5" />
-            <span>Export CSV</span>
+            <ArrowDownToLine className={cn("h-3.5 w-3.5", isExporting && "animate-bounce")} />
+            <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
           </Button>
           {canCollect && (
             <Button size="sm" onClick={() => handleOpenCollect()} className="gap-1.5 font-semibold">

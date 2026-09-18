@@ -1,5 +1,7 @@
 import type { License } from '@gymtech/shared';
 import { LicenseRepository } from '../repositories/license.repository';
+import { CommunicationRepository } from '../repositories/communication.repository';
+import { lawfulBasisFor, retentionUntilFor } from '../lib/notifications';
 
 export interface LimitCheckResult {
   allowed: boolean;
@@ -18,9 +20,11 @@ export interface CommunicationConsumeResult {
 
 export class LicenseService {
   private licenseRepo: LicenseRepository;
+  private commRepo: CommunicationRepository;
 
   constructor(private db: D1Database, private gymId: number) {
     this.licenseRepo = new LicenseRepository(db, gymId);
+    this.commRepo = new CommunicationRepository(db);
   }
 
   async getLicense(): Promise<License | null> {
@@ -60,7 +64,8 @@ export class LicenseService {
 
   /**
    * Verify if the gym can add another manager.
-   * Counts users with role = 'MANAGER' who are not deleted.
+   * Counts users whose assigned role resolves to MANAGER (roles.name),
+   * mirroring `deriveCoarseRole` — the stored column was removed.
    */
   async checkManagerLimit(): Promise<LimitCheckResult> {
     const license = await this.getLicense();
@@ -69,7 +74,12 @@ export class LicenseService {
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND role = 'MANAGER' AND deleted_at IS NULL AND status = 'ACTIVE'`)
+      .prepare(
+        `SELECT COUNT(*) as count FROM users u
+         JOIN roles r ON r.id = u.role_id
+         WHERE u.gym_id = ? AND UPPER(r.name) = 'MANAGER'
+           AND u.deleted_at IS NULL AND u.status = 'ACTIVE'`
+      )
       .bind(this.gymId)
       .first<{ count: number }>();
     const current = countRes?.count || 0;
@@ -88,7 +98,8 @@ export class LicenseService {
 
   /**
    * Verify if the gym can add another staff/trainer.
-   * Counts all non-owner users (role in STAFF, TRAINER) who are not deleted.
+   * Counts all non-owner users who are not managers or members — i.e. the
+   * derived coarse role is STAFF, TRAINER or an unassigned/custom role.
    */
   async checkStaffLimit(): Promise<LimitCheckResult> {
     const license = await this.getLicense();
@@ -97,7 +108,13 @@ export class LicenseService {
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM users WHERE gym_id = ? AND is_owner = 0 AND role IN ('STAFF', 'TRAINER') AND deleted_at IS NULL AND status = 'ACTIVE'`)
+      .prepare(
+        `SELECT COUNT(*) as count FROM users u
+         LEFT JOIN roles r ON r.id = u.role_id
+         WHERE u.gym_id = ? AND u.is_owner = 0
+           AND u.deleted_at IS NULL AND u.status = 'ACTIVE'
+           AND (u.role_id IS NULL OR UPPER(r.name) NOT IN ('MANAGER', 'MEMBER'))`
+      )
       .bind(this.gymId)
       .first<{ count: number }>();
     const current = countRes?.count || 0;
@@ -124,6 +141,8 @@ export class LicenseService {
     recipientPhone?: string;
     recipientName?: string;
     messageType: string;
+    /** Member the message is about, when known — enables GDPR erasure. */
+    memberId?: number | null;
     dispatchedById?: number;
     ip?: string;
   }): Promise<CommunicationConsumeResult> {
@@ -133,6 +152,7 @@ export class LicenseService {
       recipientPhone = null,
       recipientName = null,
       messageType,
+      memberId = null,
       dispatchedById = null,
       ip = null,
     } = params;
@@ -174,27 +194,28 @@ export class LicenseService {
     const used = (updatedLicense as any)?.[usedCol] ?? 0;
     const remaining = max === -1 ? 999999 : Math.max(0, max - used);
 
-    // Audit granular consumption in communication_logs
+    // Audit granular consumption in communication_logs.
+    //
+    // Every row records the member it concerns plus the GDPR basis for sending
+    // and keeping it (`lawfulBasisFor` / `retentionUntilFor` own that policy), so
+    // a member's erasure request can actually find and purge these rows.
     try {
-      await this.db
-        .prepare(
-          `INSERT INTO communication_logs (
-            gym_id, channel, recipient_phone, recipient_name, message_type,
-            credits_deducted, remaining_balance, dispatched_by_id, ip, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())`
-        )
-        .bind(
-          this.gymId,
-          channel,
-          recipientPhone,
-          recipientName,
-          messageType,
-          credits,
-          remaining,
-          dispatchedById,
-          ip
-        )
-        .run();
+      const sentAt = Math.floor(Date.now() / 1000);
+      await this.commRepo.recordDispatch({
+        gymId: this.gymId,
+        memberId,
+        channel,
+        recipientPhone,
+        recipientName,
+        messageType,
+        creditsDeducted: credits,
+        remainingBalance: remaining,
+        lawfulBasis: lawfulBasisFor(messageType),
+        retentionUntil: retentionUntilFor(messageType, sentAt),
+        dispatchedById,
+        ip,
+        sentAt,
+      });
     } catch (e) {
       console.warn('Failed to insert communication_logs row:', (e as Error).message);
     }
@@ -208,10 +229,10 @@ export class LicenseService {
   }
 
   /**
-   * Sweeps expired licenses and memberships for this gym.
+   * Sweeps expired licenses, memberships, and member statuses for this gym.
    * Invoked on hourly cron schedule.
    */
-  async sweepExpiries(): Promise<{ expiredLicenses: number; expiredMemberships: number }> {
+  async sweepExpiries(): Promise<{ expiredLicenses: number; expiredMemberships: number; expiredMembers: number }> {
     const nowSec = Math.floor(Date.now() / 1000);
 
     const licRes = await this.db
@@ -230,9 +251,26 @@ export class LicenseService {
       .bind(nowSec, this.gymId, nowSec)
       .run();
 
+    // Sync member statuses to EXPIRED if they have no remaining active memberships
+    const memberRes = await this.db
+      .prepare(
+        `UPDATE members SET status = 'EXPIRED', updated_at = ?
+         WHERE gym_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL
+           AND NOT EXISTS (
+             SELECT 1 FROM memberships
+             WHERE memberships.member_id = members.id
+               AND memberships.gym_id = members.gym_id
+               AND memberships.status = 'ACTIVE'
+               AND memberships.deleted_at IS NULL
+           )`
+      )
+      .bind(nowSec, this.gymId)
+      .run();
+
     return {
       expiredLicenses: licRes.meta?.changes ?? 0,
       expiredMemberships: memRes.meta?.changes ?? 0,
+      expiredMembers: memberRes.meta?.changes ?? 0,
     };
   }
 }

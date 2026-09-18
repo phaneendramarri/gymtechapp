@@ -142,9 +142,13 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new PaymentRepository(mockDb, GYM_ALPHA);
       await repo.getNextReceiptNumber();
 
-      // H4 fix: now uses atomic counters table instead of count(*) on payments
+      // Receipt numbers come from the atomic counters table, keyed by gym AND
+      // calendar year so the sequence restarts every January.
       expect(mockDb.getLastQuery()).toMatch(/counters/i);
-      expect(mockDb.getLastBindings()).toEqual([GYM_ALPHA]);
+      expect(mockDb.getLastQuery()).toMatch(/ON CONFLICT/i);
+      const bindings = mockDb.getLastBindings();
+      expect(bindings[0]).toBe(GYM_ALPHA);
+      expect(bindings[1]).toMatch(/^receipt:\d{4}$/);
     });
 
     it('scopes summary metrics to gym_id', async () => {

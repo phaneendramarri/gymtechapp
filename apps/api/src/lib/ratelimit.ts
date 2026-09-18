@@ -6,7 +6,9 @@
  * JSON array in a KV key. This avoids the "reset storm" problem of
  * fixed windows at the cost of a small read-modify-write per request.
  *
- * Key format: `rl:<identifier>` (e.g. `rl:192.168.1.1`)
+ * Key format: `<scope>:<identifier>` (e.g. `rl:auth:192.168.1.1`). Callers must
+ * scope the key per rate-limit tier — a shared bucket would let a high-limit
+ * tier exhaust a low-limit one.
  * Value: JSON `number[]` — unix-timestamp array of request times in the
  *        current sliding window.
  */

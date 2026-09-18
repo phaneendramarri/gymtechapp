@@ -154,10 +154,8 @@ export async function verifySessionToken(
   }
 }
 
-export function hasAllowedRole(userRole: string | undefined | null, allowedRoles: string[]): boolean {
-  if (!userRole) return false;
-  return allowedRoles.includes(userRole);
-}
+// Role *policy* lives in `lib/roles.ts` (single owner). This module only deals
+// with token mechanics: minting, verifying and projecting the JWT payload.
 
 export function payloadToSessionUser(p: UserSessionPayload): SessionUser {
   return {

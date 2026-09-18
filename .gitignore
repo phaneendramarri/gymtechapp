@@ -77,4 +77,6 @@ seed_*.sql
 temp_*.sql
 *.dump.sql
 wrangler.jsonc
+.freebuff/
+.kilo/
 

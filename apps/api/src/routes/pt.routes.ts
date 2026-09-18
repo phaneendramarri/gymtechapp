@@ -123,7 +123,7 @@ ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safe
   return jsonOk({ id: Number(res.meta?.last_row_id ?? 0), receiptNumber, commissionPaise }, 201);
 }));
 
-ptRoutes.post('/collections/:id/settle', requireGym, requirePermission('pt_collections', 'settle'), safeHandler(async (c) => {
+ptRoutes.post('/collections/:id/settle', requireGym, requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));

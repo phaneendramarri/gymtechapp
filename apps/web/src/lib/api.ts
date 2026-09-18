@@ -39,7 +39,7 @@ import {
   TestSmtpRequest,
   PlatformCommunicationsConfig,
   SendNotificationRequest,
-  MenuNode,
+  MenuItem,
 } from '@gymtech/shared';
 
 // The Hono API is served from the same origin as the SPA (single Cloudflare
@@ -238,9 +238,13 @@ class ApiClient {
   // token is saved back to sessionStorage for the next cycle.
   private async tryRefresh(refreshToken: string): Promise<string | null> {
     try {
+      const storedCsrf = readCsrfCookie();
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (storedCsrf) headers['X-CSRF-Token'] = storedCsrf;
+
       const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers,
         credentials: 'include',
         body: JSON.stringify({ refreshToken }),
       });
@@ -276,11 +280,6 @@ class ApiClient {
 
   async getMe(): Promise<MeResponse> {
     return this.request<MeResponse>('/api/auth/me');
-  }
-
-  // Menu — fetched from DB, filtered by user permissions
-  async getMenu(): Promise<{ menu: MenuNode[] }> {
-    return this.request<{ menu: MenuNode[] }>('/api/menu');
   }
 
   async forgotPassword(email: string): Promise<ForgotPasswordResponse> {
@@ -455,15 +454,6 @@ class ApiClient {
     return this.request<{ payments: Payment[]; summary: any }>(`/api/payments${qs ? `?${qs}` : ''}`);
   }
 
-  async getCommunicationLogs(params?: { channel?: string; limit?: number; offset?: number }, gymId?: number): Promise<CommunicationLogsListResponse> {
-    const q = this.gymParams(gymId);
-    if (params?.channel) q.set('channel', params.channel);
-    if (params?.limit) q.set('limit', String(params.limit));
-    if (params?.offset) q.set('offset', String(params.offset));
-    const qs = q.toString();
-    return this.request<CommunicationLogsListResponse>(`/api/communications${qs ? `?${qs}` : ''}`);
-  }
-
   async recordPayment(payload: RecordPaymentRequest, gymId?: number): Promise<RecordPaymentResponse> {
     const q = this.gymParams(gymId);
     const qs = q.toString();
@@ -522,6 +512,46 @@ class ApiClient {
     return this.request<User>(`/api/staff/${id}${qs ? `?${qs}` : ''}`, {
       method: 'PATCH',
       body: JSON.stringify(payload),
+    });
+  }
+
+  // Database-Driven Menu System
+  async getMenuItems(gymId?: number): Promise<{ items: MenuItem[] }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ items: MenuItem[] }>(`/api/menus${qs ? `?${qs}` : ''}`);
+  }
+
+  // Gym-Scoped Roles & Menu Permissions
+  async getGymRoles(gymId?: number): Promise<{ roles: Array<{ id: number; name: string; permissions: string[]; menuItemIds?: number[]; isOwner?: boolean; isDefault?: boolean; createdAt?: number }> }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ roles: Array<{ id: number; name: string; permissions: string[]; menuItemIds?: number[]; isOwner?: boolean; isDefault?: boolean; createdAt?: number }> }>(`/api/roles${qs ? `?${qs}` : ''}`);
+  }
+
+  async createGymRole(payload: { name: string; menuItemIds?: number[]; permissions?: string[]; isDefault?: boolean }, gymId?: number): Promise<any> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<any>(`/api/roles${qs ? `?${qs}` : ''}`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async updateGymRole(id: number, payload: { name?: string; menuItemIds?: number[]; permissions?: string[]; isDefault?: boolean }, gymId?: number): Promise<any> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<any>(`/api/roles/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'PUT',
+      body: JSON.stringify(payload),
+    });
+  }
+
+  async deleteGymRole(id: number, gymId?: number): Promise<{ success: boolean; message: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; message: string }>(`/api/roles/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'DELETE',
     });
   }
 
@@ -866,55 +896,6 @@ class ApiClient {
 
   async restorePlatformRole(id: number): Promise<any> {
     return this.request<any>(`/api/admin/roles/${id}/restore`, { method: 'POST' });
-  }
-
-  async getMenuGroups(): Promise<{ groups: any[] }> {
-    return this.request<{ groups: any[] }>('/api/admin/menus/groups');
-  }
-
-  async createMenuGroup(data: { key: string; label: string; icon?: string; order?: number }): Promise<any> {
-    return this.request<any>('/api/admin/menus/groups', { method: 'POST', body: JSON.stringify(data) });
-  }
-
-  async updateMenuGroup(id: number, data: { label?: string; icon?: string; order?: number }): Promise<any> {
-    return this.request<any>(`/api/admin/menus/groups/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-  }
-
-  async deleteMenuGroup(id: number): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>(`/api/admin/menus/groups/${id}`, { method: 'DELETE' });
-  }
-
-  async getMenuItems(params?: { groupKey?: string }): Promise<{ items: any[] }> {
-    const q = new URLSearchParams();
-    if (params?.groupKey) q.set('groupKey', params.groupKey);
-    const qs = q.toString();
-    return this.request<{ items: any[] }>(`/api/admin/menus/items${qs ? `?${qs}` : ''}`);
-  }
-
-  async createMenuItem(data: {
-    groupKey: string; key: string; label: string; href?: string; icon?: string;
-    order?: number; permissions?: string[]; featureKey?: string; adminOnly?: boolean;
-  }): Promise<any> {
-    return this.request<any>('/api/admin/menus/items', { method: 'POST', body: JSON.stringify(data) });
-  }
-
-  async updateMenuItem(id: number, data: {
-    label?: string; href?: string; icon?: string; order?: number;
-    permissions?: string[]; featureKey?: string; adminOnly?: boolean; isActive?: boolean;
-  }): Promise<any> {
-    return this.request<any>(`/api/admin/menus/items/${id}`, { method: 'PUT', body: JSON.stringify(data) });
-  }
-
-  async deleteMenuItem(id: number): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>(`/api/admin/menus/items/${id}`, { method: 'DELETE' });
-  }
-
-  async restoreMenuGroup(id: number): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>(`/api/admin/menus/groups/${id}/restore`, { method: 'POST' });
-  }
-
-  async restoreMenuItem(id: number): Promise<{ success: boolean }> {
-    return this.request<{ success: boolean }>(`/api/admin/menus/items/${id}/restore`, { method: 'POST' });
   }
 
   async getPlatformUsers(params?: { page?: number; limit?: number; search?: string; gymId?: number }): Promise<{ users: any[]; total: number }> {

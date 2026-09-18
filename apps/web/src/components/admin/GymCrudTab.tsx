@@ -968,7 +968,6 @@ const StaffTab: React.FC<{ gymId: number }> = ({ gymId }) => {
     name: '',
     email: '',
     phone: '',
-    role: 'STAFF',
     password: '',
   });
   const [saving, setSaving] = useState(false);
@@ -985,7 +984,7 @@ const StaffTab: React.FC<{ gymId: number }> = ({ gymId }) => {
     onSuccess: () => {
       toast('success', 'Staff member added', `${form.name} has been added.`);
       setShowAddForm(false);
-      setForm({ name: '', email: '', phone: '', role: 'STAFF', password: '' });
+      setForm({ name: '', email: '', phone: '', password: '' });
       queryClient.invalidateQueries({ queryKey: ['admin-gym-staff', gymId] });
     },
     onError: (err: any) => toast('error', 'Failed to add staff', err.message),
@@ -1050,7 +1049,7 @@ const StaffTab: React.FC<{ gymId: number }> = ({ gymId }) => {
                     <TableCell className="text-xs font-mono text-muted-foreground">{s.email || '—'}</TableCell>
                     <TableCell className="text-xs font-mono">{s.phone || '—'}</TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-xs font-mono">{s.role}</Badge>
+                      <Badge variant="outline" className="text-xs font-mono">{s.roleName || s.role}</Badge>
                     </TableCell>
                     <TableCell>
                       <StatusBadge status={(s.status as any) || 'ACTIVE'} size="sm" />
@@ -1113,19 +1112,9 @@ const StaffTab: React.FC<{ gymId: number }> = ({ gymId }) => {
                 placeholder="9876543210"
               />
             </div>
-            <div className="flex flex-col gap-1">
-              <Label className="text-xs font-semibold">Role</Label>
-              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                <SelectTrigger className="text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="STAFF">Staff</SelectItem>
-                  <SelectItem value="MANAGER">Manager</SelectItem>
-                  <SelectItem value="OWNER">Owner</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            {/* No role picker here: roles are gym-defined rows, so assigning one
+                belongs to the gym's own Staff screen (`/staff`). New users start
+                with no role and the gym owner assigns one. */}
             <div className="flex flex-col gap-1">
               <Label className="text-xs font-semibold gt-label-required">Password</Label>
               <Input

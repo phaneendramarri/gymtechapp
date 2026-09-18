@@ -5,12 +5,15 @@
  * multiple tables (gyms + licenses + members) since Drizzle's query
  * builder doesn't cleanly express this pattern.
  */
-import { sql } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import { hashPassword } from '../lib/session';
+import { parseEnabledFeatures } from '../lib/features';
+import { deriveCoarseRole } from '../lib/roles';
+import { GYM_FEATURES } from '@gymtech/shared';
 import { LicenseRepository } from './license.repository';
-import { licenses, gyms, users, members, membershipPlans, gymFeatures, roles } from '../db/schema';
+import { licenses, gyms, users, members, membershipPlans, roles } from '../db/schema';
 
 export class AdminRepository {
   private licenseRepo: LicenseRepository;
@@ -131,10 +134,8 @@ export class AdminRepository {
       email: data.ownerEmail.toLowerCase().trim(),
       phone: data.ownerPhone.trim(),
       passwordHash,
-      role: 'OWNER',
       roleId: ownerRoleId,
       status: 'ACTIVE',
-      permissions: '{}',
       isOwner: true,
       createdAt: now,
       updatedAt: now,
@@ -183,23 +184,6 @@ export class AdminRepository {
       });
     }
 
-    // 6. Seed default features
-    const defaultFeatures = [
-      'dashboard', 'members', 'attendance', 'payments',
-      'pt_collections', 'plans', 'staff', 'reports', 'settings',
-    ];
-    for (const featureKey of defaultFeatures) {
-      await this.db.insert(gymFeatures).values({
-        gymId,
-        featureKey,
-        isEnabled: 1,
-        updatedAt: now,
-      }).onConflictDoUpdate({
-        target: [gymFeatures.gymId, gymFeatures.featureKey],
-        set: { isEnabled: 1, updatedAt: now },
-      });
-    }
-
     return { gymId, userId };
   }
 
@@ -210,36 +194,40 @@ export class AdminRepository {
       .where(sql`id = ${gymId} AND deleted_at IS NULL`);
   }
 
+  /**
+   * Read a gym's feature flags from its license (`licenses.features`).
+   * An empty/absent map means "everything enabled" (default license).
+   * Every catalog key is always returned so the admin UI renders a full,
+   * explicit toggle list.
+   */
   async getGymFeatures(gymId: number): Promise<Record<string, boolean>> {
-    const rows = await this.db
-      .select({ featureKey: gymFeatures.featureKey, isEnabled: gymFeatures.isEnabled })
-      .from(gymFeatures)
-      .where(sql`${gymFeatures.gymId} = ${gymId}`);
+    const row = await this.db
+      .select({ features: licenses.features })
+      .from(licenses)
+      .where(eq(licenses.gymId, gymId))
+      .limit(1);
 
-    const out: Record<string, boolean> = {
-      dashboard: true, members: true, attendance: true, payments: true,
-      pt_collections: true, plans: true, staff: true, reports: true, settings: true,
-    };
-    for (const r of rows) {
-      out[r.featureKey] = r.isEnabled === 1;
-    }
-    return out;
+    const enabled = new Set(parseEnabledFeatures(row[0]?.features));
+    return Object.fromEntries(GYM_FEATURES.map((key) => [key, enabled.has(key)]));
   }
 
+  /**
+   * Persist a gym's feature flags onto its license. Only catalogue keys are
+   * stored; unknown keys are ignored so a stale client cannot inject noise.
+   */
   async updateGymFeatures(gymId: number, features: Record<string, boolean>): Promise<void> {
-    const now = Math.floor(Date.now() / 1000);
-    for (const [key, enabled] of Object.entries(features)) {
-      await this.db
-        .insert(gymFeatures)
-        .values({ gymId, featureKey: key, isEnabled: enabled ? 1 : 0, updatedAt: now })
-        .onConflictDoUpdate({
-          target: [gymFeatures.gymId, gymFeatures.featureKey],
-          set: { isEnabled: enabled ? 1 : 0, updatedAt: now },
-        });
+    const sanitized: Record<string, boolean> = {};
+    for (const key of GYM_FEATURES) {
+      sanitized[key] = features[key] === true;
     }
+    await this.db
+      .update(licenses)
+      .set({ features: JSON.stringify(sanitized), updatedAt: Math.floor(Date.now() / 1000) })
+      .where(eq(licenses.gymId, gymId));
   }
 
   async listGymUsers(gymId: number): Promise<any[]> {
+    // `role` is derived from the joined role row — there is no stored copy.
     const rows = await this.db
       .select({
         id: users.id,
@@ -247,15 +235,27 @@ export class AdminRepository {
         name: users.name,
         email: users.email,
         phone: users.phone,
-        role: users.role,
+        roleId: users.roleId,
+        roleName: roles.name,
+        roleIsOwner: roles.isOwner,
+        isOwner: users.isOwner,
         status: users.status,
         createdAt: users.createdAt,
         updatedAt: users.updatedAt,
       })
       .from(users)
+      .leftJoin(roles, eq(roles.id, users.roleId))
       .where(sql`${users.gymId} = ${gymId} AND ${users.deletedAt} IS NULL`)
       .orderBy(users.createdAt);
-    return rows;
+
+    return rows.map((u) => ({
+      ...u,
+      role: deriveCoarseRole({
+        isOwner: u.isOwner,
+        roleIsOwner: u.roleIsOwner,
+        roleName: u.roleName,
+      }),
+    }));
   }
 
   async updateGymUser(
@@ -264,7 +264,6 @@ export class AdminRepository {
       name?: string;
       email?: string;
       phone?: string;
-      role?: string;
       status?: string;
       passwordPlain?: string;
     }
@@ -273,7 +272,6 @@ export class AdminRepository {
     if (patch.name !== undefined) sets.name = patch.name.trim();
     if (patch.email !== undefined) sets.email = patch.email.toLowerCase().trim();
     if (patch.phone !== undefined) sets.phone = patch.phone.trim();
-    if (patch.role !== undefined) sets.role = patch.role;
     if (patch.status !== undefined) sets.status = patch.status;
     if (patch.passwordPlain) {
       sets.passwordHash = await hashPassword(patch.passwordPlain);

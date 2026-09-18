@@ -48,7 +48,7 @@ export type {
 export interface GymFeature {
   gymId: number;
   featureKey: GymFeatureKey;
-  isEnabled: number;
+  isEnabled: boolean;
   updatedAt: number;
 }
 
@@ -142,10 +142,17 @@ export interface User {
   email: string
   phone: string | null
   passwordHash: string
+  /** FK to the gym's role row — the only stored role reference. */
   roleId: number | null
-  role: string // legacy display string (e.g. 'STAFF', 'OWNER'); use roleId for permissions
+  /**
+   * Coarse role derived from `roleId` + `isOwner` (see apps/api/src/lib/roles.ts).
+   * Custom role names bucket to 'STAFF'; their fine-grained access comes from
+   * `permissions`. Never persisted.
+   */
+  role: UserRole
+  /** Display name of the assigned role row, when one is set. */
+  roleName?: string | null
   status: 'ACTIVE' | 'DISABLED'
-  permissions: string
   isOwner: boolean
   lastLoginAt: number | null
   failedLoginCount: number
@@ -167,37 +174,36 @@ export interface Role {
   gymId: number
   name: string
   permissions: string // JSON array of permission keys
+  isOwner?: boolean
   isDefault: boolean
   createdAt: number
   updatedAt: number
   deletedAt: number | null
+  menuItemIds?: number[]
+  menuItems?: MenuItem[]
 }
 
-/**
- * Hierarchical menu tree — drives the sidebar navigation.
- * Each node may have children (sub-menu items grouped under a parent).
- * PLATFORM_ADMIN sees all items regardless of permissions.
- * Owners (isOwner) see all items regardless of role permissions.
- */
-export interface MenuNode {
-  /** Unique key for the menu item (used as React key + for permission checks). */
+export interface MenuItem {
+  id: number
   key: string
-  /** Display label shown in the sidebar. */
   label: string
-  /** Route path. Leave empty for separator/group nodes (non-link parents). */
-  href?: string
-  /** Lucide icon component name (string). Resolved in the sidebar renderer. */
-  icon?: string
-  /** Permission keys the user must have ALL of to see this item. */
-  permissions: string[]
-  /** Child items — renders as a collapsible sub-menu. */
-  children?: MenuNode[]
-  /** Shortcut keyboard hint (e.g. '1', '2'). */
-  shortcut?: string
-  /** Gym feature key required (e.g. 'pt_collections'). If set, gym must have it enabled. */
-  featureKey?: GymFeatureKey
-  /** Admin-only item — hidden for regular gym users. */
-  adminOnly?: boolean
+  href: string | null
+  icon: string | null
+  groupKey: string
+  order: number
+  featureKey: string | null
+  adminOnly: boolean
+  isActive: boolean
+  createdAt?: number
+  updatedAt?: number
+}
+
+export interface RoleMenu {
+  id: number
+  gymId: number
+  roleId: number
+  menuItemId: number
+  createdAt: number
 }
 
 export interface GymMembershipPlan {
@@ -354,20 +360,6 @@ export interface AuditEvent {
   createdAt: number
 }
 
-export interface SaasAuditEvent {
-  id: number
-  actorAdminId: number
-  affectedGymId: number | null
-  action: string
-  entityType: string | null
-  entityId: number | null
-  beforeState: string | null
-  afterState: string | null
-  ip: string | null
-  userAgent: string | null
-  metadata: string | null
-  createdAt: number
-}
 
 // =====================================================
 // Session user (the JWT payload — id and gym_id are NUMBERS now)
@@ -506,3 +498,4 @@ export interface InvoiceData {
   sgst: number
   notes: string | null
 }
+

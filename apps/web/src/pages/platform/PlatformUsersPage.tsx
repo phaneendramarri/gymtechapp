@@ -43,7 +43,6 @@ interface PlatformUser {
   lastLoginAt: number | null;
   createdAt: number;
   updatedAt: number;
-  disabledAt: number | null;
 }
 
 const PAGE_SIZE = 20;

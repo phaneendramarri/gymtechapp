@@ -1,52 +1,73 @@
-import { eq, and, desc, sql } from 'drizzle-orm';
-import type { Database, D1Database } from '../db/client';
-import { createDatabase } from '../db/client';
-import { communicationLogs } from '../db/schema';
-import type { CommunicationLogRow } from '@gymtech/shared';
-
-export interface ListCommunicationLogsOptions {
-  channel?: 'SMS' | 'WHATSAPP' | 'EMAIL';
-  limit?: number;
-  offset?: number;
-}
-
-export interface ListCommunicationLogsResult {
-  logs: CommunicationLogRow[];
-  total: number;
+/**
+ * Communication-log repository — the single owner of `communication_logs`.
+ *
+ * Every sent notification must leave an auditable row here: what was sent, to
+ * whom, which license credits it consumed, and the GDPR basis for sending and
+ * keeping it. Member erasure (Art. 17) purges through the same module, so the
+ * linkage between "what we recorded" and "what we delete" cannot drift.
+ *
+ * Takes the raw D1 handle because its main producer (LicenseService) already
+ * holds one; no Drizzle dependency needed for two straight statements.
+ */
+export interface RecordDispatchParams {
+  gymId: number;
+  memberId: number | null;
+  channel: 'SMS' | 'WHATSAPP' | 'EMAIL';
+  recipientPhone: string | null;
+  recipientName: string | null;
+  messageType: string;
+  creditsDeducted: number;
+  remainingBalance: number;
+  lawfulBasis: string;
+  retentionUntil: number;
+  dispatchedById: number | null;
+  ip: string | null;
+  sentAt: number;
 }
 
 export class CommunicationRepository {
-  private db: Database;
+  constructor(private d1: D1Database) {}
 
-  constructor(db: Database | D1Database, private gymId: number) {
-    this.db = (db as any).prepare ? createDatabase(db as D1Database) : (db as Database);
+  /**
+   * Append one audit row per dispatched message. Failures are swallowed by the
+   * caller by design: a logging failure must never roll back a message the gym
+   * already paid credits to send.
+   */
+  async recordDispatch(params: RecordDispatchParams): Promise<void> {
+    await this.d1
+      .prepare(
+        `INSERT INTO communication_logs (
+          gym_id, member_id, channel, recipient_phone, recipient_name, message_type,
+          credits_deducted, remaining_balance, lawful_basis, retention_until,
+          dispatched_by_id, ip, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        params.gymId,
+        params.memberId,
+        params.channel,
+        params.recipientPhone,
+        params.recipientName,
+        params.messageType,
+        params.creditsDeducted,
+        params.remainingBalance,
+        params.lawfulBasis,
+        params.retentionUntil,
+        params.dispatchedById,
+        params.ip,
+        params.sentAt
+      )
+      .run();
   }
 
-  async list(opts: ListCommunicationLogsOptions = {}): Promise<ListCommunicationLogsResult> {
-    const { channel, limit = 50, offset = 0 } = opts;
-
-    const conditions = [eq(communicationLogs.gymId, this.gymId)];
-    if (channel) conditions.push(eq(communicationLogs.channel, channel));
-
-    const where = conditions.length === 1 ? conditions[0] : and(...conditions);
-
-    const [rows, countResult] = await Promise.all([
-      this.db
-        .select()
-        .from(communicationLogs)
-        .where(where)
-        .orderBy(desc(communicationLogs.createdAt))
-        .limit(limit)
-        .offset(offset),
-      this.db
-        .select({ count: sql<number>`count(*)` })
-        .from(communicationLogs)
-        .where(where),
-    ]);
-
-    return {
-      logs: rows as CommunicationLogRow[],
-      total: countResult[0]?.count ?? 0,
-    };
+  /**
+   * GDPR Art. 17 helper: purge a member's messages before their row is
+   * anonymised — once `phone` is nulled there is nothing left to match on.
+   */
+  async purgeForMember(gymId: number, memberId: number): Promise<void> {
+    await this.d1
+      .prepare('DELETE FROM communication_logs WHERE gym_id = ? AND member_id = ?')
+      .bind(gymId, memberId)
+      .run();
   }
 }
