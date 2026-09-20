@@ -4,8 +4,8 @@ import { defineConfig } from 'drizzle-kit';
 /**
  * Drizzle Kit config.
  *
- * We treat the existing 4 SQL migrations under apps/api/migrations as the
- * canonical schema. drizzle-kit is used ONLY for:
+ * We treat the SQL migrations under apps/api/migrations as the
+ * canonical schema (single consolidated baseline + numbered follow-ups). drizzle-kit is used ONLY for:
  *   - `drizzle-kit pull` — read D1 schema → emit TS types (one-way, read-only).
  *   - `drizzle-kit generate` — optional, for future SQL migrations.
  *

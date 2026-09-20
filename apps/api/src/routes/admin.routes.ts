@@ -152,15 +152,15 @@ adminRoutes.put('/users/:id', safeHandler(async (c) => {
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid user update payload');
   const adminRepo = new AdminRepository(ctx.env.DB);
   // `role` is not a column: read the role name through the join instead.
-  const userSnapshotSql = `SELECT u.id, u.gym_id, u.name, u.email, u.phone, u.status, u.role_id, r.name AS role_name FROM users u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id = ?`;
-  const before = await ctx.env.DB.prepare(userSnapshotSql).bind(id).first();
+  const userSnapshotSql = `SELECT u.id, u.gymId, u.name, u.email, u.phone, u.status, u.roleId, r.name AS roleName FROM users u LEFT JOIN roles r ON r.id = u.roleId WHERE u.id = ?`;
+  const before: any = await ctx.env.DB.prepare(userSnapshotSql).bind(id).first();
   if (!before) return jsonErr('User not found', 404);
   await adminRepo.updateGymUser(id, {
     name: parsed.data.name, email: parsed.data.email, phone: parsed.data.phone,
     status: parsed.data.status, passwordPlain: parsed.data.password,
   });
   const after = await ctx.env.DB.prepare(userSnapshotSql).bind(id).first();
-  await auditSaas(ctx, 'user.admin_update', (before as any).gym_id, 'user', id, { before, after });
+  await auditSaas(ctx, 'user.admin_update', before.gymId, 'user', id, { before, after });
   return jsonOk({ success: true, user: after });
 }));
 
@@ -171,9 +171,9 @@ adminRoutes.put('/gyms/:id/license-limits', safeHandler(async (c) => {
   const parsed = UpdateLicenseLimitsRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid license limits payload');
   const adminRepo = new AdminRepository(ctx.env.DB);
-  const before = await ctx.env.DB.prepare(`SELECT * FROM licenses WHERE gym_id = ?`).bind(id).first();
+  const before = await ctx.env.DB.prepare(`SELECT * FROM licenses WHERE gymId = ?`).bind(id).first();
   await adminRepo.updateLicenseLimits(id, parsed.data);
-  const after = await ctx.env.DB.prepare(`SELECT * FROM licenses WHERE gym_id = ?`).bind(id).first();
+  const after = await ctx.env.DB.prepare(`SELECT * FROM licenses WHERE gymId = ?`).bind(id).first();
   await auditSaas(ctx, 'gym.license_limits_update', id, 'license', (after as any)?.id ?? null, { before, after });
   return jsonOk({ success: true, license: after });
 }));
@@ -208,7 +208,7 @@ adminRoutes.put('/communications', safeHandler(async (c) => {
   const parsed = PlatformCommunicationsConfigSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid gateway config');
   await new SettingsRepository(ctx.env.DB).putPlatformSetting('communications', parsed.data);
-  await auditSaas(ctx, 'communications.update', null, 'platform_settings', null, { after: { configUpdated: true } });
+  await auditSaas(ctx, 'communications.update', null, 'platformSettings', null, { after: { configUpdated: true } });
   return jsonOk({ success: true, config: parsed.data });
 }));
 
@@ -228,7 +228,7 @@ adminRoutes.post('/communications/test-smtp', safeHandler(async (c) => {
     apiKey: smtp.password || ctx.env.RESEND_API_KEY,
     fromEmail: smtp.fromEmail || (smtp.provider === 'RESEND' ? 'GymTech <onboarding@resend.dev>' : undefined),
   });
-  await auditSaas(ctx, 'communications.test_smtp', null, 'platform_settings', null, { after: { testRecipient } });
+  await auditSaas(ctx, 'communications.test_smtp', null, 'platformSettings', null, { after: { testRecipient } });
   return jsonOk(result);
 }));
 

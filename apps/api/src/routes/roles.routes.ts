@@ -17,7 +17,7 @@ import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 export const roleRoutes = new Hono();
 
 // GET /api/roles — list all roles for this gym
-roleRoutes.get('/', requireGym, requirePermission('staff'), safeHandler(async (c) => {
+roleRoutes.get('/', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const roleRepo = new RoleRepository(ctx.db);
   const menuRepo = new MenuRepository(ctx.env.DB);
@@ -40,7 +40,7 @@ roleRoutes.get('/', requireGym, requirePermission('staff'), safeHandler(async (c
 }));
 
 // POST /api/roles — create a custom role with menu permissions for this gym
-roleRoutes.post('/', requireGym, requirePermission('staff'), safeHandler(async (c) => {
+roleRoutes.post('/', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreateRoleRequestSchema.safeParse(body);
@@ -54,13 +54,13 @@ roleRoutes.post('/', requireGym, requirePermission('staff'), safeHandler(async (
   let menuItemIds = parsed.data.menuItemIds ?? [];
   let permissions = parsed.data.permissions ?? [];
 
-  // If menuItemIds provided, derive keys from menu_items
+  // If menuItemIds provided, derive keys from menuItems
   if (menuItemIds.length > 0) {
     const allMenus = await menuRepo.listMenuItems();
     const idSet = new Set(menuItemIds);
     permissions = allMenus.filter((m) => idSet.has(m.id)).map((m) => m.key);
   } else if (permissions.length > 0) {
-    // If only string permissions passed, derive menuItemIds from menu_items
+    // If only string permissions passed, derive menuItemIds from menuItems
     const allMenus = await menuRepo.listMenuItems();
     const permSet = new Set(permissions);
     menuItemIds = allMenus.filter((m) => permSet.has(m.key)).map((m) => m.id);
@@ -85,7 +85,7 @@ roleRoutes.post('/', requireGym, requirePermission('staff'), safeHandler(async (
 }));
 
 // PUT /api/roles/:id — update a custom role and its menu permissions
-roleRoutes.put('/:id', requireGym, requirePermission('staff'), safeHandler(async (c) => {
+roleRoutes.put('/:id', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -144,7 +144,7 @@ roleRoutes.put('/:id', requireGym, requirePermission('staff'), safeHandler(async
 }));
 
 // DELETE /api/roles/:id — soft-delete a role from this gym
-roleRoutes.delete('/:id', requireGym, requirePermission('staff'), safeHandler(async (c) => {
+roleRoutes.delete('/:id', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const roleRepo = new RoleRepository(ctx.db);

@@ -52,7 +52,7 @@ async function verifySession(c: Context<{ Bindings: AppEnv; Variables: AuthVars 
   if (session.jti) {
     const now = Math.floor(Date.now() / 1000);
     const dbSession = await c.env.DB
-      .prepare(`SELECT 1 FROM user_sessions WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?`)
+      .prepare(`SELECT 1 FROM userSessions WHERE tokenHash = ? AND revokedAt IS NULL AND expiresAt > ?`)
       .bind(session.jti, now)
       .first();
     if (!dbSession) throw jsonError('Session has been revoked', 401);
@@ -84,22 +84,24 @@ export const requireAuth: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthV
       // Checking the users table here would 401 every member whose numeric
       // id doesn't collide with a staff row (and wrongly borrow the status
       // of one that does).
-      const dbMember = await c.env.DB
-        .prepare(`SELECT status, deleted_at FROM members WHERE id = ? AND gym_id = ?`)
+      const dbMember: any = await c.env.DB
+        .prepare(`SELECT status, deletedAt FROM members WHERE id = ? AND gymId = ?`)
         .bind(session.id, session.gymId)
-        .first<{ status: string; deleted_at: number | null }>();
-      if (!dbMember || dbMember.deleted_at !== null) {
+        .first<{ status: string; deletedAt: number | null }>();
+      const deletedAt = dbMember?.deletedAt ?? null;
+      if (!dbMember || deletedAt !== null) {
         return jsonError('Member account has been archived or deleted', 401);
       }
       if (dbMember.status === 'BLOCKED') {
         return jsonError('Member account is currently blocked by administrator', 403);
       }
     } else {
-      const dbUser = await c.env.DB
-        .prepare(`SELECT status, deleted_at FROM users WHERE id = ? AND gym_id = ?`)
+      const dbUser: any = await c.env.DB
+        .prepare(`SELECT status, deletedAt FROM users WHERE id = ? AND gymId = ?`)
         .bind(session.id, session.gymId)
-        .first<{ status: string; deleted_at: number | null }>();
-      if (!dbUser || dbUser.deleted_at !== null) {
+        .first<{ status: string; deletedAt: number | null }>();
+      const deletedAt = dbUser?.deletedAt ?? null;
+      if (!dbUser || deletedAt !== null) {
         return jsonError('User account has been archived or deleted', 401);
       }
       if (dbUser.status === 'DISABLED') {
@@ -139,21 +141,22 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
     }
 
     const gymExists = await c.env.DB
-      .prepare(`SELECT id FROM gyms WHERE id = ? AND deleted_at IS NULL LIMIT 1`)
+      .prepare(`SELECT id FROM gyms WHERE id = ? AND deletedAt IS NULL LIMIT 1`)
       .bind(gymId)
       .first();
     if (!gymExists) {
       return jsonError('Target gym does not exist or has been deactivated', 403);
     }
 
-    // Enforce platform_admins.authorized_gyms restriction when configured
-    const adminRecord = await c.env.DB
-      .prepare(`SELECT authorized_gyms FROM platform_admins WHERE id = ? AND deleted_at IS NULL LIMIT 1`)
+    // Enforce platformAdmins.authorizedGyms restriction when configured
+    const adminRecord: any = await c.env.DB
+      .prepare(`SELECT authorizedGyms FROM platformAdmins WHERE id = ? AND deletedAt IS NULL LIMIT 1`)
       .bind(user.id)
-      .first<{ authorized_gyms: string | null }>();
-    if (adminRecord?.authorized_gyms) {
+      .first<{ authorizedGyms: string | null }>();
+    const authorizedGymsStr = adminRecord?.authorizedGyms;
+    if (authorizedGymsStr) {
       try {
-        const allowedGyms = JSON.parse(adminRecord.authorized_gyms);
+        const allowedGyms = JSON.parse(authorizedGymsStr);
         if (Array.isArray(allowedGyms) && allowedGyms.length > 0 && !allowedGyms.includes(gymId)) {
           return jsonError('You are not authorized to access this gym', 403);
         }
@@ -176,14 +179,14 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
     // These 4 DB calls are the minimum needed — role lookup is skipped because
     // platform admins already have permissions: ['*'] hardcoded in auth.service.ts.
     const gym = await c.env.DB
-      .prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`)
+      .prepare(`SELECT * FROM gyms WHERE id = ? AND deletedAt IS NULL`)
       .bind(gymId)
       .first<Gym>();
     if (!gym) return jsonError('Gym tenant is not accessible. Contact the platform administrator.', 403);
     if (gym.status !== 'ACTIVE') return jsonError(`This gym tenant is currently ${gym.status}.`, 403);
 
     const license = await c.env.DB
-      .prepare(`SELECT * FROM licenses WHERE gym_id = ?`)
+      .prepare(`SELECT * FROM licenses WHERE gymId = ?`)
       .bind(gymId)
       .first<License>();
     if (!license) return jsonError('No license is configured for this gym', 403);
@@ -208,21 +211,21 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   // DB role perms are the authoritative source; JWT perms are additive fallback only.
   if ((user as any).roleId) {
     const roleId = (user as any).roleId as number;
-    const roleRow = await c.env.DB
-      .prepare(`SELECT permissions, is_owner FROM roles WHERE id = ? AND deleted_at IS NULL`)
+    const roleRow: any = await c.env.DB
+      .prepare(`SELECT permissions, isOwner FROM roles WHERE id = ? AND deletedAt IS NULL`)
       .bind(roleId)
-      .first<{ permissions: string; is_owner: number }>();
+      .first<{ permissions: string; isOwner: number }>();
     if (roleRow) {
-      user.isOwner = Boolean(roleRow.is_owner);
+      user.isOwner = Boolean(roleRow.isOwner);
       if (user.isOwner) {
         user.permissions = ['*'];
       } else {
         try {
           const roleMenuRows = await c.env.DB
             .prepare(
-              `SELECT m.key FROM role_menus rm
-               JOIN menu_items m ON m.id = rm.menu_item_id
-               WHERE rm.gym_id = ? AND rm.role_id = ? AND m.is_active = 1`
+              `SELECT m.key FROM roleMenus rm
+               JOIN menuItems m ON m.id = rm.menuItemId
+               WHERE rm.gymId = ? AND rm.roleId = ? AND m.isActive = 1`
             )
             .bind(session.gymId, roleId)
             .all<{ key: string }>();
@@ -245,7 +248,7 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   }
 
   const gym = await c.env.DB
-    .prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`)
+    .prepare(`SELECT * FROM gyms WHERE id = ? AND deletedAt IS NULL`)
     .bind(ctx.gymId)
     .first<Gym>();
   if (!gym) {
@@ -256,7 +259,7 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   }
 
   const license = await c.env.DB
-    .prepare(`SELECT * FROM licenses WHERE gym_id = ?`)
+    .prepare(`SELECT * FROM licenses WHERE gymId = ?`)
     .bind(ctx.gymId)
     .first<License>();
   if (!license) return jsonError('No license is configured for this gym', 403);
@@ -291,7 +294,7 @@ export async function getGymFeatures(
   gymId: number,
 ): Promise<GymFeatureKey[]> {
   const row = await db
-    .prepare(`SELECT features FROM licenses WHERE gym_id = ? LIMIT 1`)
+    .prepare(`SELECT features FROM licenses WHERE gymId = ? LIMIT 1`)
     .bind(gymId)
     .first<{ features: string | null }>();
   return parseEnabledFeatures(row?.features);

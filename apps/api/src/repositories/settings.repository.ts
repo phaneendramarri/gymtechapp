@@ -49,21 +49,22 @@ export interface GymProfile {
 export class SettingsRepository {
   constructor(private d1: D1Database) {}
 
-  // ---- platform_settings (key/value JSON, platform scope) -----------------
+  // ---- platformSettings (key/value JSON, platform scope) -----------------
 
   async getPlatformSetting<T>(key: string): Promise<T | null> {
     const row = await this.d1
-      .prepare(`SELECT value_json FROM platform_settings WHERE key = ?`)
+      .prepare(`SELECT valueJson FROM platformSettings WHERE key = ?`)
       .bind(key)
-      .first<{ value_json: string }>();
-    return row?.value_json ? (JSON.parse(row.value_json) as T) : null;
+      .first<{ valueJson: string }>();
+    const raw = row?.valueJson;
+    return raw ? (JSON.parse(raw) as T) : null;
   }
 
   async putPlatformSetting(key: string, value: unknown): Promise<void> {
     await this.d1
       .prepare(
-        `INSERT INTO platform_settings (key, value_json, updated_at) VALUES (?, ?, unixepoch())
-         ON CONFLICT(key) DO UPDATE SET value_json = excluded.value_json, updated_at = unixepoch()`
+        `INSERT INTO platformSettings (key, valueJson, updatedAt) VALUES (?, ?, unixepoch())
+         ON CONFLICT(key) DO UPDATE SET valueJson = excluded.valueJson, updatedAt = unixepoch()`
       )
       .bind(key, JSON.stringify(value))
       .run();
@@ -73,8 +74,8 @@ export class SettingsRepository {
 
   private static readonly GYM_PROFILE_COLS = `
     id, name, slug, phone, email, address, city, state, pincode,
-    gst_number AS gstNumber, currency, logo_url AS logoUrl, status,
-    created_at AS createdAt, updated_at AS updatedAt`;
+    gstNumber, currency, logoUrl, status,
+    createdAt, updatedAt`;
 
   async getGymProfile(gymId: number): Promise<GymProfile | null> {
     const row = await this.d1
@@ -103,7 +104,7 @@ export class SettingsRepository {
       .prepare(
         `UPDATE gyms
          SET name = ?, phone = ?, email = ?, address = ?, city = ?, state = ?,
-             pincode = ?, gst_number = ?, currency = ?, logo_url = ?, updated_at = unixepoch()
+             pincode = ?, gstNumber = ?, currency = ?, logoUrl = ?, updatedAt = unixepoch()
          WHERE id = ?`
       )
       .bind(
@@ -126,16 +127,17 @@ export class SettingsRepository {
 
   async getNotificationSettings<T>(gymId: number): Promise<T | null> {
     const row = await this.d1
-      .prepare(`SELECT notification_settings_json FROM gyms WHERE id = ?`)
+      .prepare(`SELECT notificationSettingsJson FROM gyms WHERE id = ?`)
       .bind(gymId)
-      .first<{ notification_settings_json: string | null }>();
-    return row?.notification_settings_json ? (JSON.parse(row.notification_settings_json) as T) : null;
+      .first<{ notificationSettingsJson?: string | null }>();
+    const raw = row?.notificationSettingsJson;
+    return raw ? (JSON.parse(raw) as T) : null;
   }
 
   async setNotificationSettings(gymId: number, settings: unknown): Promise<void> {
     await this.d1
       .prepare(
-        `UPDATE gyms SET notification_settings_json = ?, updated_at = unixepoch() WHERE id = ?`
+        `UPDATE gyms SET notificationSettingsJson = ?, updatedAt = unixepoch() WHERE id = ?`
       )
       .bind(JSON.stringify(settings), gymId)
       .run();

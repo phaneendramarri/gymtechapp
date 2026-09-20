@@ -37,11 +37,11 @@ describe('Tenant Isolation Security Invariants', () => {
 
     // List members
     await memberRepoA.list({});
-    expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*(\?|101)/i);
+    expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*(\?|101)/i);
 
     // Find member by ID
     await memberRepoA.findById(123);
-    expect(mockDb.getLastQuery()).toMatch(/gym_id/i);
+    expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)/i);
     expect(mockDb.getLastBindings()).toContain(gymIdA);
   });
 
@@ -51,11 +51,11 @@ describe('Tenant Isolation Security Invariants', () => {
     const paymentRepoB = new PaymentRepository(mockDb, gymIdB);
 
     await paymentRepoB.list({});
-    expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*\?/i);
+    expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*\?/i);
     expect(mockDb.getLastBindings()).toContain(gymIdB);
 
     await paymentRepoB.getSummaryMetrics();
-    expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*\?/i);
+    expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*\?/i);
     expect(mockDb.getLastBindings()).toContain(gymIdB);
   });
 
@@ -65,7 +65,7 @@ describe('Tenant Isolation Security Invariants', () => {
     const membershipRepo = new MembershipRepository(mockDb, gymIdA);
 
     await membershipRepo.findByMemberId(456);
-    expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*\?/i);
+    expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*\?/i);
     expect(mockDb.getLastBindings()).toContain(gymIdA);
   });
 });

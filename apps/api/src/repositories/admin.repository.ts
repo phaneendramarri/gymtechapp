@@ -35,20 +35,20 @@ export class AdminRepository {
   async listGyms(): Promise<any[]> {
     const { results } = await this.d1.prepare(`
       SELECT g.*,
-             l.name as license_name,
-             l.price_paise as license_price_paise,
-             l.status as license_status,
-             l.expires_at as license_expires_at,
-             l.max_members as license_max_members,
-             l.max_sms as license_max_sms,
-             l.sms_used as license_sms_used,
-             l.max_whatsapp as license_max_whatsapp,
-             l.whatsapp_used as license_whatsapp_used,
-             (SELECT COUNT(*) FROM members WHERE gym_id = g.id AND deleted_at IS NULL) as member_count
+             l.name as licenseName,
+             l.pricePaise as licensePricePaise,
+             l.status as licenseStatus,
+             l.expiresAt as licenseExpiresAt,
+             l.maxMembers as licenseMaxMembers,
+             l.maxSms as licenseMaxSms,
+             l.smsUsed as licenseSmsUsed,
+             l.maxWhatsapp as licenseMaxWhatsapp,
+             l.whatsappUsed as licenseWhatsappUsed,
+             (SELECT COUNT(*) FROM members WHERE gymId = g.id AND deletedAt IS NULL) as memberCount
       FROM gyms g
-      LEFT JOIN licenses l ON l.gym_id = g.id
-      WHERE g.deleted_at IS NULL
-      ORDER BY g.created_at DESC
+      LEFT JOIN licenses l ON l.gymId = g.id
+      WHERE g.deletedAt IS NULL
+      ORDER BY g.createdAt DESC
     `).all();
     return results || [];
   }
@@ -59,15 +59,15 @@ export class AdminRepository {
         COUNT(*) as total_gyms,
         SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END) as active_gyms,
         SUM(CASE WHEN status = 'SUSPENDED' THEN 1 ELSE 0 END) as suspended_gyms
-      FROM gyms WHERE deleted_at IS NULL
+      FROM gyms WHERE deletedAt IS NULL
     `).all();
 
     const { results: membersResults } = await this.d1.prepare(`
-      SELECT COUNT(*) as total_members FROM members WHERE deleted_at IS NULL
+      SELECT COUNT(*) as total_members FROM members WHERE deletedAt IS NULL
     `).all();
 
     const { results: revResults } = await this.d1.prepare(`
-      SELECT SUM(amount_paise) as platform_revenue FROM payments WHERE status = 'COMPLETED'
+      SELECT SUM(amountPaise) as platform_revenue FROM payments WHERE status = 'COMPLETED'
     `).all();
 
     return {
@@ -229,7 +229,7 @@ export class AdminRepository {
     await this.db
       .update(gyms)
       .set({ status, updatedAt: Math.floor(Date.now() / 1000) })
-      .where(sql`id = ${gymId} AND deleted_at IS NULL`);
+      .where(sql`id = ${gymId} AND deletedAt IS NULL`);
   }
 
   /**

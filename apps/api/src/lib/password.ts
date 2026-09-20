@@ -9,9 +9,6 @@
  *
  * Hash format (PHC-inspired):
  *   pbkdf2$sha256:100000$<base64-salt>$<base64-hash>
- *
- * Legacy format (migration only):
- *   sha256$<hex64>
  */
 
 const PBKDF2_ITERATIONS = 100_000;
@@ -48,27 +45,10 @@ export async function hashPassword(password: string): Promise<string> {
 }
 
 /**
- * Legacy SHA-256 hash — used ONLY for existing seed/migration data.
- * Format: `sha256$<hex64>`
- */
-export async function hashPasswordLegacySha256(password: string): Promise<string> {
-  if (typeof password !== 'string' || password.length === 0) {
-    throw new Error('Password must be a non-empty string');
-  }
-  const data = new TextEncoder().encode(password);
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  const hex = Array.from(new Uint8Array(buf))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-  return `sha256$${hex}`;
-}
-
-/**
  * Verify a plaintext password against a stored hash.
  *
  * Supports:
  *   - `pbkdf2$sha256:<iterations>$<salt>$<hash>` (PBKDF2-SHA256, default)
- *   - `sha256$<hex64>` (legacy, migration only — verify-only, no rehash)
  *
  * Returns true on match, false otherwise. Never throws for invalid input —
  * returns false so the caller can return a uniform "Invalid credentials"
@@ -116,17 +96,6 @@ export async function verifyPassword(password: string, storedHash: string): Prom
     }
   }
 
-  // Legacy SHA-256
-  if (storedHash.startsWith('sha256$')) {
-    const expected = storedHash.slice('sha256$'.length).toLowerCase();
-    if (expected.length !== 64) return false;
-    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
-    const got = Array.from(new Uint8Array(buf))
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join('');
-    return constantTimeEqualHex(got, expected);
-  }
-
   // Unknown format — refuse.
   return false;
 }
@@ -140,14 +109,6 @@ function base64UrlDecode(str: string): Uint8Array {
   else if (pad === 3) b64 += '=';
   const binary = atob(b64);
   return Uint8Array.from(binary, (c) => c.charCodeAt(0));
-}
-
-/**
- * True when the stored hash is in the legacy (sha256) format and should be
- * transparently upgraded to PBKDF2-SHA256 on the next successful login.
- */
-export function isLegacyHash(storedHash: string): boolean {
-  return typeof storedHash === 'string' && storedHash.startsWith('sha256$');
 }
 
 /**

@@ -47,18 +47,18 @@ planRoutes.put('/:id', requireGym, requireFeature('plans'), requirePermission('p
   const before = await planRepo.findById(id);
   if (!before) return jsonErr('Plan not found', 404);
 
-  // Map camelCase API contract → snake_case repository contract. Server-managed
-  // fields (gym_id, deleted_at, is_active, created_at) are never accepted.
+  // Map camelCase API contract → camelCase repository contract. Server-managed
+  // fields (gymId, deletedAt, isActive, createdAt) are never accepted.
   const patch: Record<string, unknown> = {};
   if (parsed.data.name !== undefined) patch.name = parsed.data.name;
   if (parsed.data.description !== undefined) patch.description = parsed.data.description;
-  if (parsed.data.durationMonths !== undefined) patch.duration_months = parsed.data.durationMonths;
-  if (parsed.data.pricePaise !== undefined) patch.price_paise = parsed.data.pricePaise;
-  if (parsed.data.admissionFeePaise !== undefined) patch.admission_fee_paise = parsed.data.admissionFeePaise;
-  if (parsed.data.taxPercentage !== undefined) patch.tax_percentage = parsed.data.taxPercentage;
-  if (parsed.data.billingPeriod !== undefined) patch.billing_period = parsed.data.billingPeriod;
+  if (parsed.data.durationMonths !== undefined) patch.durationMonths = parsed.data.durationMonths;
+  if (parsed.data.pricePaise !== undefined) patch.pricePaise = parsed.data.pricePaise;
+  if (parsed.data.admissionFeePaise !== undefined) patch.admissionFeePaise = parsed.data.admissionFeePaise;
+  if (parsed.data.taxPercentage !== undefined) patch.taxPercentage = parsed.data.taxPercentage;
+  if (parsed.data.billingPeriod !== undefined) patch.billingPeriod = parsed.data.billingPeriod;
 
-  await planRepo.update(id, patch);
+  await planRepo.update(id, patch as any);
   const after = await planRepo.findById(id);
   await auditGym(ctx, 'plan.update', 'membership_plan', id, { before, after });
   return jsonOk(after);

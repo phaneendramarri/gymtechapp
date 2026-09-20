@@ -26,7 +26,7 @@ export interface RateLimitOptions {
 }
 
 // ---------------------------------------------------------------------------
-// In-memory store (unit tests / local dev without KV)
+// In-memory store (unit tests ONLY — never used in production)
 // ---------------------------------------------------------------------------
 
 const memoryStore = new Map<string, { ts: number[]; windowSecs: number }>();
@@ -55,6 +55,14 @@ export const inMemoryStore: RateLimiterStore = {
     return { allowed, remaining, resetAt };
   },
 };
+
+/**
+ * Reset the in-memory store — only for test isolation.
+ * NOT for production use.
+ */
+export function resetMemoryStore(): void {
+  memoryStore.clear();
+}
 
 // ---------------------------------------------------------------------------
 // KV store (Cloudflare Workers production)
@@ -110,9 +118,14 @@ export interface RateLimiterStore {
  * Create a store instance.
  *
  * When `kv` is supplied (Workers production) the KV-backed store is used.
- * Otherwise the in-memory Map is used — appropriate for unit tests.
+ * Otherwise the in-memory Map is used — appropriate for unit tests ONLY.
+ * In production-like environments without KV, this throws to prevent
+ * accidental use of unbounded in-memory rate limiting.
  */
-export function createRateLimiter(kv?: KVNamespace): RateLimiterStore {
+export function createRateLimiter(kv?: KVNamespace, isProduction = false): RateLimiterStore {
   if (kv) return kvRateLimiterStore(kv);
+  if (isProduction) {
+    throw new Error('RATELIMIT_KV binding is required in production. In-memory rate limiting is not suitable for production use.');
+  }
   return inMemoryStore;
 }

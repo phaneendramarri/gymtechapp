@@ -54,7 +54,7 @@ export class MenuRepository {
   /** Remove a role's menu links (used when the role is deleted). */
   async clearRoleMenus(gymId: number, roleId: number): Promise<void> {
     await this.d1
-      .prepare('DELETE FROM role_menus WHERE gym_id = ? AND role_id = ?')
+      .prepare('DELETE FROM roleMenus WHERE gymId = ? AND roleId = ?')
       .bind(gymId, roleId)
       .run();
   }
@@ -68,12 +68,12 @@ export class MenuRepository {
 
     await this.d1.batch([
       this.d1
-        .prepare('DELETE FROM role_menus WHERE gym_id = ? AND role_id = ?')
+        .prepare('DELETE FROM roleMenus WHERE gymId = ? AND roleId = ?')
         .bind(gymId, roleId),
       ...validMenuIds.map((menuItemId) =>
         this.d1
           .prepare(
-            'INSERT OR IGNORE INTO role_menus (gym_id, role_id, menu_item_id, created_at) VALUES (?, ?, ?, ?)'
+            'INSERT OR IGNORE INTO roleMenus (gymId, roleId, menuItemId, createdAt) VALUES (?, ?, ?, ?)'
           )
           .bind(gymId, roleId, menuItemId, now)
       ),

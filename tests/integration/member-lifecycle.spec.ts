@@ -87,17 +87,17 @@ describe('Member lifecycle E2E', () => {
     expect(erased.status).toBe(200);
 
     // Row must still exist, but personal fields wiped.
-    const row = await env.DB.prepare('SELECT first_name, last_name, phone, email, status, deleted_at FROM members WHERE id = ?')
+    const row = await env.DB.prepare('SELECT firstName, lastName, phone, email, status, deletedAt FROM members WHERE id = ?')
       .bind(memberId)
-      .first<{ first_name: string | null; last_name: string | null; phone: string | null; email: string | null; status: string; deleted_at: number | null }>();
+      .first<{ firstName: string | null; lastName: string | null; phone: string | null; email: string | null; status: string; deletedAt: number | null }>();
     expect(row).not.toBeNull();
-    expect(row!.first_name).toBe('[ERASED]');
+    expect(row!.firstName).toBe('[ERASED]');
     expect(row!.email).toBeNull();
     // phone is NOT NULL — erased members carry a tombstone, not their number.
     expect(row!.phone).toMatch(/^erased-\d+@gdpr\.invalid$/);
     expect(row!.phone).not.toContain(phoneFromSuffix(suffix));
-    // Soft-deleted (deleted_at set) — the audit trail keeps the row, but it can
+    // Soft-deleted (deletedAt set) — the audit trail keeps the row, but it can
     // never be checked in or contacted again.
-    expect(row!.deleted_at).not.toBeNull();
+    expect(row!.deletedAt).not.toBeNull();
   });
 });

@@ -42,10 +42,13 @@ export function isAccountLocked(
  * uneconomic.
  */
 export function nextLockoutSeconds(failedCount: number): number | null {
+  // Find the highest tier that applies to the current failure count
   let chosen: number | null = null;
   for (const tier of PROGRESSIVE_LOCKOUT_THRESHOLDS) {
     if (failedCount >= tier.failures) {
       chosen = tier.seconds;
+    } else {
+      break; // Tiers are ordered by failures ascending
     }
   }
   return chosen;

@@ -118,20 +118,20 @@ describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
       const now = 1756550400;
       const initialMember = {
         id: 10,
-        gym_id: 1,
-        first_name: 'Rahul',
+        gymId: 1,
+        firstName: 'Rahul',
         status: 'ACTIVE',
-        deleted_at: null,
+        deletedAt: null,
       };
 
       // Soft delete operation
       const archivedMember = {
         ...initialMember,
         status: 'INACTIVE',
-        deleted_at: now,
+        deletedAt: now,
       };
 
-      expect(archivedMember.deleted_at).toBe(now);
+      expect(archivedMember.deletedAt).toBe(now);
       expect(archivedMember.status).toBe('INACTIVE');
       expect(archivedMember.id).toBe(10); // Historical entity identity preserved
 
@@ -205,11 +205,11 @@ describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
     it('enforces maximum member limit per tenant license', async () => {
       const mockLicense = {
         id: 1,
-        gym_id: 101,
+        gymId: 101,
         status: 'ACTIVE',
-        max_members: 100,
-        max_staff_total: 10,
-        max_managers: 2,
+        maxMembers: 100,
+        maxStaffTotal: 10,
+        maxManagers: 2,
       };
 
       const mockDb: any = {
@@ -236,11 +236,11 @@ describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
     it('allows unlimited members when license max_members is -1', async () => {
       const unlimitedLicense = {
         id: 1,
-        gym_id: 102,
+        gymId: 102,
         status: 'ACTIVE',
-        max_members: -1,
-        max_staff_total: -1,
-        max_managers: -1,
+        maxMembers: -1,
+        maxStaffTotal: -1,
+        maxManagers: -1,
       };
 
       const mockDb: any = {
@@ -265,10 +265,10 @@ describe('Enterprise SaaS Governance & Multi-Tenant Architecture', () => {
     it('enforces manager limits per gym', async () => {
       const mockLicense = {
         id: 1,
-        gym_id: 103,
+        gymId: 103,
         status: 'ACTIVE',
-        max_managers: 2,
-        max_staff_total: 10,
+        maxManagers: 2,
+        maxStaffTotal: 10,
       };
 
       const mockDb: any = {

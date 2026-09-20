@@ -44,11 +44,11 @@ attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), req
   const activeMembership = await memberRepo.getActiveMembership(member.id);
 
   const nowSec = Math.floor(Date.now() / 1000);
-  const isExpired = !activeMembership || activeMembership.end_date < nowSec;
+  const isExpired = !activeMembership || activeMembership.endDate < nowSec;
   const isOverride = Boolean(parsed.data.override && (ctx.user?.isOwner || ctx.user?.permissions?.includes('attendance')));
 
   if (isExpired && !isOverride) {
-    const expiryDateStr = activeMembership ? new Date(activeMembership.end_date * 1000).toLocaleDateString('en-IN') : 'No Plan';
+    const expiryDateStr = activeMembership ? new Date(activeMembership.endDate * 1000).toLocaleDateString('en-IN') : 'No Plan';
     return jsonOk({
       success: false, code: 'MEMBERSHIP_EXPIRED',
       error: `ACCESS DENIED: Membership expired on ${expiryDateStr}. Account is frozen until renewed.`,

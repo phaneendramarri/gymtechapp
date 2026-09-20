@@ -65,7 +65,25 @@ export class AttendanceRepository {
         recordedByUserId: data.recordedByUserId ?? null,
         createdAt: now,
       })
+      .onConflictDoNothing({ target: [attendance.gymId, attendance.memberId, attendance.attendanceDate] })
       .returning({ id: attendance.id });
+    if (row.length === 0) {
+      // Lost the race: another request checked this member in first.
+      // Re-read the winner so the caller reports alreadyCheckedIn.
+      const winner = await this.db
+        .select({ id: attendance.id })
+        .from(attendance)
+        .where(
+          and(
+            eq(attendance.gymId, this.gymId),
+            eq(attendance.memberId, data.memberId),
+            eq(attendance.attendanceDate, today),
+            isNull(attendance.deletedAt)
+          )
+        )
+        .get();
+      return { alreadyCheckedIn: true, attendanceId: winner!.id };
+    }
     return { alreadyCheckedIn: false, attendanceId: row[0]!.id };
   }
 

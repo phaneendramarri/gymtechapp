@@ -36,10 +36,10 @@ export class CommunicationRepository {
   async recordDispatch(params: RecordDispatchParams): Promise<void> {
     await this.d1
       .prepare(
-        `INSERT INTO communication_logs (
-          gym_id, member_id, channel, recipient_phone, recipient_name, message_type,
-          credits_deducted, remaining_balance, lawful_basis, retention_until,
-          dispatched_by_id, ip, created_at
+        `INSERT INTO communicationLogs (
+          gymId, memberId, channel, recipientPhone, recipientName, messageType,
+          creditsDeducted, remainingBalance, lawfulBasis, retentionUntil,
+          dispatchedById, ip, createdAt
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .bind(
@@ -63,15 +63,15 @@ export class CommunicationRepository {
   /** Daily-cron purge: remove rows whose retention window has elapsed. */
   async purgeExpired(gymId: number, nowUnix: number): Promise<number> {
     const res = await this.d1
-      .prepare('DELETE FROM communication_logs WHERE gym_id = ? AND retention_until <= ?')
+      .prepare('DELETE FROM communicationLogs WHERE gymId = ? AND retentionUntil <= ?')
       .bind(gymId, nowUnix)
       .run();
-    return res.meta.changes ?? 0;
+    return res.meta?.changes ?? 0;
   }
 
   async purgeForMember(gymId: number, memberId: number): Promise<void> {
     await this.d1
-      .prepare('DELETE FROM communication_logs WHERE gym_id = ? AND member_id = ?')
+      .prepare('DELETE FROM communicationLogs WHERE gymId = ? AND memberId = ?')
       .bind(gymId, memberId)
       .run();
   }

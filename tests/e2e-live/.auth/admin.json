@@ -2,20 +2,20 @@
   "cookies": [
     {
       "name": "gym_token",
-      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJhZG1pbkBneW10ZWNoLmFwcCIsIm5hbWUiOiJTdXBlciBBZG1pbiIsInJvbGUiOiJQTEFURk9STV9BRE1JTiIsImd5bUlkIjpudWxsLCJpc093bmVyIjpmYWxzZSwicGVybWlzc2lvbnMiOlsiKiJdLCJyb2xlSWQiOm51bGwsImV4cCI6MTc4OTkxNjg1OCwiaXNzIjoiaHR0cDovLzEyNy4wLjAuMTo4Nzg3IiwiYXVkIjoiZ3ltdGVjaC1hcGkiLCJqdGkiOiJlMDhmZTNmYzBiZjQ4YmY0ZDM2ODUxZDBhZTI3MjNkMiJ9.D610z9Oy06K6VUd9IhOEgJl9j7XS-5Er9EYeAp6AKgI",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJhZG1pbkBneW10ZWNoLmFwcCIsIm5hbWUiOiJTdXBlciBBZG1pbiIsInJvbGUiOiJQTEFURk9STV9BRE1JTiIsImd5bUlkIjpudWxsLCJpc093bmVyIjpmYWxzZSwicGVybWlzc2lvbnMiOlsiKiJdLCJyb2xlSWQiOm51bGwsImV4cCI6MTc4OTkzMDYwOSwiaXNzIjoiaHR0cDovLzEyNy4wLjAuMTo4Nzg3IiwiYXVkIjoiZ3ltdGVjaC1hcGkiLCJqdGkiOiI2NjA3ZTJlMDNlN2I4MTVkOGE2NThjZDdiODhmZTVkZSJ9.2vJjm4Rpmt7-M2TvHQ2X-Pci3D-PEW1GpH-hcIVECvw",
       "domain": "127.0.0.1",
       "path": "/",
-      "expires": 1790520758.144887,
+      "expires": 1790534509.780279,
       "httpOnly": true,
       "secure": false,
       "sameSite": "Lax"
     },
     {
       "name": "gym_csrf",
-      "value": "lV1gxK_NLM-fcqAfkOWf7vjsPrVErlZdjQHPJ3TpHwg",
+      "value": "6AIwPaZKhr3iHYQlqM1gBx34GSq89cGlhINWxl5Fv5c",
       "domain": "127.0.0.1",
       "path": "/",
-      "expires": 1790520758.14501,
+      "expires": 1790534509.780448,
       "httpOnly": false,
       "secure": false,
       "sameSite": "Lax"

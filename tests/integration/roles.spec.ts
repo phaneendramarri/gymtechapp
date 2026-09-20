@@ -43,7 +43,7 @@ describe('Roles & staff E2E', () => {
   it('prevents deleting the built-in OWNER role', async () => {
     const { client, env } = await loginAsOwner();
     const ownerRole = await env.DB.prepare(
-      `SELECT id FROM roles WHERE is_owner = 1 AND deleted_at IS NULL LIMIT 1`
+      `SELECT id FROM roles WHERE isOwner = 1 AND deletedAt IS NULL LIMIT 1`
     ).first<{ id: number }>();
     if (!ownerRole) return; // dataset without built-ins — skip
 

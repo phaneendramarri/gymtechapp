@@ -1,14 +1,15 @@
 -- ============================================================================
--- GymTech — Canonical Baseline Schema (31 Tables)
+-- GymTech — Canonical Baseline Schema (31 Tables) [100% camelCase Everywhere]
 -- ============================================================================
 -- Clean, consolidated, single-pass multi-tenant schema for GymTech SaaS.
 --
 -- Conventions (enforced across all tables):
+--   * Table names and column names are strictly camelCase.
 --   * Money is stored as INTEGER paise (₹1 = 100 paise).
---   * Timestamps are unix seconds (INTEGER); attendance_date is YYYYMMDD.
+--   * Timestamps are unix seconds (INTEGER); attendanceDate is YYYYMMDD.
 --   * Calendar dates (date-only) are ISO YYYY-MM-DD TEXT strings.
---   * Every tenant-owned table carries `gym_id NOT NULL REFERENCES gyms(id) ON DELETE CASCADE`.
---   * Parents referenced by a composite (gym_id, id) FK MUST expose a UNIQUE
+--   * Every tenant-owned table carries `gymId NOT NULL REFERENCES gyms(id) ON DELETE CASCADE`.
+--   * Parents referenced by a composite (gymId, id) FK MUST expose a UNIQUE
 --     index over those exact columns so SQLite foreign key validation succeeds.
 --   * Table order strictly follows foreign key dependency order.
 -- ============================================================================
@@ -16,30 +17,30 @@
 PRAGMA foreign_keys = ON;
 
 -- ============================================================================
--- 1. platform_admins — SaaS platform super administrators
+-- 1. platformAdmins — SaaS platform super administrators
 -- ============================================================================
-CREATE TABLE platform_admins (
+CREATE TABLE platformAdmins (
     id                  INTEGER PRIMARY KEY,
     email               TEXT NOT NULL UNIQUE,
-    password_hash       TEXT NOT NULL,
+    passwordHash        TEXT NOT NULL,
     name                TEXT NOT NULL,
     status              TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED')),
-    failed_login_count  INTEGER NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
-    locked_until        INTEGER,
-    last_login_at       INTEGER,
-    authorized_gyms     TEXT,
-    created_at          INTEGER NOT NULL,
-    updated_at          INTEGER NOT NULL,
-    deleted_at          INTEGER
+    failedLoginCount    INTEGER NOT NULL DEFAULT 0 CHECK (failedLoginCount >= 0),
+    lockedUntil         INTEGER,
+    lastLoginAt         INTEGER,
+    authorizedGyms      TEXT,
+    createdAt           INTEGER NOT NULL,
+    updatedAt           INTEGER NOT NULL,
+    deletedAt           INTEGER
 );
 
 -- ============================================================================
--- 2. platform_settings — Global key/value config (gateways, SMTP, etc.)
+-- 2. platformSettings — Global key/value config (gateways, SMTP, etc.)
 -- ============================================================================
-CREATE TABLE platform_settings (
+CREATE TABLE platformSettings (
     key         TEXT PRIMARY KEY,
-    value_json  TEXT NOT NULL,
-    updated_at  INTEGER NOT NULL
+    valueJson   TEXT NOT NULL,
+    updatedAt   INTEGER NOT NULL
 );
 
 -- ============================================================================
@@ -55,384 +56,384 @@ CREATE TABLE gyms (
     city                        TEXT,
     state                       TEXT,
     pincode                     TEXT,
-    gst_number                  TEXT,
+    gstNumber                   TEXT,
     currency                    TEXT NOT NULL DEFAULT 'INR',
-    logo_url                    TEXT,
+    logoUrl                     TEXT,
     status                      TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','SUSPENDED','CANCELLED')),
-    notification_settings_json  TEXT,
-    created_at                  INTEGER NOT NULL,
-    updated_at                  INTEGER NOT NULL,
-    deleted_at                  INTEGER
+    notificationSettingsJson    TEXT,
+    createdAt                   INTEGER NOT NULL,
+    updatedAt                   INTEGER NOT NULL,
+    deletedAt                   INTEGER
 );
-CREATE INDEX idx_gyms_status ON gyms(status, deleted_at);
+CREATE INDEX idxGymsStatus ON gyms(status, deletedAt);
 
 -- ============================================================================
 -- 4. licenses — Commercial SaaS subscription per gym (1:1 with gyms)
 -- ============================================================================
 CREATE TABLE licenses (
-    id                        INTEGER PRIMARY KEY,
-    gym_id                    INTEGER NOT NULL UNIQUE,
-    name                      TEXT NOT NULL,
-    code                      TEXT NOT NULL,
-    price_paise               INTEGER NOT NULL,
-    billing_period            TEXT NOT NULL DEFAULT 'MONTHLY' CHECK (billing_period IN ('MONTHLY','YEARLY')),
-    max_members               INTEGER NOT NULL,
-    max_owners                INTEGER NOT NULL DEFAULT 1,
-    max_managers              INTEGER NOT NULL,
-    max_staff_total           INTEGER NOT NULL,
-    max_sms                   INTEGER NOT NULL,
-    max_whatsapp              INTEGER NOT NULL,
-    max_email                 INTEGER NOT NULL,
-    sms_used                  INTEGER NOT NULL DEFAULT 0,
-    whatsapp_used             INTEGER NOT NULL DEFAULT 0,
-    email_used                INTEGER NOT NULL DEFAULT 0,
-    features                  TEXT NOT NULL DEFAULT '{}',
-    started_at                INTEGER NOT NULL,
-    expires_at                INTEGER NOT NULL,
-    status                    TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','EXPIRED','SUSPENDED')),
-    renewal_reminder_sent_at  INTEGER,
-    trial_ends_at             INTEGER,
-    created_by_admin_id       INTEGER,
-    created_at                INTEGER NOT NULL,
-    updated_at                INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    id                      INTEGER PRIMARY KEY,
+    gymId                   INTEGER NOT NULL UNIQUE,
+    name                    TEXT NOT NULL,
+    code                    TEXT NOT NULL,
+    pricePaise              INTEGER NOT NULL,
+    billingPeriod           TEXT NOT NULL DEFAULT 'MONTHLY' CHECK (billingPeriod IN ('MONTHLY','YEARLY')),
+    maxMembers              INTEGER NOT NULL,
+    maxOwners               INTEGER NOT NULL DEFAULT 1,
+    maxManagers             INTEGER NOT NULL,
+    maxStaffTotal           INTEGER NOT NULL,
+    maxSms                  INTEGER NOT NULL,
+    maxWhatsapp             INTEGER NOT NULL,
+    maxEmail                INTEGER NOT NULL,
+    smsUsed                 INTEGER NOT NULL DEFAULT 0,
+    whatsappUsed            INTEGER NOT NULL DEFAULT 0,
+    emailUsed               INTEGER NOT NULL DEFAULT 0,
+    features                TEXT NOT NULL DEFAULT '{}',
+    startedAt               INTEGER NOT NULL,
+    expiresAt               INTEGER NOT NULL,
+    status                  TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','EXPIRED','SUSPENDED')),
+    renewalReminderSentAt   INTEGER,
+    trialEndsAt             INTEGER,
+    createdByAdminId        INTEGER,
+    createdAt               INTEGER NOT NULL,
+    updatedAt               INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX licenses_code_unique ON licenses(code);
+CREATE UNIQUE INDEX licensesCodeUnique ON licenses(code);
 
 -- ============================================================================
 -- 5. roles — Owner-defined roles per gym
 -- ============================================================================
 CREATE TABLE roles (
     id           INTEGER PRIMARY KEY,
-    gym_id       INTEGER NOT NULL,
+    gymId        INTEGER NOT NULL,
     name         TEXT NOT NULL,
     permissions  TEXT NOT NULL DEFAULT '[]',
-    is_owner     INTEGER NOT NULL DEFAULT 0,
-    is_default   INTEGER NOT NULL DEFAULT 0,
-    created_at   INTEGER NOT NULL,
-    updated_at   INTEGER NOT NULL,
-    deleted_at   INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    isOwner      INTEGER NOT NULL DEFAULT 0,
+    isDefault    INTEGER NOT NULL DEFAULT 0,
+    createdAt    INTEGER NOT NULL,
+    updatedAt    INTEGER NOT NULL,
+    deletedAt    INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX roles_gym_name_unique ON roles(gym_id, name) WHERE deleted_at IS NULL;
-CREATE INDEX idx_roles_gym ON roles(gym_id, deleted_at);
+CREATE UNIQUE INDEX rolesGymNameUnique ON roles(gymId, name) WHERE deletedAt IS NULL;
+CREATE INDEX idxRolesGym ON roles(gymId, deletedAt);
 
 -- ============================================================================
 -- 6. users — Gym staff & owners
 -- ============================================================================
 CREATE TABLE users (
     id                  INTEGER PRIMARY KEY,
-    gym_id              INTEGER NOT NULL,
+    gymId               INTEGER NOT NULL,
     name                TEXT NOT NULL,
     email               TEXT NOT NULL,
     phone               TEXT,
-    password_hash       TEXT NOT NULL,
-    role_id             INTEGER REFERENCES roles(id) ON DELETE SET NULL,
+    passwordHash        TEXT NOT NULL,
+    roleId              INTEGER REFERENCES roles(id) ON DELETE SET NULL,
     status              TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','DISABLED')),
-    is_owner            INTEGER NOT NULL DEFAULT 0,
-    last_login_at       INTEGER,
-    failed_login_count  INTEGER NOT NULL DEFAULT 0 CHECK (failed_login_count >= 0),
-    locked_until        INTEGER,
-    created_at          INTEGER NOT NULL,
-    updated_at          INTEGER NOT NULL,
-    deleted_at          INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    isOwner             INTEGER NOT NULL DEFAULT 0,
+    lastLoginAt         INTEGER,
+    failedLoginCount    INTEGER NOT NULL DEFAULT 0 CHECK (failedLoginCount >= 0),
+    lockedUntil         INTEGER,
+    createdAt           INTEGER NOT NULL,
+    updatedAt           INTEGER NOT NULL,
+    deletedAt           INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX users_gym_id_unique    ON users(gym_id, id);
-CREATE UNIQUE INDEX users_gym_email_unique ON users(gym_id, email);
-CREATE INDEX idx_users_gym_owner  ON users(gym_id, is_owner);
-CREATE INDEX idx_users_gym_status ON users(gym_id, status, deleted_at);
-CREATE INDEX idx_users_gym_role   ON users(gym_id, role_id);
+CREATE UNIQUE INDEX usersGymIdUnique    ON users(gymId, id);
+CREATE UNIQUE INDEX usersGymEmailUnique ON users(gymId, email);
+CREATE INDEX idxUsersGymOwner  ON users(gymId, isOwner);
+CREATE INDEX idxUsersGymStatus ON users(gymId, status, deletedAt);
+CREATE INDEX idxUsersGymRole   ON users(gymId, roleId);
 
 -- ============================================================================
--- 7. user_sessions — Access & refresh token registry
+-- 7. userSessions — Access & refresh token registry
 -- ============================================================================
-CREATE TABLE user_sessions (
-    id                        INTEGER PRIMARY KEY,
-    gym_id                    INTEGER NOT NULL DEFAULT 0,
-    user_id                   INTEGER NOT NULL,
-    token_hash                TEXT NOT NULL UNIQUE,
-    refresh_token_hash        TEXT,
-    refresh_token_expires_at  INTEGER,
-    ip                        TEXT,
-    user_agent                TEXT,
-    issued_at                 INTEGER NOT NULL,
-    expires_at                INTEGER NOT NULL,
-    revoked_at                INTEGER,
-    user_type                 TEXT NOT NULL DEFAULT 'GYM_USER' CHECK (user_type IN ('GYM_USER','PLATFORM_ADMIN'))
+CREATE TABLE userSessions (
+    id                      INTEGER PRIMARY KEY,
+    gymId                   INTEGER NOT NULL DEFAULT 0,
+    userId                  INTEGER NOT NULL,
+    tokenHash               TEXT NOT NULL UNIQUE,
+    refreshTokenHash        TEXT,
+    refreshTokenExpiresAt   INTEGER,
+    ip                      TEXT,
+    userAgent               TEXT,
+    issuedAt                INTEGER NOT NULL,
+    expiresAt               INTEGER NOT NULL,
+    revokedAt               INTEGER,
+    userType                TEXT NOT NULL DEFAULT 'GYM_USER' CHECK (userType IN ('GYM_USER','PLATFORM_ADMIN'))
 );
-CREATE INDEX idx_user_sessions_gym_user ON user_sessions(gym_id, user_id);
-CREATE INDEX idx_user_sessions_expires  ON user_sessions(expires_at);
+CREATE INDEX idxUserSessionsGymUser ON userSessions(gymId, userId);
+CREATE INDEX idxUserSessionsExpires  ON userSessions(expiresAt);
 
 -- ============================================================================
--- 8. user_password_resets — Cryptographic password reset tokens
+-- 8. userPasswordResets — Cryptographic password reset tokens
 -- ============================================================================
-CREATE TABLE user_password_resets (
+CREATE TABLE userPasswordResets (
     id          INTEGER PRIMARY KEY,
-    gym_id      INTEGER NOT NULL,
-    user_id     INTEGER NOT NULL,
-    token_hash  TEXT NOT NULL UNIQUE,
-    expires_at  INTEGER NOT NULL,
-    used_at     INTEGER,
-    created_at  INTEGER NOT NULL,
-    FOREIGN KEY (gym_id, user_id) REFERENCES users(gym_id, id) ON DELETE CASCADE
+    gymId       INTEGER NOT NULL,
+    userId      INTEGER NOT NULL,
+    tokenHash   TEXT NOT NULL UNIQUE,
+    expiresAt   INTEGER NOT NULL,
+    usedAt      INTEGER,
+    createdAt   INTEGER NOT NULL,
+    FOREIGN KEY (gymId, userId) REFERENCES users(gymId, id) ON DELETE CASCADE
 );
 
 -- ============================================================================
--- 9. audit_events — Append-only audit trail
+-- 9. auditEvents — Append-only audit trail
 -- ============================================================================
-CREATE TABLE audit_events (
+CREATE TABLE auditEvents (
     id            INTEGER PRIMARY KEY,
-    gym_id        INTEGER NOT NULL,
-    actor_user_id INTEGER,
-    actor_role    TEXT,
+    gymId         INTEGER NOT NULL,
+    actorUserId   INTEGER,
+    actorRole     TEXT,
     action        TEXT NOT NULL,
-    entity_type   TEXT NOT NULL,
-    entity_id     INTEGER,
-    before_state  TEXT,
-    after_state   TEXT,
+    entityType    TEXT NOT NULL,
+    entityId      INTEGER,
+    beforeState   TEXT,
+    afterState    TEXT,
     ip            TEXT,
-    user_agent    TEXT,
-    device_info   TEXT,
+    userAgent     TEXT,
+    deviceInfo    TEXT,
     metadata      TEXT,
-    created_at    INTEGER NOT NULL
+    createdAt     INTEGER NOT NULL
 );
-CREATE INDEX idx_audit_gym_created        ON audit_events(gym_id, created_at);
-CREATE INDEX idx_audit_gym_action_created ON audit_events(gym_id, action, created_at);
-CREATE INDEX idx_audit_gym_entity         ON audit_events(gym_id, entity_type, entity_id);
+CREATE INDEX idxAuditGymCreated        ON auditEvents(gymId, createdAt);
+CREATE INDEX idxAuditGymActionCreated ON auditEvents(gymId, action, createdAt);
+CREATE INDEX idxAuditGymEntity         ON auditEvents(gymId, entityType, entityId);
 
 -- ============================================================================
 -- 10. counters — Atomic sequences (member codes, receipts)
 -- ============================================================================
 CREATE TABLE counters (
-    gym_id        INTEGER NOT NULL,
-    counter_type  TEXT NOT NULL,
+    gymId         INTEGER NOT NULL,
+    counterType   TEXT NOT NULL,
     value         INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (gym_id, counter_type),
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    PRIMARY KEY (gymId, counterType),
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
 
 -- ============================================================================
--- 11. membership_plans — Gym-level catalog sold to members
+-- 11. membershipPlans — Gym-level catalog sold to members
 -- ============================================================================
-CREATE TABLE membership_plans (
+CREATE TABLE membershipPlans (
     id                  INTEGER PRIMARY KEY,
-    gym_id              INTEGER NOT NULL,
+    gymId               INTEGER NOT NULL,
     name                TEXT NOT NULL,
     description         TEXT,
-    duration_months     INTEGER NOT NULL CHECK (duration_months > 0),
-    price_paise         INTEGER NOT NULL,
-    admission_fee_paise INTEGER NOT NULL DEFAULT 0,
-    tax_percentage      REAL NOT NULL DEFAULT 0,
-    is_active           INTEGER NOT NULL DEFAULT 1,
-    billing_period      TEXT NOT NULL DEFAULT 'MONTHLY' CHECK (billing_period IN ('MONTHLY','YEARLY')),
-    created_at          INTEGER NOT NULL,
-    updated_at          INTEGER NOT NULL,
-    deleted_at          INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    durationMonths      INTEGER NOT NULL CHECK (durationMonths > 0),
+    pricePaise          INTEGER NOT NULL,
+    admissionFeePaise   INTEGER NOT NULL DEFAULT 0,
+    taxPercentage       REAL NOT NULL DEFAULT 0,
+    isActive            INTEGER NOT NULL DEFAULT 1,
+    billingPeriod       TEXT NOT NULL DEFAULT 'MONTHLY' CHECK (billingPeriod IN ('MONTHLY','YEARLY')),
+    createdAt           INTEGER NOT NULL,
+    updatedAt           INTEGER NOT NULL,
+    deletedAt           INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX membership_plans_gym_id_unique   ON membership_plans(gym_id, id);
-CREATE UNIQUE INDEX membership_plans_gym_name_unique ON membership_plans(gym_id, name);
-CREATE INDEX idx_membership_plans_gym_active ON membership_plans(gym_id, is_active, deleted_at);
+CREATE UNIQUE INDEX membershipPlansGymIdUnique   ON membershipPlans(gymId, id);
+CREATE UNIQUE INDEX membershipPlansGymNameUnique ON membershipPlans(gymId, name);
+CREATE INDEX idxMembershipPlansGymActive ON membershipPlans(gymId, isActive, deletedAt);
 
 -- ============================================================================
 -- 12. members — Gym customers
 -- ============================================================================
 CREATE TABLE members (
     id                        INTEGER PRIMARY KEY,
-    gym_id                    INTEGER NOT NULL,
-    member_code               TEXT NOT NULL,
-    first_name                TEXT NOT NULL,
-    last_name                 TEXT,
+    gymId                     INTEGER NOT NULL,
+    memberCode                TEXT NOT NULL,
+    firstName                 TEXT NOT NULL,
+    lastName                  TEXT,
     email                     TEXT,
     phone                     TEXT NOT NULL,
     gender                    TEXT CHECK (gender IS NULL OR gender IN ('MALE','FEMALE','OTHER')),
-    date_of_birth             INTEGER,
-    photo_url                 TEXT,
-    face_embedding            TEXT,
-    biometric_consent_given   INTEGER NOT NULL DEFAULT 0,
-    biometric_consent_at      INTEGER,
-    biometric_consent_version TEXT DEFAULT '1.0',
+    dateOfBirth               INTEGER,
+    photoUrl                  TEXT,
+    faceEmbedding             TEXT,
+    biometricConsentGiven     INTEGER NOT NULL DEFAULT 0,
+    biometricConsentAt        INTEGER,
+    biometricConsentVersion   TEXT DEFAULT '1.0',
     address                   TEXT,
     city                      TEXT,
     pincode                   TEXT,
-    emergency_contact_name    TEXT,
-    emergency_contact_phone   TEXT,
-    health_notes              TEXT,
+    emergencyContactName      TEXT,
+    emergencyContactPhone     TEXT,
+    healthNotes               TEXT,
     status                    TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','INACTIVE','BLOCKED','EXPIRED','FROZEN','CANCELLED')),
-    joined_date               INTEGER NOT NULL,
-    created_at                INTEGER NOT NULL,
-    updated_at                INTEGER NOT NULL,
-    deleted_at                INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    joinedDate                INTEGER NOT NULL,
+    createdAt                 INTEGER NOT NULL,
+    updatedAt                 INTEGER NOT NULL,
+    deletedAt                 INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX members_gym_id_unique          ON members(gym_id, id);
-CREATE UNIQUE INDEX members_gym_member_code_unique ON members(gym_id, member_code);
-CREATE UNIQUE INDEX members_gym_phone_unique       ON members(gym_id, phone);
-CREATE INDEX idx_members_gym_status ON members(gym_id, status, deleted_at);
-CREATE INDEX idx_members_gym_name   ON members(gym_id, last_name, first_name);
+CREATE UNIQUE INDEX membersGymIdUnique          ON members(gymId, id);
+CREATE UNIQUE INDEX membersGymMemberCodeUnique ON members(gymId, memberCode);
+CREATE UNIQUE INDEX membersGymPhoneUnique       ON members(gymId, phone);
+CREATE INDEX idxMembersGymStatus ON members(gymId, status, deletedAt);
+CREATE INDEX idxMembersGymName   ON members(gymId, lastName, firstName);
 
 -- ============================================================================
 -- 13. memberships — Member subscriptions to plans
 -- ============================================================================
 CREATE TABLE memberships (
     id                  INTEGER PRIMARY KEY,
-    gym_id              INTEGER NOT NULL,
-    member_id           INTEGER NOT NULL,
-    membership_plan_id  INTEGER NOT NULL,
-    start_date          INTEGER NOT NULL,
-    end_date            INTEGER NOT NULL,
-    total_amount_paise  INTEGER NOT NULL,
-    discount_paise      INTEGER NOT NULL DEFAULT 0,
-    final_amount_paise  INTEGER NOT NULL,
-    paid_amount_paise   INTEGER NOT NULL DEFAULT 0,
-    due_amount_paise    INTEGER NOT NULL DEFAULT 0,
+    gymId               INTEGER NOT NULL,
+    memberId            INTEGER NOT NULL,
+    membershipPlanId    INTEGER NOT NULL,
+    startDate           INTEGER NOT NULL,
+    endDate             INTEGER NOT NULL,
+    totalAmountPaise    INTEGER NOT NULL,
+    discountPaise       INTEGER NOT NULL DEFAULT 0,
+    finalAmountPaise    INTEGER NOT NULL,
+    paidAmountPaise     INTEGER NOT NULL DEFAULT 0,
+    dueAmountPaise      INTEGER NOT NULL DEFAULT 0,
     status              TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','EXPIRED','FROZEN','CANCELLED')),
-    frozen_at           INTEGER,
+    frozenAt            INTEGER,
     notes               TEXT,
-    created_by_user_id  INTEGER,
-    created_at          INTEGER NOT NULL,
-    updated_at          INTEGER NOT NULL,
-    deleted_at          INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id)          REFERENCES members(gym_id, id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, membership_plan_id) REFERENCES membership_plans(gym_id, id) ON DELETE RESTRICT
+    createdByUserId     INTEGER,
+    createdAt           INTEGER NOT NULL,
+    updatedAt           INTEGER NOT NULL,
+    deletedAt           INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId)         REFERENCES members(gymId, id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, membershipPlanId) REFERENCES membershipPlans(gymId, id) ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX memberships_gym_id_unique ON memberships(gym_id, id);
-CREATE INDEX idx_memberships_gym_member        ON memberships(gym_id, member_id);
-CREATE INDEX idx_memberships_gym_status_dates  ON memberships(gym_id, status, end_date);
-CREATE INDEX idx_memberships_gym_end_date      ON memberships(gym_id, end_date);
+CREATE UNIQUE INDEX membershipsGymIdUnique ON memberships(gymId, id);
+CREATE INDEX idxMembershipsGymMember        ON memberships(gymId, memberId);
+CREATE INDEX idxMembershipsGymStatusDates  ON memberships(gymId, status, endDate);
+CREATE INDEX idxMembershipsGymEndDate      ON memberships(gymId, endDate);
 
 -- ============================================================================
 -- 14. payments — Fee receipts & dues payments
 -- ============================================================================
 CREATE TABLE payments (
     id                  INTEGER PRIMARY KEY,
-    gym_id              INTEGER NOT NULL,
-    member_id           INTEGER NOT NULL,
-    membership_id       INTEGER,
-    payment_type        TEXT NOT NULL DEFAULT 'GYM' CHECK (payment_type IN ('GYM','PERSONAL_TRAINING')),
-    receipt_number      TEXT NOT NULL,
-    amount_paise        INTEGER NOT NULL,
-    payment_date        INTEGER NOT NULL,
-    payment_mode        TEXT NOT NULL CHECK (payment_mode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
-    reference_id        TEXT,
+    gymId               INTEGER NOT NULL,
+    memberId            INTEGER NOT NULL,
+    membershipId        INTEGER,
+    paymentType         TEXT NOT NULL DEFAULT 'GYM' CHECK (paymentType IN ('GYM','PERSONAL_TRAINING')),
+    receiptNumber       TEXT NOT NULL,
+    amountPaise         INTEGER NOT NULL,
+    paymentDate         INTEGER NOT NULL,
+    paymentMode         TEXT NOT NULL CHECK (paymentMode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
+    referenceId         TEXT,
     status              TEXT NOT NULL DEFAULT 'COMPLETED' CHECK (status IN ('COMPLETED','REFUNDED','VOID')),
-    recorded_by_user_id INTEGER,
+    recordedByUserId    INTEGER,
     notes               TEXT,
-    created_at          INTEGER NOT NULL,
-    updated_at          INTEGER NOT NULL,
-    deleted_at          INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id)     REFERENCES members(gym_id, id) ON DELETE RESTRICT,
-    FOREIGN KEY (gym_id, membership_id) REFERENCES memberships(gym_id, id) ON DELETE SET NULL
+    createdAt           INTEGER NOT NULL,
+    updatedAt           INTEGER NOT NULL,
+    deletedAt           INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId)     REFERENCES members(gymId, id) ON DELETE RESTRICT,
+    FOREIGN KEY (gymId, membershipId) REFERENCES memberships(gymId, id) ON DELETE SET NULL
 );
-CREATE UNIQUE INDEX payments_gym_id_unique      ON payments(gym_id, id);
-CREATE UNIQUE INDEX payments_gym_receipt_unique ON payments(gym_id, receipt_number);
-CREATE INDEX idx_payments_gym_date        ON payments(gym_id, payment_date);
-CREATE INDEX idx_payments_gym_member_date ON payments(gym_id, member_id, payment_date);
-CREATE INDEX idx_payments_gym_status_date ON payments(gym_id, status, payment_date);
+CREATE UNIQUE INDEX paymentsGymIdUnique      ON payments(gymId, id);
+CREATE UNIQUE INDEX paymentsGymReceiptUnique ON payments(gymId, receiptNumber);
+CREATE INDEX idxPaymentsGymDate        ON payments(gymId, paymentDate);
+CREATE INDEX idxPaymentsGymMemberDate ON payments(gymId, memberId, paymentDate);
+CREATE INDEX idxPaymentsGymStatusDate ON payments(gymId, status, paymentDate);
 
 -- ============================================================================
--- 15. pt_collections — PT payments + trainer commissions
+-- 15. ptCollections — PT payments + trainer commissions
 -- ============================================================================
-CREATE TABLE pt_collections (
+CREATE TABLE ptCollections (
     id                     INTEGER PRIMARY KEY,
-    gym_id                 INTEGER NOT NULL,
-    member_id              INTEGER NOT NULL,
-    trainer_id             INTEGER NOT NULL,
+    gymId                  INTEGER NOT NULL,
+    memberId               INTEGER NOT NULL,
+    trainerId              INTEGER NOT NULL,
     sessions               INTEGER NOT NULL DEFAULT 0,
-    amount_paise           INTEGER NOT NULL,
-    commission_percentage  REAL NOT NULL DEFAULT 0,
-    commission_paise       INTEGER NOT NULL DEFAULT 0,
-    commission_status      TEXT NOT NULL DEFAULT 'PENDING' CHECK (commission_status IN ('PENDING','PAID')),
-    payment_mode           TEXT NOT NULL DEFAULT 'CASH' CHECK (payment_mode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
-    payment_date           INTEGER NOT NULL,
-    receipt_number         TEXT,
+    amountPaise            INTEGER NOT NULL,
+    commissionPercentage   REAL NOT NULL DEFAULT 0,
+    commissionPaise        INTEGER NOT NULL DEFAULT 0,
+    commissionStatus       TEXT NOT NULL DEFAULT 'PENDING' CHECK (commissionStatus IN ('PENDING','PAID')),
+    paymentMode            TEXT NOT NULL DEFAULT 'CASH' CHECK (paymentMode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
+    paymentDate            INTEGER NOT NULL,
+    receiptNumber          TEXT,
     notes                  TEXT,
-    recorded_by_user_id    INTEGER,
-    created_at             INTEGER NOT NULL,
-    updated_at             INTEGER NOT NULL,
-    deleted_at             INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id)  REFERENCES members(gym_id, id) ON DELETE RESTRICT,
-    FOREIGN KEY (gym_id, trainer_id) REFERENCES users(gym_id, id) ON DELETE RESTRICT
+    recordedByUserId       INTEGER,
+    createdAt              INTEGER NOT NULL,
+    updatedAt              INTEGER NOT NULL,
+    deletedAt              INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId)  REFERENCES members(gymId, id) ON DELETE RESTRICT,
+    FOREIGN KEY (gymId, trainerId) REFERENCES users(gymId, id) ON DELETE RESTRICT
 );
-CREATE UNIQUE INDEX pt_collections_gym_id_unique ON pt_collections(gym_id, id);
-CREATE INDEX idx_pt_collections_gym_date    ON pt_collections(gym_id, payment_date);
-CREATE INDEX idx_pt_collections_gym_trainer ON pt_collections(gym_id, trainer_id, commission_status);
-CREATE UNIQUE INDEX pt_collections_gym_receipt_unique
-  ON pt_collections(gym_id, receipt_number) WHERE receipt_number IS NOT NULL;
+CREATE UNIQUE INDEX ptCollectionsGymIdUnique ON ptCollections(gymId, id);
+CREATE INDEX idxPtCollectionsGymDate    ON ptCollections(gymId, paymentDate);
+CREATE INDEX idxPtCollectionsGymTrainer ON ptCollections(gymId, trainerId, commissionStatus);
+CREATE UNIQUE INDEX ptCollectionsGymReceiptUnique
+  ON ptCollections(gymId, receiptNumber) WHERE receiptNumber IS NOT NULL;
 
 -- ============================================================================
 -- 16. attendance — Floor check-ins
 -- ============================================================================
 CREATE TABLE attendance (
     id                  INTEGER PRIMARY KEY,
-    gym_id              INTEGER NOT NULL,
-    member_id           INTEGER NOT NULL,
-    check_in_time       INTEGER NOT NULL,
-    check_out_time      INTEGER,
-    attendance_date     INTEGER NOT NULL,
+    gymId               INTEGER NOT NULL,
+    memberId            INTEGER NOT NULL,
+    checkInTime         INTEGER NOT NULL,
+    checkOutTime        INTEGER,
+    attendanceDate      INTEGER NOT NULL,
     method              TEXT NOT NULL CHECK (method IN ('MANUAL','QR','FACE_ID','KIOSK')),
-    recorded_by_user_id INTEGER,
-    device_info         TEXT,
-    created_at          INTEGER NOT NULL,
-    deleted_at          INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id) REFERENCES members(gym_id, id) ON DELETE CASCADE
+    recordedByUserId    INTEGER,
+    deviceInfo          TEXT,
+    createdAt           INTEGER NOT NULL,
+    deletedAt           INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId) REFERENCES members(gymId, id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX attendance_gym_id_unique    ON attendance(gym_id, id);
-CREATE INDEX idx_attendance_gym_date        ON attendance(gym_id, attendance_date);
-CREATE INDEX idx_attendance_gym_member_date ON attendance(gym_id, member_id, attendance_date);
-CREATE INDEX idx_attendance_gym_checkin     ON attendance(gym_id, check_in_time);
+CREATE UNIQUE INDEX attendanceGymIdUnique    ON attendance(gymId, id);
+CREATE INDEX idxAttendanceGymDate        ON attendance(gymId, attendanceDate);
+CREATE INDEX idxAttendanceGymMemberDate ON attendance(gymId, memberId, attendanceDate);
+CREATE INDEX idxAttendanceGymCheckin     ON attendance(gymId, checkInTime);
 
 -- ============================================================================
--- 17. communication_logs — SMS/WhatsApp/Email dispatch log
+-- 17. communicationLogs — SMS/WhatsApp/Email dispatch log
 -- ============================================================================
-CREATE TABLE communication_logs (
+CREATE TABLE communicationLogs (
     id                 INTEGER PRIMARY KEY,
-    gym_id             INTEGER NOT NULL,
-    member_id          INTEGER,
+    gymId              INTEGER NOT NULL,
+    memberId           INTEGER,
     channel            TEXT NOT NULL CHECK (channel IN ('SMS','WHATSAPP','EMAIL')),
-    recipient_phone    TEXT,
-    recipient_name     TEXT,
-    message_type       TEXT NOT NULL,
-    credits_deducted   INTEGER NOT NULL DEFAULT 1,
-    remaining_balance  INTEGER NOT NULL,
-    lawful_basis       TEXT,
-    retention_until    INTEGER,
-    dispatched_by_id   INTEGER,
+    recipientPhone     TEXT,
+    recipientName      TEXT,
+    messageType        TEXT NOT NULL,
+    creditsDeducted    INTEGER NOT NULL DEFAULT 1,
+    remainingBalance   INTEGER NOT NULL,
+    lawfulBasis        TEXT,
+    retentionUntil     INTEGER,
+    dispatchedById     INTEGER,
     ip                 TEXT,
-    created_at         INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id) REFERENCES members(gym_id, id)
+    createdAt          INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId) REFERENCES members(gymId, id)
 );
-CREATE UNIQUE INDEX communication_logs_gym_id_unique ON communication_logs(gym_id, id);
-CREATE INDEX idx_comm_logs_gym    ON communication_logs(gym_id, created_at);
-CREATE INDEX idx_comm_logs_member ON communication_logs(member_id);
+CREATE UNIQUE INDEX communicationLogsGymIdUnique ON communicationLogs(gymId, id);
+CREATE INDEX idxCommLogsGym    ON communicationLogs(gymId, createdAt);
+CREATE INDEX idxCommLogsMember ON communicationLogs(memberId);
 
 -- ============================================================================
--- 18. menu_items — System navigation & features catalog
+-- 18. menuItems — System navigation & features catalog
 -- ============================================================================
-CREATE TABLE menu_items (
+CREATE TABLE menuItems (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     key          TEXT NOT NULL UNIQUE,
     label        TEXT NOT NULL,
     href         TEXT,
     icon         TEXT,
-    group_key    TEXT NOT NULL DEFAULT 'main',
+    groupKey     TEXT NOT NULL DEFAULT 'main',
     "order"      INTEGER NOT NULL DEFAULT 10,
-    feature_key  TEXT,
-    admin_only   INTEGER NOT NULL DEFAULT 0,
-    is_active    INTEGER NOT NULL DEFAULT 1,
-    created_at   INTEGER NOT NULL,
-    updated_at   INTEGER NOT NULL
+    featureKey   TEXT,
+    adminOnly    INTEGER NOT NULL DEFAULT 0,
+    isActive     INTEGER NOT NULL DEFAULT 1,
+    createdAt    INTEGER NOT NULL,
+    updatedAt    INTEGER NOT NULL
 );
-CREATE INDEX idx_menu_items_group_order ON menu_items(group_key, "order");
+CREATE INDEX idxMenuItemsGroupOrder ON menuItems(groupKey, "order");
 
 -- Seed the complete 14-item navigation & feature catalog
-INSERT INTO menu_items (id, key, label, href, icon, group_key, "order", feature_key, admin_only, is_active, created_at, updated_at) VALUES
+INSERT INTO menuItems (id, key, label, href, icon, groupKey, "order", featureKey, adminOnly, isActive, createdAt, updatedAt) VALUES
   (1,  'dashboard',      'Dashboard',          '/dashboard',      'LayoutDashboard', 'main',  10, null,             0, 1, unixepoch(), unixepoch()),
   (2,  'members',        'Members Directory',  '/members',        'Users',           'main',  20, 'members',        0, 1, unixepoch(), unixepoch()),
   (3,  'attendance',     'Floor & Attendance', '/attendance',     'CalendarCheck',   'main',  30, 'attendance',     0, 1, unixepoch(), unixepoch()),
@@ -449,260 +450,260 @@ INSERT INTO menu_items (id, key, label, href, icon, group_key, "order", feature_
   (14, 'audit_logs',     'Audit Logs',         '/audit-logs',     'Sliders',         'admin', 100,'audit_logs',     0, 1, unixepoch(), unixepoch());
 
 -- ============================================================================
--- 19. role_menus — Junction table (gym role -> menu item)
+-- 19. roleMenus — Junction table (gym role -> menu item)
 -- ============================================================================
-CREATE TABLE role_menus (
+CREATE TABLE roleMenus (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id       INTEGER NOT NULL,
-    role_id      INTEGER NOT NULL,
-    menu_item_id INTEGER NOT NULL,
-    created_at   INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (role_id) REFERENCES roles(id) ON DELETE CASCADE,
-    FOREIGN KEY (menu_item_id) REFERENCES menu_items(id) ON DELETE CASCADE
+    gymId        INTEGER NOT NULL,
+    roleId       INTEGER NOT NULL,
+    menuItemId   INTEGER NOT NULL,
+    createdAt    INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (roleId) REFERENCES roles(id) ON DELETE CASCADE,
+    FOREIGN KEY (menuItemId) REFERENCES menuItems(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX role_menus_role_menu_unique ON role_menus(gym_id, role_id, menu_item_id);
-CREATE INDEX idx_role_menus_gym_role ON role_menus(gym_id, role_id);
-CREATE INDEX idx_role_menus_gym_menu ON role_menus(gym_id, menu_item_id);
+CREATE UNIQUE INDEX roleMenusRoleMenuUnique ON roleMenus(gymId, roleId, menuItemId);
+CREATE INDEX idxRoleMenusGymRole ON roleMenus(gymId, roleId);
+CREATE INDEX idxRoleMenusGymMenu ON roleMenus(gymId, menuItemId);
 
 -- ============================================================================
 -- 20. classes — Group fitness offerings
 -- ============================================================================
 CREATE TABLE classes (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id            INTEGER NOT NULL,
+    gymId             INTEGER NOT NULL,
     name              TEXT NOT NULL,
     description       TEXT,
-    duration_minutes  INTEGER NOT NULL DEFAULT 60 CHECK (duration_minutes > 0),
-    max_capacity      INTEGER NOT NULL DEFAULT 20 CHECK (max_capacity > 0),
+    durationMinutes   INTEGER NOT NULL DEFAULT 60 CHECK (durationMinutes > 0),
+    maxCapacity       INTEGER NOT NULL DEFAULT 20 CHECK (maxCapacity > 0),
     color             TEXT NOT NULL DEFAULT '#4f46e5',
-    is_active         INTEGER NOT NULL DEFAULT 1,
-    created_at        INTEGER NOT NULL,
-    updated_at        INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    isActive          INTEGER NOT NULL DEFAULT 1,
+    createdAt         INTEGER NOT NULL,
+    updatedAt         INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX classes_gym_id_unique ON classes(gym_id, id);
-CREATE INDEX idx_classes_gym_name ON classes(gym_id, name);
+CREATE UNIQUE INDEX classesGymIdUnique ON classes(gymId, id);
+CREATE INDEX idxClassesGymName ON classes(gymId, name);
 
 -- ============================================================================
--- 21. class_schedules — Weekly timetables & one-off classes
+-- 21. classSchedules — Weekly timetables & one-off classes
 -- ============================================================================
-CREATE TABLE class_schedules (
+CREATE TABLE classSchedules (
     id               INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id           INTEGER NOT NULL,
-    class_id         INTEGER NOT NULL,
-    trainer_user_id  INTEGER,
-    day_of_week      INTEGER NOT NULL CHECK (day_of_week BETWEEN 0 AND 6),
-    start_time       TEXT NOT NULL,
-    end_time         TEXT NOT NULL,
+    gymId            INTEGER NOT NULL,
+    classId          INTEGER NOT NULL,
+    trainerUserId    INTEGER,
+    dayOfWeek        INTEGER NOT NULL CHECK (dayOfWeek BETWEEN 0 AND 6),
+    startTime        TEXT NOT NULL,
+    endTime          TEXT NOT NULL,
     date             TEXT,
-    max_capacity     INTEGER NOT NULL DEFAULT 20 CHECK (max_capacity > 0),
-    is_cancelled     INTEGER NOT NULL DEFAULT 0,
-    created_at       INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, class_id)        REFERENCES classes(gym_id, id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, trainer_user_id) REFERENCES users(gym_id, id) ON DELETE SET NULL
+    maxCapacity      INTEGER NOT NULL DEFAULT 20 CHECK (maxCapacity > 0),
+    isCancelled      INTEGER NOT NULL DEFAULT 0,
+    createdAt        INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, classId)       REFERENCES classes(gymId, id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, trainerUserId) REFERENCES users(gymId, id) ON DELETE SET NULL
 );
-CREATE UNIQUE INDEX class_schedules_gym_id_unique ON class_schedules(gym_id, id);
-CREATE INDEX idx_class_schedules_gym_class   ON class_schedules(gym_id, class_id);
-CREATE INDEX idx_class_schedules_gym_day     ON class_schedules(gym_id, day_of_week);
-CREATE INDEX idx_class_schedules_gym_trainer ON class_schedules(gym_id, trainer_user_id);
+CREATE UNIQUE INDEX classSchedulesGymIdUnique ON classSchedules(gymId, id);
+CREATE INDEX idxClassSchedulesGymClass   ON classSchedules(gymId, classId);
+CREATE INDEX idxClassSchedulesGymDay     ON classSchedules(gymId, dayOfWeek);
+CREATE INDEX idxClassSchedulesGymTrainer ON classSchedules(gymId, trainerUserId);
 
 -- ============================================================================
--- 22. class_bookings — Member reservations for scheduled classes
+-- 22. classBookings — Member reservations for scheduled classes
 -- ============================================================================
-CREATE TABLE class_bookings (
+CREATE TABLE classBookings (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id        INTEGER NOT NULL,
-    schedule_id   INTEGER NOT NULL,
-    member_id     INTEGER NOT NULL,
+    gymId         INTEGER NOT NULL,
+    scheduleId    INTEGER NOT NULL,
+    memberId      INTEGER NOT NULL,
     status        TEXT NOT NULL DEFAULT 'BOOKED' CHECK (status IN ('BOOKED','ATTENDED','CANCELLED','NO_SHOW','WAITLIST')),
-    booked_at     INTEGER NOT NULL,
-    attended_at   INTEGER,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, schedule_id) REFERENCES class_schedules(gym_id, id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id)   REFERENCES members(gym_id, id) ON DELETE CASCADE
+    bookedAt      INTEGER NOT NULL,
+    attendedAt    INTEGER,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, scheduleId) REFERENCES classSchedules(gymId, id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId)   REFERENCES members(gymId, id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX class_bookings_gym_id_unique ON class_bookings(gym_id, id);
-CREATE INDEX idx_class_bookings_gym_schedule ON class_bookings(gym_id, schedule_id);
-CREATE INDEX idx_class_bookings_gym_member   ON class_bookings(gym_id, member_id);
+CREATE UNIQUE INDEX classBookingsGymIdUnique ON classBookings(gymId, id);
+CREATE INDEX idxClassBookingsGymSchedule ON classBookings(gymId, scheduleId);
+CREATE INDEX idxClassBookingsGymMember   ON classBookings(gymId, memberId);
 
 -- ============================================================================
--- 23. pt_packages — Personal training package agreements
+-- 23. ptPackages — Personal training package agreements
 -- ============================================================================
-CREATE TABLE pt_packages (
+CREATE TABLE ptPackages (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id              INTEGER NOT NULL,
-    member_id           INTEGER NOT NULL,
-    trainer_user_id     INTEGER NOT NULL,
-    package_name        TEXT NOT NULL DEFAULT 'Personal Training',
-    total_sessions      INTEGER NOT NULL CHECK (total_sessions > 0),
-    completed_sessions  INTEGER NOT NULL DEFAULT 0 CHECK (completed_sessions >= 0),
-    price_paise         INTEGER NOT NULL CHECK (price_paise >= 0),
-    start_date          TEXT NOT NULL,
-    expiry_date         TEXT NOT NULL,
+    gymId               INTEGER NOT NULL,
+    memberId            INTEGER NOT NULL,
+    trainerUserId       INTEGER NOT NULL,
+    packageName         TEXT NOT NULL DEFAULT 'Personal Training',
+    totalSessions       INTEGER NOT NULL CHECK (totalSessions > 0),
+    completedSessions   INTEGER NOT NULL DEFAULT 0 CHECK (completedSessions >= 0),
+    pricePaise          INTEGER NOT NULL CHECK (pricePaise >= 0),
+    startDate           TEXT NOT NULL,
+    expiryDate          TEXT NOT NULL,
     status              TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','COMPLETED','EXPIRED')),
     notes               TEXT,
-    created_at          INTEGER NOT NULL,
-    updated_at          INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id)       REFERENCES members(gym_id, id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, trainer_user_id) REFERENCES users(gym_id, id) ON DELETE CASCADE
+    createdAt           INTEGER NOT NULL,
+    updatedAt           INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId)      REFERENCES members(gymId, id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, trainerUserId) REFERENCES users(gymId, id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX pt_packages_gym_id_unique ON pt_packages(gym_id, id);
-CREATE INDEX idx_pt_packages_gym_member  ON pt_packages(gym_id, member_id);
-CREATE INDEX idx_pt_packages_gym_trainer ON pt_packages(gym_id, trainer_user_id);
+CREATE UNIQUE INDEX ptPackagesGymIdUnique ON ptPackages(gymId, id);
+CREATE INDEX idxPtPackagesGymMember  ON ptPackages(gymId, memberId);
+CREATE INDEX idxPtPackagesGymTrainer ON ptPackages(gymId, trainerUserId);
 
 -- ============================================================================
--- 24. pt_sessions — Individual workout logs against a PT package
+-- 24. ptSessions — Individual workout logs against a PT package
 -- ============================================================================
-CREATE TABLE pt_sessions (
+CREATE TABLE ptSessions (
     id                    INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id                INTEGER NOT NULL,
-    package_id            INTEGER NOT NULL,
-    session_number        INTEGER NOT NULL CHECK (session_number > 0),
-    session_date          TEXT NOT NULL,
+    gymId                 INTEGER NOT NULL,
+    packageId             INTEGER NOT NULL,
+    sessionNumber         INTEGER NOT NULL CHECK (sessionNumber > 0),
+    sessionDate           TEXT NOT NULL,
     notes                 TEXT,
-    trainer_user_id       INTEGER NOT NULL,
-    signed_off_by_member  INTEGER NOT NULL DEFAULT 1,
-    created_at            INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, package_id)      REFERENCES pt_packages(gym_id, id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, trainer_user_id) REFERENCES users(gym_id, id) ON DELETE CASCADE
+    trainerUserId         INTEGER NOT NULL,
+    signedOffByMember     INTEGER NOT NULL DEFAULT 1,
+    createdAt             INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, packageId)     REFERENCES ptPackages(gymId, id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, trainerUserId) REFERENCES users(gymId, id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX pt_sessions_gym_id_unique ON pt_sessions(gym_id, id);
-CREATE INDEX idx_pt_sessions_gym_package ON pt_sessions(gym_id, package_id);
+CREATE UNIQUE INDEX ptSessionsGymIdUnique ON ptSessions(gymId, id);
+CREATE INDEX idxPtSessionsGymPackage ON ptSessions(gymId, packageId);
 
 -- ============================================================================
 -- 25. products — POS retail & supplement inventory
 -- ============================================================================
 CREATE TABLE products (
     id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id               INTEGER NOT NULL,
+    gymId                INTEGER NOT NULL,
     name                 TEXT NOT NULL,
     sku                  TEXT,
     category             TEXT NOT NULL DEFAULT 'General',
-    price_paise          INTEGER NOT NULL CHECK (price_paise >= 0),
-    cost_paise           INTEGER NOT NULL DEFAULT 0 CHECK (cost_paise >= 0),
-    stock_quantity       INTEGER NOT NULL DEFAULT 0 CHECK (stock_quantity >= 0),
-    low_stock_threshold  INTEGER NOT NULL DEFAULT 5 CHECK (low_stock_threshold >= 0),
-    tax_rate             REAL NOT NULL DEFAULT 0,
-    is_active            INTEGER NOT NULL DEFAULT 1,
-    created_at           INTEGER NOT NULL,
-    updated_at           INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    pricePaise           INTEGER NOT NULL CHECK (pricePaise >= 0),
+    costPaise            INTEGER NOT NULL DEFAULT 0 CHECK (costPaise >= 0),
+    stockQuantity        INTEGER NOT NULL DEFAULT 0 CHECK (stockQuantity >= 0),
+    lowStockThreshold    INTEGER NOT NULL DEFAULT 5 CHECK (lowStockThreshold >= 0),
+    taxRate              REAL NOT NULL DEFAULT 0,
+    isActive             INTEGER NOT NULL DEFAULT 1,
+    createdAt            INTEGER NOT NULL,
+    updatedAt            INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX products_gym_id_unique ON products(gym_id, id);
-CREATE INDEX idx_products_gym_name ON products(gym_id, name);
+CREATE UNIQUE INDEX productsGymIdUnique ON products(gymId, id);
+CREATE INDEX idxProductsGymName ON products(gymId, name);
 
 -- ============================================================================
--- 26. pos_sales — Point of sale orders
+-- 26. posSales — Point of sale orders
 -- ============================================================================
-CREATE TABLE pos_sales (
+CREATE TABLE posSales (
     id              INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id          INTEGER NOT NULL,
-    receipt_number  TEXT NOT NULL,
-    member_id       INTEGER,
-    subtotal_paise  INTEGER NOT NULL CHECK (subtotal_paise >= 0),
-    tax_paise       INTEGER NOT NULL DEFAULT 0 CHECK (tax_paise >= 0),
-    total_paise     INTEGER NOT NULL CHECK (total_paise >= 0),
-    payment_mode    TEXT NOT NULL DEFAULT 'CASH' CHECK (payment_mode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
+    gymId           INTEGER NOT NULL,
+    receiptNumber   TEXT NOT NULL,
+    memberId        INTEGER,
+    subtotalPaise   INTEGER NOT NULL CHECK (subtotalPaise >= 0),
+    taxPaise        INTEGER NOT NULL DEFAULT 0 CHECK (taxPaise >= 0),
+    totalPaise      INTEGER NOT NULL CHECK (totalPaise >= 0),
+    paymentMode     TEXT NOT NULL DEFAULT 'CASH' CHECK (paymentMode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
     notes           TEXT,
-    created_at      INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id) REFERENCES members(gym_id, id) ON DELETE SET NULL
+    createdAt       INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId) REFERENCES members(gymId, id) ON DELETE SET NULL
 );
-CREATE UNIQUE INDEX pos_sales_gym_id_unique      ON pos_sales(gym_id, id);
-CREATE UNIQUE INDEX pos_sales_gym_receipt_unique ON pos_sales(gym_id, receipt_number);
-CREATE INDEX idx_pos_sales_gym_member ON pos_sales(gym_id, member_id);
+CREATE UNIQUE INDEX posSalesGymIdUnique      ON posSales(gymId, id);
+CREATE UNIQUE INDEX posSalesGymReceiptUnique ON posSales(gymId, receiptNumber);
+CREATE INDEX idxPosSalesGymMember ON posSales(gymId, memberId);
 
 -- ============================================================================
--- 27. pos_sale_items — Line items in a POS sale
+-- 27. posSaleItems — Line items in a POS sale
 -- ============================================================================
-CREATE TABLE pos_sale_items (
+CREATE TABLE posSaleItems (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id            INTEGER NOT NULL,
-    sale_id           INTEGER NOT NULL,
-    product_id        INTEGER NOT NULL,
+    gymId             INTEGER NOT NULL,
+    saleId            INTEGER NOT NULL,
+    productId         INTEGER NOT NULL,
     quantity          INTEGER NOT NULL CHECK (quantity > 0),
-    unit_price_paise  INTEGER NOT NULL CHECK (unit_price_paise >= 0),
-    total_paise       INTEGER NOT NULL CHECK (total_paise >= 0),
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, sale_id)    REFERENCES pos_sales(gym_id, id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, product_id) REFERENCES products(gym_id, id) ON DELETE CASCADE
+    unitPricePaise    INTEGER NOT NULL CHECK (unitPricePaise >= 0),
+    totalPaise        INTEGER NOT NULL CHECK (totalPaise >= 0),
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, saleId)    REFERENCES posSales(gymId, id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, productId) REFERENCES products(gymId, id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX pos_sale_items_gym_id_unique ON pos_sale_items(gym_id, id);
-CREATE INDEX idx_pos_sale_items_gym_sale ON pos_sale_items(gym_id, sale_id);
+CREATE UNIQUE INDEX posSaleItemsGymIdUnique ON posSaleItems(gymId, id);
+CREATE INDEX idxPosSaleItemsGymSale ON posSaleItems(gymId, saleId);
 
 -- ============================================================================
--- 28. expense_categories — Gym expenditure categories
+-- 28. expenseCategories — Gym expenditure categories
 -- ============================================================================
-CREATE TABLE expense_categories (
+CREATE TABLE expenseCategories (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id      INTEGER NOT NULL,
+    gymId       INTEGER NOT NULL,
     name        TEXT NOT NULL,
-    created_at  INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    createdAt   INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX expense_categories_gym_id_unique   ON expense_categories(gym_id, id);
-CREATE UNIQUE INDEX expense_categories_gym_name_unique ON expense_categories(gym_id, name);
+CREATE UNIQUE INDEX expenseCategoriesGymIdUnique   ON expenseCategories(gymId, id);
+CREATE UNIQUE INDEX expenseCategoriesGymNameUnique ON expenseCategories(gymId, name);
 
 -- ============================================================================
 -- 29. expenses — Gym expenses (for P&L)
 -- ============================================================================
 CREATE TABLE expenses (
     id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id              INTEGER NOT NULL,
-    category_id         INTEGER NOT NULL,
+    gymId               INTEGER NOT NULL,
+    categoryId          INTEGER NOT NULL,
     title               TEXT NOT NULL,
-    amount_paise        INTEGER NOT NULL CHECK (amount_paise >= 0),
-    expense_date        TEXT NOT NULL,
-    payment_mode        TEXT NOT NULL DEFAULT 'CASH' CHECK (payment_mode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
+    amountPaise         INTEGER NOT NULL CHECK (amountPaise >= 0),
+    expenseDate         TEXT NOT NULL,
+    paymentMode         TEXT NOT NULL DEFAULT 'CASH' CHECK (paymentMode IN ('CASH','UPI','CARD','BANK_TRANSFER','OTHER')),
     vendor              TEXT,
-    receipt_url         TEXT,
-    created_by_user_id  INTEGER,
-    created_at          INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, category_id)        REFERENCES expense_categories(gym_id, id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, created_by_user_id) REFERENCES users(gym_id, id) ON DELETE SET NULL
+    receiptUrl          TEXT,
+    createdByUserId     INTEGER,
+    createdAt           INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, categoryId)      REFERENCES expenseCategories(gymId, id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, createdByUserId) REFERENCES users(gymId, id) ON DELETE SET NULL
 );
-CREATE UNIQUE INDEX expenses_gym_id_unique ON expenses(gym_id, id);
-CREATE INDEX idx_expenses_gym_date     ON expenses(gym_id, expense_date);
-CREATE INDEX idx_expenses_gym_category ON expenses(gym_id, category_id);
+CREATE UNIQUE INDEX expensesGymIdUnique ON expenses(gymId, id);
+CREATE INDEX idxExpensesGymDate     ON expenses(gymId, expenseDate);
+CREATE INDEX idxExpensesGymCategory ON expenses(gymId, categoryId);
 
 -- ============================================================================
 -- 30. lockers — Physical lockers
 -- ============================================================================
 CREATE TABLE lockers (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id         INTEGER NOT NULL,
-    locker_number  TEXT NOT NULL,
+    gymId          INTEGER NOT NULL,
+    lockerNumber   TEXT NOT NULL,
     zone           TEXT,
     status         TEXT NOT NULL DEFAULT 'AVAILABLE' CHECK (status IN ('AVAILABLE','OCCUPIED','MAINTENANCE')),
-    created_at     INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE
+    createdAt      INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX lockers_gym_id_unique     ON lockers(gym_id, id);
-CREATE UNIQUE INDEX lockers_gym_number_unique ON lockers(gym_id, locker_number);
+CREATE UNIQUE INDEX lockersGymIdUnique     ON lockers(gymId, id);
+CREATE UNIQUE INDEX lockersGymNumberUnique ON lockers(gymId, lockerNumber);
 
 -- ============================================================================
--- 31. locker_allocations — Locker rentals to members
+-- 31. lockerAllocations — Locker rentals to members
 -- ============================================================================
-CREATE TABLE locker_allocations (
+CREATE TABLE lockerAllocations (
     id             INTEGER PRIMARY KEY AUTOINCREMENT,
-    gym_id         INTEGER NOT NULL,
-    locker_id      INTEGER NOT NULL,
-    member_id      INTEGER NOT NULL,
-    start_date     TEXT NOT NULL,
-    end_date       TEXT NOT NULL,
-    deposit_paise  INTEGER NOT NULL DEFAULT 0 CHECK (deposit_paise >= 0),
-    rent_paise     INTEGER NOT NULL DEFAULT 0 CHECK (rent_paise >= 0),
+    gymId          INTEGER NOT NULL,
+    lockerId       INTEGER NOT NULL,
+    memberId       INTEGER NOT NULL,
+    startDate      TEXT NOT NULL,
+    endDate        TEXT NOT NULL,
+    depositPaise   INTEGER NOT NULL DEFAULT 0 CHECK (depositPaise >= 0),
+    rentPaise      INTEGER NOT NULL DEFAULT 0 CHECK (rentPaise >= 0),
     status         TEXT NOT NULL DEFAULT 'ACTIVE' CHECK (status IN ('ACTIVE','TERMINATED','OVERDUE')),
-    created_at     INTEGER NOT NULL,
-    FOREIGN KEY (gym_id) REFERENCES gyms(id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, locker_id) REFERENCES lockers(gym_id, id) ON DELETE CASCADE,
-    FOREIGN KEY (gym_id, member_id) REFERENCES members(gym_id, id) ON DELETE CASCADE
+    createdAt      INTEGER NOT NULL,
+    FOREIGN KEY (gymId) REFERENCES gyms(id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, lockerId) REFERENCES lockers(gymId, id) ON DELETE CASCADE,
+    FOREIGN KEY (gymId, memberId) REFERENCES members(gymId, id) ON DELETE CASCADE
 );
-CREATE UNIQUE INDEX locker_allocations_gym_id_unique ON locker_allocations(gym_id, id);
-CREATE INDEX idx_locker_allocations_gym_locker ON locker_allocations(gym_id, locker_id);
-CREATE INDEX idx_locker_allocations_gym_member ON locker_allocations(gym_id, member_id);
+CREATE UNIQUE INDEX lockerAllocationsGymIdUnique ON lockerAllocations(gymId, id);
+CREATE INDEX idxLockerAllocationsGymLocker ON lockerAllocations(gymId, lockerId);
+CREATE INDEX idxLockerAllocationsGymMember ON lockerAllocations(gymId, memberId);

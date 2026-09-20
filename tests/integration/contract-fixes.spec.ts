@@ -100,7 +100,7 @@ describe('Locker release and P&L — canonical paths', () => {
     const { client, env } = await loginAsOwner();
 
     const member = await env.DB.prepare(
-      `SELECT id FROM members WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1`
+      `SELECT id FROM members WHERE deletedAt IS NULL ORDER BY id ASC LIMIT 1`
     ).first<{ id: number }>();
     if (!member) return; // dataset lacks fixtures — skip
 
@@ -134,15 +134,15 @@ describe('Locker release and P&L — canonical paths', () => {
 
     // Oldest member — sits beyond any 100-row page, which broke client-side lookups before.
     const row = await env.DB.prepare(
-      `SELECT member_code FROM members WHERE deleted_at IS NULL ORDER BY member_code ASC LIMIT 1`
-    ).first<{ member_code: string }>();
+      `SELECT memberCode FROM members WHERE deletedAt IS NULL ORDER BY memberCode ASC LIMIT 1`
+    ).first<{ memberCode: string }>();
     if (!row) return; // dataset lacks fixtures — skip
 
     const res = await client.get<{ member: { id: number; memberCode: string } }>(
-      `/api/members/lookup?identifier=${encodeURIComponent(row.member_code)}`
+      `/api/members/lookup?identifier=${encodeURIComponent(row.memberCode)}`
     );
     expect(res.status).toBe(200);
-    expect(res.body.member.memberCode.toLowerCase()).toBe(row.member_code.toLowerCase());
+    expect(res.body.member.memberCode.toLowerCase()).toBe(row.memberCode.toLowerCase());
 
     const miss = await client.get('/api/members/lookup?identifier=NOPE-404');
     expect(miss.status).toBe(404);
@@ -152,11 +152,11 @@ describe('Locker release and P&L — canonical paths', () => {
     const { client, env } = await loginAsOwner();
 
     const member = await env.DB.prepare(
-      `SELECT id FROM members WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1`
+      `SELECT id FROM members WHERE deletedAt IS NULL ORDER BY id ASC LIMIT 1`
     ).first<{ id: number }>();
     const trainer = await env.DB.prepare(
-      `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id AND r.name = 'TRAINER'
-       WHERE u.gym_id = (SELECT gym_id FROM users WHERE email = ?) AND u.deleted_at IS NULL
+      `SELECT u.id FROM users u JOIN roles r ON r.id = u.roleId AND r.name = 'TRAINER'
+       WHERE u.gymId = (SELECT gymId FROM users WHERE email = ?) AND u.deletedAt IS NULL
        ORDER BY u.id ASC LIMIT 1`
     ).bind('owner@gymtech.app').first<{ id: number }>();
     if (!member || !trainer) return; // dataset lacks fixtures — skip
@@ -182,8 +182,8 @@ describe('Locker release and P&L — canonical paths', () => {
 
     // Out-of-gym trainer must be refused (tenant isolation on the package owner).
     const otherTrainer = await env.DB.prepare(
-      `SELECT u.id FROM users u JOIN roles r ON r.id = u.role_id
-       WHERE u.gym_id <> (SELECT gym_id FROM users WHERE email = ?) AND u.deleted_at IS NULL
+      `SELECT u.id FROM users u JOIN roles r ON r.id = u.roleId
+       WHERE u.gymId <> (SELECT gymId FROM users WHERE email = ?) AND u.deletedAt IS NULL
        ORDER BY u.id ASC LIMIT 1`
     ).bind('owner@gymtech.app').first<{ id: number }>();
     if (otherTrainer) {

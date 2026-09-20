@@ -94,7 +94,7 @@ describe('Attendance E2E', () => {
     const memberId = created.body.member.id;
 
     const expired = await env.DB.prepare(
-      `UPDATE memberships SET end_date = strftime('%s','now') - 86400 WHERE member_id = ?`
+      `UPDATE memberships SET endDate = strftime('%s','now') - 86400 WHERE memberId = ?`
     ).bind(memberId).run();
     expect(expired.meta.changes).toBeGreaterThan(0);
 
@@ -109,5 +109,39 @@ describe('Attendance E2E', () => {
     const res = await client.get<{ logs: unknown[] }>('/api/attendance');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.logs)).toBe(true);
+  });
+
+  it('concurrent double check-ins collapse to a single row', async () => {
+    const { client } = await loginAsOwner();
+    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
+    const plan = plans.body.plans[0]!;
+    const suffix = uniqueSuffix();
+
+    const created = await client.post<{ member: { id: number; memberCode: string } }>('/api/members', {
+      firstName: 'Racy',
+      lastName: `Checkin${suffix}`,
+      phone: phoneFromSuffix(suffix),
+      planId: plan.id,
+      initialPaymentPaise: plan.pricePaise,
+      paymentMode: 'CASH',
+    });
+    expect(created.status).toBe(201);
+    const memberId = created.body.member.id;
+    const memberCode = created.body.member.memberCode;
+
+    // Ten near-simultaneous taps (kiosk double-tap / retry storm). Without
+    // the DB-level unique constraint + ON CONFLICT handling this inserts
+    // duplicate rows for the same member/day.
+    const attempts = await Promise.all(
+      Array.from({ length: 10 }, () =>
+        client.post('/api/attendance/check-in', { memberIdOrCode: String(memberId) })
+      )
+    );
+    for (const a of attempts) expect(a.status).toBeLessThan(500);
+
+    const list = await client.get<{ logs: Array<{ memberCode?: string }> }>('/api/attendance');
+    expect(list.status).toBe(200);
+    const mine = list.body.logs.filter((l) => l.memberCode === memberCode);
+    expect(mine.length).toBe(1);
   });
 });

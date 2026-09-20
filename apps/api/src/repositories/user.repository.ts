@@ -356,20 +356,6 @@ export class UserRepository {
       .where(eq(platformAdmins.id, id));
   }
 
-  async upgradePasswordHash(id: number, gymId: number, newHash: string): Promise<void> {
-    await this.db
-      .update(users)
-      .set({ passwordHash: newHash, updatedAt: Math.floor(Date.now() / 1000) })
-      .where(and(eq(users.id, id), eq(users.gymId, gymId)));
-  }
-
-  async upgradePlatformAdminPasswordHash(id: number, newHash: string): Promise<void> {
-    await this.db
-      .update(platformAdmins)
-      .set({ passwordHash: newHash, updatedAt: Math.floor(Date.now() / 1000) })
-      .where(eq(platformAdmins.id, id));
-  }
-
   async touchPlatformAdminLogin(id: number): Promise<void> {
     await this.db
       .update(platformAdmins)

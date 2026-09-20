@@ -21,34 +21,34 @@ export class LicenseRepository {
   async findByGymId(gymId: number = this.gymId): Promise<License | null> {
     if (this.d1) {
       const row = await this.d1
-        .prepare(`SELECT * FROM licenses WHERE gym_id = ? LIMIT 1`)
+        .prepare(`SELECT * FROM licenses WHERE gymId = ? LIMIT 1`)
         .bind(gymId)
         .first<any>();
       if (row) {
         return {
           id: row.id,
-          gymId: row.gym_id ?? row.gymId,
+          gymId: row.gymId,
           name: row.name ?? 'Standard',
           code: row.code ?? 'STD',
-          pricePaise: row.price_paise ?? row.pricePaise ?? 0,
-          billingPeriod: row.billing_period ?? row.billingPeriod ?? 'MONTHLY',
-          maxMembers: row.max_members ?? row.maxMembers ?? -1,
-          maxOwners: row.max_owners ?? row.maxOwners ?? 1,
-          maxManagers: row.max_managers ?? row.maxManagers ?? 2,
-          maxStaffTotal: row.max_staff_total ?? row.maxStaffTotal ?? 10,
-          maxSms: row.max_sms ?? row.maxSms ?? 0,
-          maxWhatsapp: row.max_whatsapp ?? row.maxWhatsapp ?? 0,
-          maxEmail: row.max_email ?? row.maxEmail ?? 0,
-          smsUsed: row.sms_used ?? row.smsUsed ?? 0,
-          whatsappUsed: row.whatsapp_used ?? row.whatsappUsed ?? 0,
-          emailUsed: row.email_used ?? row.emailUsed ?? 0,
+          pricePaise: row.pricePaise ?? 0,
+          billingPeriod: row.billingPeriod ?? 'MONTHLY',
+          maxMembers: row.maxMembers ?? -1,
+          maxOwners: row.maxOwners ?? 1,
+          maxManagers: row.maxManagers ?? 2,
+          maxStaffTotal: row.maxStaffTotal ?? 10,
+          maxSms: row.maxSms ?? 0,
+          maxWhatsapp: row.maxWhatsapp ?? 0,
+          maxEmail: row.maxEmail ?? 0,
+          smsUsed: row.smsUsed ?? 0,
+          whatsappUsed: row.whatsappUsed ?? 0,
+          emailUsed: row.emailUsed ?? 0,
           features: row.features ?? null,
-          startedAt: row.started_at ?? row.startedAt ?? 0,
-          expiresAt: row.expires_at ?? row.expiresAt ?? 0,
+          startedAt: row.startedAt ?? 0,
+          expiresAt: row.expiresAt ?? 0,
           status: row.status ?? 'ACTIVE',
-          createdByAdminId: row.created_by_admin_id ?? row.createdByAdminId ?? 1,
-          createdAt: row.created_at ?? row.createdAt ?? 0,
-          updatedAt: row.updated_at ?? row.updatedAt ?? 0,
+          createdByAdminId: row.createdByAdminId ?? 1,
+          createdAt: row.createdAt ?? 0,
+          updatedAt: row.updatedAt ?? 0,
         };
       }
       return null;
@@ -133,9 +133,9 @@ export class LicenseRepository {
    */
   async consumeCredits(gymId: number, channel: 'sms' | 'whatsapp' | 'email', credits = 1): Promise<number> {
     const columns = {
-      sms: { max: 'max_sms', used: 'sms_used' },
-      whatsapp: { max: 'max_whatsapp', used: 'whatsapp_used' },
-      email: { max: 'max_email', used: 'email_used' },
+      sms: { max: 'maxSms', used: 'smsUsed' },
+      whatsapp: { max: 'maxWhatsapp', used: 'whatsappUsed' },
+      email: { max: 'maxEmail', used: 'emailUsed' },
     } as const;
     const { max, used } = columns[channel];
 
@@ -145,8 +145,8 @@ export class LicenseRepository {
     const result = await d1
       .prepare(
         `UPDATE licenses
-         SET ${used} = ${used} + ?, updated_at = unixepoch()
-         WHERE gym_id = ? AND (${max} = -1 OR (${max} - ${used}) >= ?)`
+         SET ${used} = ${used} + ?, updatedAt = unixepoch()
+         WHERE gymId = ? AND (${max} = -1 OR (${max} - ${used}) >= ?)`
       )
       .bind(credits, gymId, credits)
       .run();

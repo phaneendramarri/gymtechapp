@@ -51,8 +51,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   // License feature gate — mirrors backend `requireFeature`. Owners are
-  // gated too; only platform admins bypass. Unloaded flags (null) mean
-  // "all enabled" so first paint never bounces.
+  // gated too; only platform admins bypass. Empty array means no features enabled.
   if (feature && !isPlatformAdmin && !hasFeature(feature)) {
     return <Navigate to={feature === 'dashboard' ? '/members' : '/dashboard'} replace />;
   }

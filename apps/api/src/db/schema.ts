@@ -2,15 +2,16 @@
 /**
  * Drizzle schema — TypeScript mirror of the canonical SQL baseline in `apps/api/migrations/0000_init.sql`.
  *
- * This file describes the 31 tables that the application uses across 7 cohesive domains.
- * Tables with no routes/services/repositories behind them were removed.
+ * 100% camelCase everywhere: database table names, column names, foreign keys, and indexes
+ * match TypeScript models 1:1.
  *
  * Conventions (kept invariant across the whole schema):
- *   - All money columns end in `_paise` (INTEGER paise; ₹1 = 100 paise).
+ *   - All table names and column names are strictly camelCase.
+ *   - All money columns end in `Paise` (INTEGER paise; ₹1 = 100 paise).
  *   - All timestamps are unix seconds (INTEGER).
- *   - `attendance_date` is YYYYMMDD INTEGER (fast range scans).
- *   - Every tenant-owned table carries `gym_id`, and composite
- *     `(gym_id, id)` foreign keys mirror the DB-level tenant invariants.
+ *   - `attendanceDate` is YYYYMMDD INTEGER (fast range scans).
+ *   - Every tenant-owned table carries `gymId`, and composite
+ *     `(gymId, id)` foreign keys mirror the DB-level tenant invariants.
  *   - Any parent referenced by a composite FK MUST expose a UNIQUE index on
  *     the referenced columns, otherwise SQLite raises "foreign key mismatch".
  */
@@ -18,26 +19,34 @@ import { sql } from 'drizzle-orm';
 import { sqliteTable, integer, text, real, uniqueIndex, index, primaryKey, foreignKey } from 'drizzle-orm/sqlite-core';
 
 // ============================================================
-// 1. platform_admins (platform-level operators, not tenant users)
+// 1. platformAdmins (platform-level operators, not tenant users)
 // ============================================================
-export const platformAdmins = sqliteTable('platform_admins', {
+export const platformAdmins = sqliteTable('platformAdmins', {
   id: integer('id').primaryKey(),
   email: text('email').notNull().unique(),
-  passwordHash: text('password_hash').notNull(),
+  passwordHash: text('passwordHash').notNull(),
   name: text('name').notNull(),
   status: text('status', { enum: ['ACTIVE', 'DISABLED'] }).notNull().default('ACTIVE'),
-  failedLoginCount: integer('failed_login_count').notNull().default(0),
-  lockedUntil: integer('locked_until'),
-  lastLoginAt: integer('last_login_at'),
-  /** JSON array of gym IDs this admin may access; null/empty = full access. */
-  authorizedGyms: text('authorized_gyms'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
+  failedLoginCount: integer('failedLoginCount').notNull().default(0),
+  lockedUntil: integer('lockedUntil'),
+  lastLoginAt: integer('lastLoginAt'),
+  authorizedGyms: text('authorizedGyms'),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
 });
 
 // ============================================================
-// 2. gyms (tenants)
+// 2. platformSettings (global config)
+// ============================================================
+export const platformSettings = sqliteTable('platformSettings', {
+  key: text('key').primaryKey(),
+  valueJson: text('valueJson').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+});
+
+// ============================================================
+// 3. gyms (tenants)
 // ============================================================
 export const gyms = sqliteTable('gyms', {
   id: integer('id').primaryKey(),
@@ -49,653 +58,726 @@ export const gyms = sqliteTable('gyms', {
   city: text('city'),
   state: text('state'),
   pincode: text('pincode'),
-  gstNumber: text('gst_number'),
+  gstNumber: text('gstNumber'),
   currency: text('currency').notNull().default('INR'),
-  logoUrl: text('logo_url'),
+  logoUrl: text('logoUrl'),
   status: text('status', { enum: ['ACTIVE', 'SUSPENDED', 'CANCELLED'] }).notNull().default('ACTIVE'),
-  notificationSettingsJson: text('notification_settings_json'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
+  notificationSettingsJson: text('notificationSettingsJson'),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
-  statusIdx: index('idx_gyms_status').on(t.status, t.deletedAt),
+  statusIdx: index('idxGymsStatus').on(t.status, t.deletedAt),
 }));
 
 // ============================================================
-// 3. licenses (one commercial license per gym — quotas + feature flags)
+// 4. licenses (one commercial license per gym — quotas + feature flags)
 // ============================================================
 export const licenses = sqliteTable('licenses', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().unique().references(() => gyms.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().unique().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   code: text('code').notNull(),
-  pricePaise: integer('price_paise').notNull(),
-  billingPeriod: text('billing_period', { enum: ['MONTHLY', 'YEARLY'] }).notNull().default('MONTHLY'),
-  maxMembers: integer('max_members').notNull(),
-  maxOwners: integer('max_owners').notNull().default(1),
-  maxManagers: integer('max_managers').notNull(),
-  maxStaffTotal: integer('max_staff_total').notNull(),
-  maxSms: integer('max_sms').notNull(),
-  maxWhatsapp: integer('max_whatsapp').notNull(),
-  maxEmail: integer('max_email').notNull(),
-  smsUsed: integer('sms_used').notNull().default(0),
-  whatsappUsed: integer('whatsapp_used').notNull().default(0),
-  emailUsed: integer('email_used').notNull().default(0),
-  /**
-   * JSON object of feature flags, e.g. {"reports": true, "pt_collections": true}.
-   * This is the authoritative source for `requireFeature()` gating; a missing
-   * key means the feature is disabled.
-   */
+  pricePaise: integer('pricePaise').notNull(),
+  billingPeriod: text('billingPeriod', { enum: ['MONTHLY', 'YEARLY'] }).notNull().default('MONTHLY'),
+  maxMembers: integer('maxMembers').notNull(),
+  maxOwners: integer('maxOwners').notNull().default(1),
+  maxManagers: integer('maxManagers').notNull(),
+  maxStaffTotal: integer('maxStaffTotal').notNull(),
+  maxSms: integer('maxSms').notNull(),
+  maxWhatsapp: integer('maxWhatsapp').notNull(),
+  maxEmail: integer('maxEmail').notNull(),
+  smsUsed: integer('smsUsed').notNull().default(0),
+  whatsappUsed: integer('whatsappUsed').notNull().default(0),
+  emailUsed: integer('emailUsed').notNull().default(0),
   features: text('features').notNull().default('{}'),
-  startedAt: integer('started_at').notNull(),
-  expiresAt: integer('expires_at').notNull(),
+  startedAt: integer('startedAt').notNull(),
+  expiresAt: integer('expiresAt').notNull(),
   status: text('status', { enum: ['ACTIVE', 'EXPIRED', 'SUSPENDED'] }).notNull().default('ACTIVE'),
-  renewalReminderSentAt: integer('renewal_reminder_sent_at'),
-  trialEndsAt: integer('trial_ends_at'),
-  createdByAdminId: integer('created_by_admin_id'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
+  renewalReminderSentAt: integer('renewalReminderSentAt'),
+  trialEndsAt: integer('trialEndsAt'),
+  createdByAdminId: integer('createdByAdminId'),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
 }, (t) => ({
-  codeUq: uniqueIndex('licenses_code_unique').on(t.code),
+  codeUq: uniqueIndex('licensesCodeUnique').on(t.code),
 }));
 
 // ============================================================
-// 4. roles (owner-defined, per-gym; permissions are role-scoped)
+// 5. roles (tenant-defined RBAC roles)
 // ============================================================
 export const roles = sqliteTable('roles', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  /** JSON array of permission keys, e.g. ["members","payments"]. */
   permissions: text('permissions').notNull().default('[]'),
-  /** True for the gym's primary owner role — grants unrestricted gym access. */
-  isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
-  isDefault: integer('is_default', { mode: 'boolean' }).notNull().default(false),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
+  isOwner: integer('isOwner', { mode: 'boolean' }).notNull().default(false),
+  isDefault: integer('isDefault', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
-  gymNameUq: uniqueIndex('roles_gym_name_unique').on(t.gymId, t.name),
-  gymIdx: index('idx_roles_gym').on(t.gymId, t.deletedAt),
+  gymNameUq: uniqueIndex('rolesGymNameUnique')
+    .on(t.gymId, t.name)
+    .where(sql`deletedAt IS NULL`),
+  gymIdx: index('idxRolesGym').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
-// 5. users (gym staff/owners; platform admins live in platform_admins)
+// 6. users (tenant staff & owners)
 // ============================================================
 export const users = sqliteTable('users', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   email: text('email').notNull(),
   phone: text('phone'),
-  passwordHash: text('password_hash').notNull(),
-  /**
-   * The only role reference. A denormalized role-name column used to live here;
-   * it could not represent custom role names (its CHECK constraint rejected
-   * them) and could drift from the role it mirrored.
-   */
-  roleId: integer('role_id').references(() => roles.id, { onDelete: 'set null' }),
+  passwordHash: text('passwordHash').notNull(),
+  roleId: integer('roleId').references(() => roles.id, { onDelete: 'set null' }),
   status: text('status', { enum: ['ACTIVE', 'DISABLED'] }).notNull().default('ACTIVE'),
-  isOwner: integer('is_owner', { mode: 'boolean' }).notNull().default(false),
-  lastLoginAt: integer('last_login_at'),
-  failedLoginCount: integer('failed_login_count').notNull().default(0),
-  lockedUntil: integer('locked_until'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
+  isOwner: integer('isOwner', { mode: 'boolean' }).notNull().default(false),
+  lastLoginAt: integer('lastLoginAt'),
+  failedLoginCount: integer('failedLoginCount').notNull().default(0),
+  lockedUntil: integer('lockedUntil'),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
-  gymIdUq: uniqueIndex('users_gym_id_unique').on(t.gymId, t.id),
-  gymEmailUq: uniqueIndex('users_gym_email_unique').on(t.gymId, t.email),
-  gymOwnerIdx: index('idx_users_gym_owner').on(t.gymId, t.isOwner),
-  gymStatusIdx: index('idx_users_gym_status').on(t.gymId, t.status, t.deletedAt),
-  gymRoleIdx: index('idx_users_gym_role').on(t.gymId, t.roleId),
+  gymIdUq: uniqueIndex('usersGymIdUnique').on(t.gymId, t.id),
+  gymEmailUq: uniqueIndex('usersGymEmailUnique').on(t.gymId, t.email),
+  ownerIdx: index('idxUsersGymOwner').on(t.gymId, t.isOwner),
+  statusIdx: index('idxUsersGymStatus').on(t.gymId, t.status, t.deletedAt),
+  roleIdx: index('idxUsersGymRole').on(t.gymId, t.roleId),
 }));
 
 // ============================================================
-// 6. membership_plans (gym-level catalog sold to members)
+// 7. userSessions (session registry)
 // ============================================================
-export const membershipPlans = sqliteTable('membership_plans', {
+export const userSessions = sqliteTable('userSessions', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  name: text('name').notNull(),
-  description: text('description'),
-  durationMonths: integer('duration_months').notNull(),
-  pricePaise: integer('price_paise').notNull(),
-  admissionFeePaise: integer('admission_fee_paise').notNull().default(0),
-  taxPercentage: real('tax_percentage').notNull().default(0),
-  isActive: integer('is_active').notNull().default(1),
-  /** Revenue bucketing (MONTHLY vs YEARLY billing). */
-  billingPeriod: text('billing_period', { enum: ['MONTHLY', 'YEARLY'] }).notNull().default('MONTHLY'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
-}, (t) => ({
-  // Required parent key for memberships(gym_id, membership_plan_id) FK.
-  gymIdUq: uniqueIndex('membership_plans_gym_id_unique').on(t.gymId, t.id),
-  gymNameUq: uniqueIndex('membership_plans_gym_name_unique').on(t.gymId, t.name),
-  gymActiveIdx: index('idx_membership_plans_gym_active').on(t.gymId, t.isActive, t.deletedAt),
-}));
-
-// ============================================================
-// 7. members (gym customers)
-// ============================================================
-export const members = sqliteTable('members', {
-  id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  memberCode: text('member_code').notNull(),
-  firstName: text('first_name').notNull(),
-  lastName: text('last_name'),
-  email: text('email'),
-  phone: text('phone').notNull(),
-  gender: text('gender', { enum: ['MALE', 'FEMALE', 'OTHER'] }),
-  dateOfBirth: integer('date_of_birth'),
-  photoUrl: text('photo_url'),
-  faceEmbedding: text('face_embedding'),
-  /** 0/1 consent flag (kept as INTEGER to match the shared DTO contract). */
-  biometricConsentGiven: integer('biometric_consent_given').notNull().default(0),
-  biometricConsentAt: integer('biometric_consent_at'),
-  biometricConsentVersion: text('biometric_consent_version').default('1.0'),
-  address: text('address'),
-  city: text('city'),
-  pincode: text('pincode'),
-  emergencyContactName: text('emergency_contact_name'),
-  emergencyContactPhone: text('emergency_contact_phone'),
-  healthNotes: text('health_notes'),
-  status: text('status', {
-    enum: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'EXPIRED', 'FROZEN', 'CANCELLED'],
-  }).notNull().default('ACTIVE'),
-  joinedDate: integer('joined_date').notNull(),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
-}, (t) => ({
-  gymIdUq: uniqueIndex('members_gym_id_unique').on(t.gymId, t.id),
-  gymCodeUq: uniqueIndex('members_gym_member_code_unique').on(t.gymId, t.memberCode),
-  gymPhoneUq: uniqueIndex('members_gym_phone_unique').on(t.gymId, t.phone),
-  gymStatusIdx: index('idx_members_gym_status').on(t.gymId, t.status, t.deletedAt),
-  gymNameIdx: index('idx_members_gym_name').on(t.gymId, t.lastName, t.firstName),
-}));
-
-// ============================================================
-// 8. memberships (a member's instance of a plan)
-// ============================================================
-export const memberships = sqliteTable('memberships', {
-  id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  memberId: integer('member_id').notNull(),
-  membershipPlanId: integer('membership_plan_id').notNull(),
-  startDate: integer('start_date').notNull(),
-  endDate: integer('end_date').notNull(),
-  totalAmountPaise: integer('total_amount_paise').notNull(),
-  discountPaise: integer('discount_paise').notNull().default(0),
-  finalAmountPaise: integer('final_amount_paise').notNull(),
-  paidAmountPaise: integer('paid_amount_paise').notNull().default(0),
-  dueAmountPaise: integer('due_amount_paise').notNull().default(0),
-  status: text('status', { enum: ['ACTIVE', 'EXPIRED', 'FROZEN', 'CANCELLED'] }).notNull().default('ACTIVE'),
-  frozenAt: integer('frozen_at'),
-  notes: text('notes'),
-  createdByUserId: integer('created_by_user_id'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
-}, (t) => ({
-  gymIdUq: uniqueIndex('memberships_gym_id_unique').on(t.gymId, t.id),
-  gymMemberIdx: index('idx_memberships_gym_member').on(t.gymId, t.memberId),
-  gymStatusDatesIdx: index('idx_memberships_gym_status_dates').on(t.gymId, t.status, t.endDate),
-  gymEndDateIdx: index('idx_memberships_gym_end_date').on(t.gymId, t.endDate),
-}));
-
-// ============================================================
-// 9. payments (fee receipts; also links PT payments)
-// ============================================================
-export const payments = sqliteTable('payments', {
-  id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  memberId: integer('member_id').notNull(),
-  membershipId: integer('membership_id'),
-  paymentType: text('payment_type', { enum: ['GYM', 'PERSONAL_TRAINING'] }).notNull().default('GYM'),
-  receiptNumber: text('receipt_number').notNull(),
-  amountPaise: integer('amount_paise').notNull(),
-  paymentDate: integer('payment_date').notNull(),
-  paymentMode: text('payment_mode', { enum: ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'] }).notNull(),
-  referenceId: text('reference_id'),
-  status: text('status', { enum: ['COMPLETED', 'REFUNDED', 'VOID'] }).notNull().default('COMPLETED'),
-  recordedByUserId: integer('recorded_by_user_id'),
-  notes: text('notes'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
-}, (t) => ({
-  gymReceiptUq: uniqueIndex('payments_gym_receipt_unique').on(t.gymId, t.receiptNumber),
-  gymDateIdx: index('idx_payments_gym_date').on(t.gymId, t.paymentDate),
-  gymMemberDateIdx: index('idx_payments_gym_member_date').on(t.gymId, t.memberId, t.paymentDate),
-  gymStatusDateIdx: index('idx_payments_gym_status_date').on(t.gymId, t.status, t.paymentDate),
-}));
-
-// ============================================================
-// 10. pt_collections (personal-training sessions + commission)
-// ============================================================
-export const ptCollections = sqliteTable('pt_collections', {
-  id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  memberId: integer('member_id').notNull(),
-  trainerId: integer('trainer_id').notNull(),
-  sessions: integer('sessions').notNull().default(0),
-  amountPaise: integer('amount_paise').notNull(),
-  commissionPercentage: real('commission_percentage').notNull().default(0),
-  commissionPaise: integer('commission_paise').notNull().default(0),
-  commissionStatus: text('commission_status', { enum: ['PENDING', 'PAID'] }).notNull().default('PENDING'),
-  paymentMode: text('payment_mode', { enum: ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'] }).notNull().default('CASH'),
-  paymentDate: integer('payment_date').notNull(),
-  receiptNumber: text('receipt_number'),
-  notes: text('notes'),
-  recordedByUserId: integer('recorded_by_user_id'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-  deletedAt: integer('deleted_at'),
-}, (t) => ({
-  gymDateIdx: index('idx_pt_collections_gym_date').on(t.gymId, t.paymentDate),
-  gymTrainerIdx: index('idx_pt_collections_gym_trainer').on(t.gymId, t.trainerId, t.commissionStatus),
-  // Partial unique index: receipts are optional, but never duplicated per gym.
-  receiptUq: uniqueIndex('pt_collections_gym_receipt_unique')
-    .on(t.gymId, t.receiptNumber)
-    .where(sql`${t.receiptNumber} IS NOT NULL`),
-}));
-
-// ============================================================
-// 11. attendance (floor check-ins, soft-deletable)
-// ============================================================
-export const attendance = sqliteTable('attendance', {
-  id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  memberId: integer('member_id').notNull(),
-  checkInTime: integer('check_in_time').notNull(),
-  checkOutTime: integer('check_out_time'),
-  /** YYYYMMDD — enables day-range scans without time arithmetic. */
-  attendanceDate: integer('attendance_date').notNull(),
-  method: text('method', { enum: ['MANUAL', 'QR', 'FACE_ID', 'KIOSK'] }).notNull(),
-  recordedByUserId: integer('recorded_by_user_id'),
-  deviceInfo: text('device_info'),
-  createdAt: integer('created_at').notNull(),
-  deletedAt: integer('deleted_at'),
-}, (t) => ({
-  gymDateIdx: index('idx_attendance_gym_date').on(t.gymId, t.attendanceDate),
-  gymMemberDateIdx: index('idx_attendance_gym_member_date').on(t.gymId, t.memberId, t.attendanceDate),
-  gymCheckinIdx: index('idx_attendance_gym_checkin').on(t.gymId, t.checkInTime),
-}));
-
-// ============================================================
-// 12. user_sessions (access + refresh token registry)
-// ============================================================
-export const userSessions = sqliteTable('user_sessions', {
-  id: integer('id').primaryKey(),
-  /** Platform-admin sessions are stored with gym_id = 0 (no tenant). */
-  gymId: integer('gym_id').notNull().default(0),
-  userId: integer('user_id').notNull(),
-  tokenHash: text('token_hash').notNull().unique(),
-  refreshTokenHash: text('refresh_token_hash'),
-  refreshTokenExpiresAt: integer('refresh_token_expires_at'),
+  gymId: integer('gymId').notNull().default(0),
+  userId: integer('userId').notNull(),
+  tokenHash: text('tokenHash').notNull().unique(),
+  refreshTokenHash: text('refreshTokenHash'),
+  refreshTokenExpiresAt: integer('refreshTokenExpiresAt'),
   ip: text('ip'),
-  userAgent: text('user_agent'),
-  issuedAt: integer('issued_at').notNull(),
-  expiresAt: integer('expires_at').notNull(),
-  revokedAt: integer('revoked_at'),
-  userType: text('user_type', { enum: ['GYM_USER', 'PLATFORM_ADMIN'] }).notNull().default('GYM_USER'),
+  userAgent: text('userAgent'),
+  issuedAt: integer('issuedAt').notNull(),
+  expiresAt: integer('expiresAt').notNull(),
+  revokedAt: integer('revokedAt'),
+  userType: text('userType', { enum: ['GYM_USER', 'PLATFORM_ADMIN'] }).notNull().default('GYM_USER'),
 }, (t) => ({
-  gymUserIdx: index('idx_user_sessions_gym_user').on(t.gymId, t.userId),
-  expiresIdx: index('idx_user_sessions_expires').on(t.expiresAt),
+  gymUserIdx: index('idxUserSessionsGymUser').on(t.gymId, t.userId),
+  expiresIdx: index('idxUserSessionsExpires').on(t.expiresAt),
 }));
 
 // ============================================================
-// 13. user_password_resets
+// 8. userPasswordResets
 // ============================================================
-export const userPasswordResets = sqliteTable('user_password_resets', {
+export const userPasswordResets = sqliteTable('userPasswordResets', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
-  userId: integer('user_id').notNull(),
-  tokenHash: text('token_hash').notNull().unique(),
-  expiresAt: integer('expires_at').notNull(),
-  usedAt: integer('used_at'),
-  createdAt: integer('created_at').notNull(),
-});
+  gymId: integer('gymId').notNull(),
+  userId: integer('userId').notNull(),
+  tokenHash: text('tokenHash').notNull().unique(),
+  expiresAt: integer('expiresAt').notNull(),
+  usedAt: integer('usedAt'),
+  createdAt: integer('createdAt').notNull(),
+}, (t) => ({
+  userFk: foreignKey({
+    columns: [t.gymId, t.userId],
+    foreignColumns: [users.gymId, users.id],
+  }).onDelete('cascade'),
+}));
 
 // ============================================================
-// 14. audit_events (append-only; platform-admin actions use gym_id = 0)
+// 9. auditEvents (append-only tenant activity log)
 // ============================================================
-export const auditEvents = sqliteTable('audit_events', {
+export const auditEvents = sqliteTable('auditEvents', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull(),
-  actorUserId: integer('actor_user_id'),
-  actorRole: text('actor_role'),
+  gymId: integer('gymId').notNull(),
+  actorUserId: integer('actorUserId'),
+  actorRole: text('actorRole'),
   action: text('action').notNull(),
-  entityType: text('entity_type').notNull(),
-  entityId: integer('entity_id'),
-  beforeState: text('before_state'),
-  afterState: text('after_state'),
+  entityType: text('entityType').notNull(),
+  entityId: integer('entityId'),
+  beforeState: text('beforeState'),
+  afterState: text('afterState'),
   ip: text('ip'),
-  userAgent: text('user_agent'),
-  deviceInfo: text('device_info'),
+  userAgent: text('userAgent'),
+  deviceInfo: text('deviceInfo'),
   metadata: text('metadata'),
-  createdAt: integer('created_at').notNull(),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  gymCreatedIdx: index('idx_audit_gym_created').on(t.gymId, t.createdAt),
-  gymActionCreatedIdx: index('idx_audit_gym_action_created').on(t.gymId, t.action, t.createdAt),
-  gymEntityIdx: index('idx_audit_gym_entity').on(t.gymId, t.entityType, t.entityId),
+  createdIdx: index('idxAuditGymCreated').on(t.gymId, t.createdAt),
+  actionIdx: index('idxAuditGymActionCreated').on(t.gymId, t.action, t.createdAt),
+  entityIdx: index('idxAuditGymEntity').on(t.gymId, t.entityType, t.entityId),
 }));
 
 // ============================================================
-// 15. counters (atomic sequences: receipt numbers, member codes)
+// 10. counters (atomic sequence generators)
 // ============================================================
 export const counters = sqliteTable('counters', {
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  // 'member_code' (lifetime per gym) | 'receipt:<YYYY>' (per calendar year)
-  counterType: text('counter_type').notNull(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  counterType: text('counterType').notNull(),
   value: integer('value').notNull().default(0),
 }, (t) => ({
   pk: primaryKey({ columns: [t.gymId, t.counterType] }),
 }));
 
 // ============================================================
-// 16. platform_settings (global key/value config: gateways, SMTP…)
+// 11. membershipPlans (catalog)
 // ============================================================
-export const platformSettings = sqliteTable('platform_settings', {
-  key: text('key').primaryKey(),
-  valueJson: text('value_json').notNull(),
-  updatedAt: integer('updated_at').notNull(),
-});
-
-// ============================================================
-// 17. communication_logs (per-message credit consumption + GDPR basis)
-// ============================================================
-export const communicationLogs = sqliteTable('communication_logs', {
+export const membershipPlans = sqliteTable('membershipPlans', {
   id: integer('id').primaryKey(),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  /** Nullable: gym-wide broadcasts have no single member. */
-  memberId: integer('member_id'),
-  channel: text('channel', { enum: ['SMS', 'WHATSAPP', 'EMAIL'] }).notNull(),
-  recipientPhone: text('recipient_phone'),
-  recipientName: text('recipient_name'),
-  messageType: text('message_type').notNull(),
-  creditsDeducted: integer('credits_deducted').notNull().default(1),
-  remainingBalance: integer('remaining_balance').notNull(),
-  lawfulBasis: text('lawful_basis'),
-  retentionUntil: integer('retention_until'),
-  dispatchedById: integer('dispatched_by_id'),
-  ip: text('ip'),
-  createdAt: integer('created_at').notNull(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  name: text('name').notNull(),
+  description: text('description'),
+  durationMonths: integer('durationMonths').notNull(),
+  pricePaise: integer('pricePaise').notNull(),
+  admissionFeePaise: integer('admissionFeePaise').notNull().default(0),
+  taxPercentage: real('taxPercentage').notNull().default(0),
+  isActive: integer('isActive').notNull().default(1),
+  billingPeriod: text('billingPeriod', { enum: ['MONTHLY', 'YEARLY'] }).notNull().default('MONTHLY'),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
-  gymIdx: index('idx_comm_logs_gym').on(t.gymId, t.createdAt),
-  memberIdx: index('idx_comm_logs_member').on(t.memberId),
-  // Gym-scoped (a single-column FK allowed cross-tenant member references).
-  memberFk: foreignKey({
-    columns: [t.gymId, t.memberId],
-    foreignColumns: [members.gymId, members.id],
-  }),
+  gymIdUq: uniqueIndex('membershipPlansGymIdUnique').on(t.gymId, t.id),
+  gymNameUq: uniqueIndex('membershipPlansGymNameUnique').on(t.gymId, t.name),
+  activeIdx: index('idxMembershipPlansGymActive').on(t.gymId, t.isActive, t.deletedAt),
 }));
 
 // ============================================================
-// 18. menu_items (database catalog of system routes & pages)
+// 12. members (the gym's customers)
 // ============================================================
-export const menuItems = sqliteTable('menu_items', {
+export const members = sqliteTable('members', {
+  id: integer('id').primaryKey(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  memberCode: text('memberCode').notNull(),
+  firstName: text('firstName').notNull(),
+  lastName: text('lastName'),
+  email: text('email'),
+  phone: text('phone').notNull(),
+  gender: text('gender', { enum: ['MALE', 'FEMALE', 'OTHER'] }),
+  dateOfBirth: integer('dateOfBirth'),
+  photoUrl: text('photoUrl'),
+  faceEmbedding: text('faceEmbedding'),
+  biometricConsentGiven: integer('biometricConsentGiven').notNull().default(0),
+  biometricConsentAt: integer('biometricConsentAt'),
+  biometricConsentVersion: text('biometricConsentVersion').default('1.0'),
+  address: text('address'),
+  city: text('city'),
+  pincode: text('pincode'),
+  emergencyContactName: text('emergencyContactName'),
+  emergencyContactPhone: text('emergencyContactPhone'),
+  healthNotes: text('healthNotes'),
+  status: text('status', {
+    enum: ['ACTIVE', 'INACTIVE', 'BLOCKED', 'EXPIRED', 'FROZEN', 'CANCELLED'],
+  }).notNull().default('ACTIVE'),
+  joinedDate: integer('joinedDate').notNull(),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
+}, (t) => ({
+  gymIdUq: uniqueIndex('membersGymIdUnique').on(t.gymId, t.id),
+  gymMemberCodeUq: uniqueIndex('membersGymMemberCodeUnique').on(t.gymId, t.memberCode),
+  gymPhoneUq: uniqueIndex('membersGymPhoneUnique').on(t.gymId, t.phone),
+  statusIdx: index('idxMembersGymStatus').on(t.gymId, t.status, t.deletedAt),
+  nameIdx: index('idxMembersGymName').on(t.gymId, t.lastName, t.firstName),
+}));
+
+// ============================================================
+// 13. memberships (member subscription contracts)
+// ============================================================
+export const memberships = sqliteTable('memberships', {
+  id: integer('id').primaryKey(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  memberId: integer('memberId').notNull(),
+  membershipPlanId: integer('membershipPlanId').notNull(),
+  startDate: integer('startDate').notNull(),
+  endDate: integer('endDate').notNull(),
+  totalAmountPaise: integer('totalAmountPaise').notNull(),
+  discountPaise: integer('discountPaise').notNull().default(0),
+  finalAmountPaise: integer('finalAmountPaise').notNull(),
+  paidAmountPaise: integer('paidAmountPaise').notNull().default(0),
+  dueAmountPaise: integer('dueAmountPaise').notNull().default(0),
+  status: text('status', { enum: ['ACTIVE', 'EXPIRED', 'FROZEN', 'CANCELLED'] }).notNull().default('ACTIVE'),
+  frozenAt: integer('frozenAt'),
+  notes: text('notes'),
+  createdByUserId: integer('createdByUserId'),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
+}, (t) => ({
+  gymIdUq: uniqueIndex('membershipsGymIdUnique').on(t.gymId, t.id),
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }).onDelete('cascade'),
+  planFk: foreignKey({
+    columns: [t.gymId, t.membershipPlanId],
+    foreignColumns: [membershipPlans.gymId, membershipPlans.id],
+  }).onDelete('restrict'),
+  memberIdx: index('idxMembershipsGymMember').on(t.gymId, t.memberId),
+  statusDatesIdx: index('idxMembershipsGymStatusDates').on(t.gymId, t.status, t.endDate),
+  endDateIdx: index('idxMembershipsGymEndDate').on(t.gymId, t.endDate),
+}));
+
+// ============================================================
+// 14. payments (financial ledger)
+// ============================================================
+export const payments = sqliteTable('payments', {
+  id: integer('id').primaryKey(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  memberId: integer('memberId').notNull(),
+  membershipId: integer('membershipId'),
+  paymentType: text('paymentType', { enum: ['GYM', 'PERSONAL_TRAINING'] }).notNull().default('GYM'),
+  receiptNumber: text('receiptNumber').notNull(),
+  amountPaise: integer('amountPaise').notNull(),
+  paymentDate: integer('paymentDate').notNull(),
+  paymentMode: text('paymentMode', {
+    enum: ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'],
+  }).notNull(),
+  referenceId: text('referenceId'),
+  status: text('status', { enum: ['COMPLETED', 'REFUNDED', 'VOID'] }).notNull().default('COMPLETED'),
+  recordedByUserId: integer('recordedByUserId'),
+  notes: text('notes'),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
+}, (t) => ({
+  gymIdUq: uniqueIndex('paymentsGymIdUnique').on(t.gymId, t.id),
+  receiptUq: uniqueIndex('paymentsGymReceiptUnique').on(t.gymId, t.receiptNumber),
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }).onDelete('restrict'),
+  membershipFk: foreignKey({
+    columns: [t.gymId, t.membershipId],
+    foreignColumns: [memberships.gymId, memberships.id],
+  }).onDelete('set null'),
+  dateIdx: index('idxPaymentsGymDate').on(t.gymId, t.paymentDate),
+  memberDateIdx: index('idxPaymentsGymMemberDate').on(t.gymId, t.memberId, t.paymentDate),
+  statusDateIdx: index('idxPaymentsGymStatusDate').on(t.gymId, t.status, t.paymentDate),
+}));
+
+// ============================================================
+// 15. ptCollections (PT fees + trainer commission)
+// ============================================================
+export const ptCollections = sqliteTable('ptCollections', {
+  id: integer('id').primaryKey(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  memberId: integer('memberId').notNull(),
+  trainerId: integer('trainerId').notNull(),
+  sessions: integer('sessions').notNull().default(0),
+  amountPaise: integer('amountPaise').notNull(),
+  commissionPercentage: real('commissionPercentage').notNull().default(0),
+  commissionPaise: integer('commissionPaise').notNull().default(0),
+  commissionStatus: text('commissionStatus', { enum: ['PENDING', 'PAID'] }).notNull().default('PENDING'),
+  paymentMode: text('paymentMode', {
+    enum: ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'],
+  }).notNull().default('CASH'),
+  paymentDate: integer('paymentDate').notNull(),
+  receiptNumber: text('receiptNumber'),
+  notes: text('notes'),
+  recordedByUserId: integer('recordedByUserId'),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
+}, (t) => ({
+  gymIdUq: uniqueIndex('ptCollectionsGymIdUnique').on(t.gymId, t.id),
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }).onDelete('restrict'),
+  trainerFk: foreignKey({
+    columns: [t.gymId, t.trainerId],
+    foreignColumns: [users.gymId, users.id],
+  }).onDelete('restrict'),
+  dateIdx: index('idxPtCollectionsGymDate').on(t.gymId, t.paymentDate),
+  trainerIdx: index('idxPtCollectionsGymTrainer').on(t.gymId, t.trainerId, t.commissionStatus),
+  receiptUq: uniqueIndex('ptCollectionsGymReceiptUnique')
+    .on(t.gymId, t.receiptNumber)
+    .where(sql`receiptNumber IS NOT NULL`),
+}));
+
+// ============================================================
+// 16. attendance (floor check-ins)
+// ============================================================
+export const attendance = sqliteTable('attendance', {
+  id: integer('id').primaryKey(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  memberId: integer('memberId').notNull(),
+  checkInTime: integer('checkInTime').notNull(),
+  checkOutTime: integer('checkOutTime'),
+  attendanceDate: integer('attendanceDate').notNull(),
+  method: text('method', { enum: ['MANUAL', 'QR', 'FACE_ID', 'KIOSK'] }).notNull(),
+  recordedByUserId: integer('recordedByUserId'),
+  deviceInfo: text('deviceInfo'),
+  createdAt: integer('createdAt').notNull(),
+  deletedAt: integer('deletedAt'),
+}, (t) => ({
+  gymIdUq: uniqueIndex('attendanceGymIdUnique').on(t.gymId, t.id),
+  // One check-in per member per day — enforced at the DB level so two
+  // concurrent desk/kiosk taps cannot create duplicate rows (the
+  // read-then-write above races). checkIn() relies on this constraint.
+  memberDayUq: uniqueIndex('attendanceGymMemberDayUnique').on(t.gymId, t.memberId, t.attendanceDate),
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }).onDelete('cascade'),
+  dateIdx: index('idxAttendanceGymDate').on(t.gymId, t.attendanceDate),
+  memberDateIdx: index('idxAttendanceGymMemberDate').on(t.gymId, t.memberId, t.attendanceDate),
+  checkinIdx: index('idxAttendanceGymCheckin').on(t.gymId, t.checkInTime),
+}));
+
+// ============================================================
+// 17. communicationLogs
+// ============================================================
+export const communicationLogs = sqliteTable('communicationLogs', {
+  id: integer('id').primaryKey(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  memberId: integer('memberId').references(() => members.id),
+  channel: text('channel', { enum: ['SMS', 'WHATSAPP', 'EMAIL'] }).notNull(),
+  recipientPhone: text('recipientPhone'),
+  recipientName: text('recipientName'),
+  messageType: text('messageType').notNull(),
+  creditsDeducted: integer('creditsDeducted').notNull().default(1),
+  remainingBalance: integer('remainingBalance').notNull(),
+  lawfulBasis: text('lawfulBasis'),
+  retentionUntil: integer('retentionUntil'),
+  dispatchedById: integer('dispatchedById'),
+  ip: text('ip'),
+  createdAt: integer('createdAt').notNull(),
+}, (t) => ({
+  gymIdUq: uniqueIndex('communicationLogsGymIdUnique').on(t.gymId, t.id),
+  gymIdx: index('idxCommLogsGym').on(t.gymId, t.createdAt),
+  memberIdx: index('idxCommLogsMember').on(t.memberId),
+}));
+
+// ============================================================
+// 18. menuItems (global catalog)
+// ============================================================
+export const menuItems = sqliteTable('menuItems', {
   id: integer('id').primaryKey({ autoIncrement: true }),
   key: text('key').notNull().unique(),
   label: text('label').notNull(),
   href: text('href'),
   icon: text('icon'),
-  groupKey: text('group_key').notNull().default('main'),
+  groupKey: text('groupKey').notNull().default('main'),
   order: integer('order').notNull().default(10),
-  featureKey: text('feature_key'),
-  adminOnly: integer('admin_only', { mode: 'boolean' }).notNull().default(false),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
+  featureKey: text('featureKey'),
+  adminOnly: integer('adminOnly', { mode: 'boolean' }).notNull().default(false),
+  isActive: integer('isActive', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
 }, (t) => ({
-  groupOrderIdx: index('idx_menu_items_group_order').on(t.groupKey, t.order),
+  groupOrderIdx: index('idxMenuItemsGroupOrder').on(t.groupKey, t.order),
 }));
 
 // ============================================================
-// 19. role_menus (junction table: gym role -> menu access)
+// 19. roleMenus (junction table)
 // ============================================================
-export const roleMenus = sqliteTable('role_menus', {
+export const roleMenus = sqliteTable('roleMenus', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  roleId: integer('role_id').notNull().references(() => roles.id, { onDelete: 'cascade' }),
-  menuItemId: integer('menu_item_id').notNull().references(() => menuItems.id, { onDelete: 'cascade' }),
-  createdAt: integer('created_at').notNull(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  roleId: integer('roleId').notNull().references(() => roles.id, { onDelete: 'cascade' }),
+  menuItemId: integer('menuItemId').notNull().references(() => menuItems.id, { onDelete: 'cascade' }),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  roleMenuUq: uniqueIndex('role_menus_role_menu_unique').on(t.gymId, t.roleId, t.menuItemId),
-  gymRoleIdx: index('idx_role_menus_gym_role').on(t.gymId, t.roleId),
-  gymMenuIdx: index('idx_role_menus_gym_menu').on(t.gymId, t.menuItemId),
+  roleMenuUq: uniqueIndex('roleMenusRoleMenuUnique').on(t.gymId, t.roleId, t.menuItemId),
+  gymRoleIdx: index('idxRoleMenusGymRole').on(t.gymId, t.roleId),
+  gymMenuIdx: index('idxRoleMenusGymMenu').on(t.gymId, t.menuItemId),
 }));
 
 // ============================================================
-// 20. classes (group fitness offerings)
+// 20. classes
 // ============================================================
 export const classes = sqliteTable('classes', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   description: text('description'),
-  durationMinutes: integer('duration_minutes').notNull().default(60),
-  maxCapacity: integer('max_capacity').notNull().default(20),
+  durationMinutes: integer('durationMinutes').notNull().default(60),
+  maxCapacity: integer('maxCapacity').notNull().default(20),
   color: text('color').notNull().default('#4f46e5'),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
+  isActive: integer('isActive', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('classes_gym_id_unique').on(t.gymId, t.id),
-  gymNameIdx: index('idx_classes_gym_name').on(t.gymId, t.name),
+  gymIdUq: uniqueIndex('classesGymIdUnique').on(t.gymId, t.id),
+  nameIdx: index('idxClassesGymName').on(t.gymId, t.name),
 }));
 
 // ============================================================
-// 21. class_schedules (weekly timetables & one-off classes)
+// 21. classSchedules
 // ============================================================
-export const classSchedules = sqliteTable('class_schedules', {
+export const classSchedules = sqliteTable('classSchedules', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  classId: integer('class_id').notNull().references(() => classes.id, { onDelete: 'cascade' }),
-  trainerUserId: integer('trainer_user_id').references(() => users.id, { onDelete: 'set null' }),
-  dayOfWeek: integer('day_of_week').notNull(), // 0-6
-  startTime: text('start_time').notNull(), // HH:MM
-  endTime: text('end_time').notNull(),     // HH:MM
-  date: text('date'), // YYYY-MM-DD
-  maxCapacity: integer('max_capacity').notNull().default(20),
-  isCancelled: integer('is_cancelled', { mode: 'boolean' }).notNull().default(false),
-  createdAt: integer('created_at').notNull(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  classId: integer('classId').notNull(),
+  trainerUserId: integer('trainerUserId'),
+  dayOfWeek: integer('dayOfWeek').notNull(),
+  startTime: text('startTime').notNull(),
+  endTime: text('endTime').notNull(),
+  date: text('date'),
+  maxCapacity: integer('maxCapacity').notNull().default(20),
+  isCancelled: integer('isCancelled', { mode: 'boolean' }).notNull().default(false),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('class_schedules_gym_id_unique').on(t.gymId, t.id),
-  gymClassIdx: index('idx_class_schedules_gym_class').on(t.gymId, t.classId),
-  gymDayIdx: index('idx_class_schedules_gym_day').on(t.gymId, t.dayOfWeek),
-  gymTrainerIdx: index('idx_class_schedules_gym_trainer').on(t.gymId, t.trainerUserId),
+  gymIdUq: uniqueIndex('classSchedulesGymIdUnique').on(t.gymId, t.id),
+  classFk: foreignKey({
+    columns: [t.gymId, t.classId],
+    foreignColumns: [classes.gymId, classes.id],
+  }).onDelete('cascade'),
+  trainerFk: foreignKey({
+    columns: [t.gymId, t.trainerUserId],
+    foreignColumns: [users.gymId, users.id],
+  }).onDelete('set null'),
+  classIdx: index('idxClassSchedulesGymClass').on(t.gymId, t.classId),
+  dayIdx: index('idxClassSchedulesGymDay').on(t.gymId, t.dayOfWeek),
+  trainerIdx: index('idxClassSchedulesGymTrainer').on(t.gymId, t.trainerUserId),
 }));
 
 // ============================================================
-// 22. class_bookings (member reservations)
+// 22. classBookings
 // ============================================================
-export const classBookings = sqliteTable('class_bookings', {
+export const classBookings = sqliteTable('classBookings', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  scheduleId: integer('schedule_id').notNull().references(() => classSchedules.id, { onDelete: 'cascade' }),
-  memberId: integer('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  scheduleId: integer('scheduleId').notNull(),
+  memberId: integer('memberId').notNull(),
   status: text('status', { enum: ['BOOKED', 'ATTENDED', 'CANCELLED', 'NO_SHOW', 'WAITLIST'] }).notNull().default('BOOKED'),
-  bookedAt: integer('booked_at').notNull(),
-  attendedAt: integer('attended_at'),
+  bookedAt: integer('bookedAt').notNull(),
+  attendedAt: integer('attendedAt'),
 }, (t) => ({
-  gymIdUq: uniqueIndex('class_bookings_gym_id_unique').on(t.gymId, t.id),
-  gymScheduleIdx: index('idx_class_bookings_gym_schedule').on(t.gymId, t.scheduleId),
-  gymMemberIdx: index('idx_class_bookings_gym_member').on(t.gymId, t.memberId),
+  gymIdUq: uniqueIndex('classBookingsGymIdUnique').on(t.gymId, t.id),
+  scheduleFk: foreignKey({
+    columns: [t.gymId, t.scheduleId],
+    foreignColumns: [classSchedules.gymId, classSchedules.id],
+  }).onDelete('cascade'),
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }).onDelete('cascade'),
+  scheduleIdx: index('idxClassBookingsGymSchedule').on(t.gymId, t.scheduleId),
+  memberIdx: index('idxClassBookingsGymMember').on(t.gymId, t.memberId),
 }));
 
 // ============================================================
-// 23. pt_packages (personal training agreements)
+// 23. ptPackages
 // ============================================================
-export const ptPackages = sqliteTable('pt_packages', {
+export const ptPackages = sqliteTable('ptPackages', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  memberId: integer('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
-  trainerUserId: integer('trainer_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  /** Display name shown in the member portal; defaults keep pre-0003 rows valid. */
-  packageName: text('package_name').notNull().default('Personal Training'),
-  totalSessions: integer('total_sessions').notNull(),
-  completedSessions: integer('completed_sessions').notNull().default(0),
-  pricePaise: integer('price_paise').notNull(),
-  startDate: text('start_date').notNull(), // YYYY-MM-DD
-  expiryDate: text('expiry_date').notNull(), // YYYY-MM-DD
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  memberId: integer('memberId').notNull(),
+  trainerUserId: integer('trainerUserId').notNull(),
+  packageName: text('packageName').notNull().default('Personal Training'),
+  totalSessions: integer('totalSessions').notNull(),
+  completedSessions: integer('completedSessions').notNull().default(0),
+  pricePaise: integer('pricePaise').notNull(),
+  startDate: text('startDate').notNull(),
+  expiryDate: text('expiryDate').notNull(),
   status: text('status', { enum: ['ACTIVE', 'COMPLETED', 'EXPIRED'] }).notNull().default('ACTIVE'),
   notes: text('notes'),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('pt_packages_gym_id_unique').on(t.gymId, t.id),
-  gymMemberIdx: index('idx_pt_packages_gym_member').on(t.gymId, t.memberId),
-  gymTrainerIdx: index('idx_pt_packages_gym_trainer').on(t.gymId, t.trainerUserId),
+  gymIdUq: uniqueIndex('ptPackagesGymIdUnique').on(t.gymId, t.id),
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }).onDelete('cascade'),
+  trainerFk: foreignKey({
+    columns: [t.gymId, t.trainerUserId],
+    foreignColumns: [users.gymId, users.id],
+  }).onDelete('cascade'),
+  memberIdx: index('idxPtPackagesGymMember').on(t.gymId, t.memberId),
+  trainerIdx: index('idxPtPackagesGymTrainer').on(t.gymId, t.trainerUserId),
 }));
 
 // ============================================================
-// 24. pt_sessions (individual workout logs)
+// 24. ptSessions
 // ============================================================
-export const ptSessions = sqliteTable('pt_sessions', {
+export const ptSessions = sqliteTable('ptSessions', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  packageId: integer('package_id').notNull().references(() => ptPackages.id, { onDelete: 'cascade' }),
-  sessionNumber: integer('session_number').notNull(),
-  sessionDate: text('session_date').notNull(), // YYYY-MM-DD
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  packageId: integer('packageId').notNull(),
+  sessionNumber: integer('sessionNumber').notNull(),
+  sessionDate: text('sessionDate').notNull(),
   notes: text('notes'),
-  trainerUserId: integer('trainer_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  signedOffByMember: integer('signed_off_by_member', { mode: 'boolean' }).notNull().default(true),
-  createdAt: integer('created_at').notNull(),
+  trainerUserId: integer('trainerUserId').notNull(),
+  signedOffByMember: integer('signedOffByMember', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('pt_sessions_gym_id_unique').on(t.gymId, t.id),
-  gymPackageIdx: index('idx_pt_sessions_gym_package').on(t.gymId, t.packageId),
+  gymIdUq: uniqueIndex('ptSessionsGymIdUnique').on(t.gymId, t.id),
+  packageFk: foreignKey({
+    columns: [t.gymId, t.packageId],
+    foreignColumns: [ptPackages.gymId, ptPackages.id],
+  }).onDelete('cascade'),
+  trainerFk: foreignKey({
+    columns: [t.gymId, t.trainerUserId],
+    foreignColumns: [users.gymId, users.id],
+  }).onDelete('cascade'),
+  packageIdx: index('idxPtSessionsGymPackage').on(t.gymId, t.packageId),
 }));
 
 // ============================================================
-// 25. products (POS retail & supplement catalog)
+// 25. products (POS retail)
 // ============================================================
 export const products = sqliteTable('products', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   sku: text('sku'),
   category: text('category').notNull().default('General'),
-  pricePaise: integer('price_paise').notNull(),
-  costPaise: integer('cost_paise').notNull().default(0),
-  stockQuantity: integer('stock_quantity').notNull().default(0),
-  lowStockThreshold: integer('low_stock_threshold').notNull().default(5),
-  taxRate: real('tax_rate').notNull().default(0),
-  isActive: integer('is_active', { mode: 'boolean' }).notNull().default(true),
-  createdAt: integer('created_at').notNull(),
-  updatedAt: integer('updated_at').notNull(),
+  pricePaise: integer('pricePaise').notNull(),
+  costPaise: integer('costPaise').notNull().default(0),
+  stockQuantity: integer('stockQuantity').notNull().default(0),
+  lowStockThreshold: integer('lowStockThreshold').notNull().default(5),
+  taxRate: real('taxRate').notNull().default(0),
+  isActive: integer('isActive', { mode: 'boolean' }).notNull().default(true),
+  createdAt: integer('createdAt').notNull(),
+  updatedAt: integer('updatedAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('products_gym_id_unique').on(t.gymId, t.id),
-  gymNameIdx: index('idx_products_gym_name').on(t.gymId, t.name),
+  gymIdUq: uniqueIndex('productsGymIdUnique').on(t.gymId, t.id),
+  nameIdx: index('idxProductsGymName').on(t.gymId, t.name),
 }));
 
 // ============================================================
-// 26. pos_sales (POS transactions)
+// 26. posSales
 // ============================================================
-export const posSales = sqliteTable('pos_sales', {
+export const posSales = sqliteTable('posSales', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  receiptNumber: text('receipt_number').notNull(),
-  memberId: integer('member_id').references(() => members.id, { onDelete: 'set null' }),
-  subtotalPaise: integer('subtotal_paise').notNull(),
-  taxPaise: integer('tax_paise').notNull().default(0),
-  totalPaise: integer('total_paise').notNull(),
-  paymentMode: text('payment_mode', { enum: ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'] }).notNull().default('CASH'),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  receiptNumber: text('receiptNumber').notNull(),
+  memberId: integer('memberId'),
+  subtotalPaise: integer('subtotalPaise').notNull(),
+  taxPaise: integer('taxPaise').notNull().default(0),
+  totalPaise: integer('totalPaise').notNull(),
+  paymentMode: text('paymentMode', {
+    enum: ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'],
+  }).notNull().default('CASH'),
   notes: text('notes'),
-  createdAt: integer('created_at').notNull(),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('pos_sales_gym_id_unique').on(t.gymId, t.id),
-  gymReceiptUq: uniqueIndex('pos_sales_gym_receipt_unique').on(t.gymId, t.receiptNumber),
-  gymMemberIdx: index('idx_pos_sales_gym_member').on(t.gymId, t.memberId),
+  gymIdUq: uniqueIndex('posSalesGymIdUnique').on(t.gymId, t.id),
+  receiptUq: uniqueIndex('posSalesGymReceiptUnique').on(t.gymId, t.receiptNumber),
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }).onDelete('set null'),
+  memberIdx: index('idxPosSalesGymMember').on(t.gymId, t.memberId),
 }));
 
 // ============================================================
-// 27. pos_sale_items (items sold in POS transaction)
+// 27. posSaleItems
 // ============================================================
-export const posSaleItems = sqliteTable('pos_sale_items', {
+export const posSaleItems = sqliteTable('posSaleItems', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  saleId: integer('sale_id').notNull().references(() => posSales.id, { onDelete: 'cascade' }),
-  productId: integer('product_id').notNull().references(() => products.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  saleId: integer('saleId').notNull(),
+  productId: integer('productId').notNull(),
   quantity: integer('quantity').notNull(),
-  unitPricePaise: integer('unit_price_paise').notNull(),
-  totalPaise: integer('total_paise').notNull(),
+  unitPricePaise: integer('unitPricePaise').notNull(),
+  totalPaise: integer('totalPaise').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('pos_sale_items_gym_id_unique').on(t.gymId, t.id),
-  gymSaleIdx: index('idx_pos_sale_items_gym_sale').on(t.gymId, t.saleId),
+  gymIdUq: uniqueIndex('posSaleItemsGymIdUnique').on(t.gymId, t.id),
+  saleFk: foreignKey({
+    columns: [t.gymId, t.saleId],
+    foreignColumns: [posSales.gymId, posSales.id],
+  }).onDelete('cascade'),
+  productFk: foreignKey({
+    columns: [t.gymId, t.productId],
+    foreignColumns: [products.gymId, products.id],
+  }).onDelete('cascade'),
+  saleIdx: index('idxPosSaleItemsGymSale').on(t.gymId, t.saleId),
 }));
 
 // ============================================================
-// 28. expense_categories (gym expense categories)
+// 28. expenseCategories
 // ============================================================
-export const expenseCategories = sqliteTable('expense_categories', {
+export const expenseCategories = sqliteTable('expenseCategories', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
-  createdAt: integer('created_at').notNull(),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('expense_categories_gym_id_unique').on(t.gymId, t.id),
-  gymNameUq: uniqueIndex('expense_categories_gym_name_unique').on(t.gymId, t.name),
+  gymIdUq: uniqueIndex('expenseCategoriesGymIdUnique').on(t.gymId, t.id),
+  nameUq: uniqueIndex('expenseCategoriesGymNameUnique').on(t.gymId, t.name),
 }));
 
 // ============================================================
-// 29. expenses (expenditure records)
+// 29. expenses
 // ============================================================
 export const expenses = sqliteTable('expenses', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  categoryId: integer('category_id').notNull().references(() => expenseCategories.id, { onDelete: 'cascade' }),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  categoryId: integer('categoryId').notNull(),
   title: text('title').notNull(),
-  amountPaise: integer('amount_paise').notNull(),
-  expenseDate: text('expense_date').notNull(), // YYYY-MM-DD
-  paymentMode: text('payment_mode', { enum: ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'] }).notNull().default('CASH'),
+  amountPaise: integer('amountPaise').notNull(),
+  expenseDate: text('expenseDate').notNull(),
+  paymentMode: text('paymentMode', {
+    enum: ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER'],
+  }).notNull().default('CASH'),
   vendor: text('vendor'),
-  receiptUrl: text('receipt_url'),
-  createdByUserId: integer('created_by_user_id').references(() => users.id, { onDelete: 'set null' }),
-  createdAt: integer('created_at').notNull(),
+  receiptUrl: text('receiptUrl'),
+  createdByUserId: integer('createdByUserId').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('expenses_gym_id_unique').on(t.gymId, t.id),
-  gymDateIdx: index('idx_expenses_gym_date').on(t.gymId, t.expenseDate),
-  gymCategoryIdx: index('idx_expenses_gym_category').on(t.gymId, t.categoryId),
+  gymIdUq: uniqueIndex('expensesGymIdUnique').on(t.gymId, t.id),
+  categoryFk: foreignKey({
+    columns: [t.gymId, t.categoryId],
+    foreignColumns: [expenseCategories.gymId, expenseCategories.id],
+  }).onDelete('cascade'),
+  dateIdx: index('idxExpensesGymDate').on(t.gymId, t.expenseDate),
+  categoryIdx: index('idxExpensesGymCategory').on(t.gymId, t.categoryId),
 }));
 
 // ============================================================
-// 30. lockers (physical lockers)
+// 30. lockers
 // ============================================================
 export const lockers = sqliteTable('lockers', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  lockerNumber: text('locker_number').notNull(),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  lockerNumber: text('lockerNumber').notNull(),
   zone: text('zone'),
   status: text('status', { enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE'] }).notNull().default('AVAILABLE'),
-  createdAt: integer('created_at').notNull(),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('lockers_gym_id_unique').on(t.gymId, t.id),
-  gymLockerNumberUq: uniqueIndex('lockers_gym_number_unique').on(t.gymId, t.lockerNumber),
+  gymIdUq: uniqueIndex('lockersGymIdUnique').on(t.gymId, t.id),
+  numberUq: uniqueIndex('lockersGymNumberUnique').on(t.gymId, t.lockerNumber),
 }));
 
 // ============================================================
-// 31. locker_allocations (locker rentals to members)
+// 31. lockerAllocations
 // ============================================================
-export const lockerAllocations = sqliteTable('locker_allocations', {
+export const lockerAllocations = sqliteTable('lockerAllocations', {
   id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  lockerId: integer('locker_id').notNull().references(() => lockers.id, { onDelete: 'cascade' }),
-  memberId: integer('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
-  startDate: text('start_date').notNull(), // YYYY-MM-DD
-  endDate: text('end_date').notNull(),   // YYYY-MM-DD
-  depositPaise: integer('deposit_paise').notNull().default(0),
-  rentPaise: integer('rent_paise').notNull().default(0),
+  gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
+  lockerId: integer('lockerId').notNull(),
+  memberId: integer('memberId').notNull(),
+  startDate: text('startDate').notNull(),
+  endDate: text('endDate').notNull(),
+  depositPaise: integer('depositPaise').notNull().default(0),
+  rentPaise: integer('rentPaise').notNull().default(0),
   status: text('status', { enum: ['ACTIVE', 'TERMINATED', 'OVERDUE'] }).notNull().default('ACTIVE'),
-  createdAt: integer('created_at').notNull(),
+  createdAt: integer('createdAt').notNull(),
 }, (t) => ({
-  gymIdUq: uniqueIndex('locker_allocations_gym_id_unique').on(t.gymId, t.id),
-  gymLockerIdx: index('idx_locker_allocations_gym_locker').on(t.gymId, t.lockerId),
-  gymMemberIdx: index('idx_locker_allocations_gym_member').on(t.gymId, t.memberId),
+  gymIdUq: uniqueIndex('lockerAllocationsGymIdUnique').on(t.gymId, t.id),
+  lockerFk: foreignKey({
+    columns: [t.gymId, t.lockerId],
+    foreignColumns: [lockers.gymId, lockers.id],
+  }).onDelete('cascade'),
+  memberFk: foreignKey({
+    columns: [t.gymId, t.memberId],
+    foreignColumns: [members.gymId, members.id],
+  }).onDelete('cascade'),
+  lockerIdx: index('idxLockerAllocationsGymLocker').on(t.gymId, t.lockerId),
+  memberIdx: index('idxLockerAllocationsGymMember').on(t.gymId, t.memberId),
 }));
 
+// ============================================================
 // Inferred row types
 // ============================================================
 export type PlatformAdmin = typeof platformAdmins.$inferSelect;
@@ -729,4 +811,3 @@ export type ExpenseCategoryRow = typeof expenseCategories.$inferSelect;
 export type ExpenseRow = typeof expenses.$inferSelect;
 export type LockerRow = typeof lockers.$inferSelect;
 export type LockerAllocationRow = typeof lockerAllocations.$inferSelect;
-

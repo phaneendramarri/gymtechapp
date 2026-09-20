@@ -55,7 +55,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new AttendanceRepository(mockDb, GYM_ALPHA);
       await repo.listToday();
 
-      expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()[0]).toBe(GYM_ALPHA);
     });
 
@@ -74,7 +74,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new PlanRepository(mockDb, GYM_ALPHA);
       await repo.listActive();
 
-      expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()).toContain(GYM_ALPHA);
     });
 
@@ -83,7 +83,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new PlanRepository(mockDb, GYM_ALPHA);
       await repo.findById(99);
 
-      expect(mockDb.getLastQuery()).toMatch(/id["\s]*=\s*\?.*gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/id["\s]*=\s*\?.*(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()).toContain(99);
       expect(mockDb.getLastBindings()).toContain(GYM_ALPHA);
     });
@@ -93,7 +93,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new PlanRepository(mockDb, GYM_ALPHA);
 
       await repo.update(42, { name: 'New Plan Name', isActive: 0 });
-      expect(mockDb.getLastQuery()).toMatch(/id["\s]*=\s*\?.*gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/id["\s]*=\s*\?.*(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()).toContain(GYM_ALPHA);
     });
   });
@@ -104,7 +104,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new MemberRepository(mockDb, GYM_ALPHA);
       await repo.list({});
 
-      expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*(\?|101)/i);
+      expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*(\?|101)/i);
       expect(mockDb.getLastBindings()).toBeDefined();
     });
 
@@ -113,7 +113,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new MemberRepository(mockDb, GYM_ALPHA);
       await repo.update(123, { phone: '9999999999', status: 'BLOCKED' });
 
-      expect(mockDb.getLastQuery()).toMatch(/id["\s]*=\s*\?.*gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/id["\s]*=\s*\?.*(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()).toContain(GYM_ALPHA);
     });
 
@@ -122,7 +122,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new MemberRepository(mockDb, GYM_ALPHA);
       await repo.findByIdentifier('9876543210');
 
-      expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()[0]).toBe(GYM_ALPHA);
     });
 
@@ -131,7 +131,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new MemberRepository(mockDb, GYM_ALPHA);
       await repo.getTodayAttendance();
 
-      expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()[0]).toBe(GYM_ALPHA);
     });
   });
@@ -156,7 +156,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new PaymentRepository(mockDb, GYM_BETA);
       await repo.getSummaryMetrics();
 
-      expect(mockDb.getLastQuery()).toMatch(/gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()).toContain(GYM_BETA);
     });
   });
@@ -167,7 +167,7 @@ describe('Multi-Tenant Database Isolation Invariants', () => {
       const repo = new LicenseRepository(mockDb, GYM_ALPHA);
       await repo.findByGymId(GYM_ALPHA);
 
-      expect(mockDb.getLastQuery()).toMatch(/licenses.*gym_id["\s]*=\s*\?/i);
+      expect(mockDb.getLastQuery()).toMatch(/licenses.*(?:gymId|gym_id)["\s]*=\s*\?/i);
       expect(mockDb.getLastBindings()).toContain(GYM_ALPHA);
     });
   });

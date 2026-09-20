@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, sql, isNull } from 'drizzle-orm';
 import type { D1Database } from '@cloudflare/workers-types';
 import { drizzle } from 'drizzle-orm/d1';
 import { classes, classSchedules, classBookings, members, users } from '../db/schema';
@@ -211,7 +211,7 @@ export class ClassRepository {
     const member = await this.db
       .select({ id: members.id })
       .from(members)
-      .where(and(eq(members.gymId, gymId), eq(members.id, memberId), sql`members.deleted_at IS NULL`))
+      .where(and(eq(members.gymId, gymId), eq(members.id, memberId), isNull(members.deletedAt)))
       .get();
     if (!member) throw new Error('Member not found in this gym');
 

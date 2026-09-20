@@ -1,9 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   hashPassword,
-  hashPasswordLegacySha256,
   verifyPassword,
-  isLegacyHash,
   createSessionToken,
   verifySessionToken,
 } from '../../apps/api/src/lib/session';
@@ -32,27 +30,12 @@ describe('Auth & Cryptographic Security', () => {
     expect(await verifyPassword('other123', hash1)).toBe(false);
   });
 
-  it('verifyPassword accepts legacy sha256$… hashes (migration path)', async () => {
-    const legacy = await hashPasswordLegacySha256('admin123');
-    expect(legacy).toBe('sha256$240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9');
-    expect(isLegacyHash(legacy)).toBe(true);
-    expect(await verifyPassword('admin123', legacy)).toBe(true);
-    expect(await verifyPassword('wrong', legacy)).toBe(false);
-  });
-
   it('verifyPassword returns false for malformed/empty input', async () => {
     const realHash = await hashPassword('admin123');
     expect(await verifyPassword('', realHash)).toBe(false);
     expect(await verifyPassword('admin123', '')).toBe(false);
     expect(await verifyPassword('admin123', 'not-a-hash')).toBe(false);
     expect(await verifyPassword('admin123', 'sha256$tooshort')).toBe(false);
-  });
-
-  it('isLegacyHash only matches the sha256$ prefix', async () => {
-    const argonHash = await hashPassword('admin123');
-    expect(isLegacyHash(argonHash)).toBe(false);
-    expect(isLegacyHash('sha256$abcdef')).toBe(true);
-    expect(isLegacyHash('')).toBe(false);
   });
 
   it('creates and verifies valid session tokens', async () => {

@@ -6,24 +6,28 @@ import { GYM_FEATURES } from '../../packages/shared/src/constants';
  * Guard the license → feature-flag contract.
  *
  * `licenses.features` is the single source of truth for feature gating
- * (API `requireFeature` + the platform-admin toggles). The semantics below
- * are what keep legacy licenses working after gating became real.
+ * (API `requireFeature` + the platform-admin toggles).
+ *
+ * SECURITY: The default is now SECURE BY DEFAULT — missing, empty, or malformed
+ * JSON means NO features enabled. This prevents accidental feature exposure
+ * when license data is corrupted or missing. Legacy licenses must be explicitly
+ * migrated to include the features JSON.
  */
 describe('parseEnabledFeatures', () => {
-  it('treats a missing map as "all features enabled" (legacy default)', () => {
-    expect(parseEnabledFeatures(null)).toEqual([...GYM_FEATURES]);
-    expect(parseEnabledFeatures(undefined)).toEqual([...GYM_FEATURES]);
-    expect(parseEnabledFeatures('')).toEqual([...GYM_FEATURES]);
+  it('treats a missing map as NO features enabled (secure default)', () => {
+    expect(parseEnabledFeatures(null)).toEqual([]);
+    expect(parseEnabledFeatures(undefined)).toEqual([]);
+    expect(parseEnabledFeatures('')).toEqual([]);
   });
 
-  it('treats an empty object as "all features enabled"', () => {
-    expect(parseEnabledFeatures('{}')).toEqual([...GYM_FEATURES]);
+  it('treats an empty object as NO features enabled (secure default)', () => {
+    expect(parseEnabledFeatures('{}')).toEqual([]);
   });
 
-  it('treats unparsable JSON as "all features enabled" instead of throwing', () => {
-    expect(parseEnabledFeatures('{not json')).toEqual([...GYM_FEATURES]);
-    expect(parseEnabledFeatures('"a string"')).toEqual([...GYM_FEATURES]);
-    expect(parseEnabledFeatures('[]')).toEqual([...GYM_FEATURES]);
+  it('treats unparsable JSON as NO features enabled (fail closed)', () => {
+    expect(parseEnabledFeatures('{not json')).toEqual([]);
+    expect(parseEnabledFeatures('"a string"')).toEqual([]);
+    expect(parseEnabledFeatures('[]')).toEqual([]);
   });
 
   it('returns exactly the keys explicitly set to true', () => {
@@ -56,7 +60,7 @@ describe('isFeatureEnabled', () => {
     expect(isFeatureEnabled(JSON.stringify({ members: true }), 'payments')).toBe(false);
   });
 
-  it('is true for every feature when the map is empty (legacy license)', () => {
-    expect(isFeatureEnabled('{}', 'audit_logs')).toBe(true);
+  it('is false for every feature when the map is empty (secure default)', () => {
+    expect(isFeatureEnabled('{}', 'audit_logs')).toBe(false);
   });
 });

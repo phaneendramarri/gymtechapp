@@ -15,7 +15,7 @@ export class GymRepository {
 
   async findBySlug(slug: string): Promise<GymSlugRow | null> {
     const row = await this.db
-      .prepare(`SELECT id, name, slug FROM gyms WHERE slug = ? AND deleted_at IS NULL LIMIT 1`)
+      .prepare(`SELECT id, name, slug FROM gyms WHERE slug = ? AND deletedAt IS NULL LIMIT 1`)
       .bind(slug)
       .first<GymSlugRow>();
     return row ?? null;

@@ -394,12 +394,19 @@ export interface SessionUser {
 // =====================================================
 
 export interface MemberListItem extends Member {
-  active_membership_id: number | null
-  membership_status: MembershipStatus | null
-  membership_start_date: number | null
-  membership_end_date: number | null
-  membership_due_amount_paise: number | null
-  plan_name: string | null
+  activeMembershipId: number | null
+  membershipStatus: MembershipStatus | null
+  membershipStartDate: number | null
+  membershipEndDate: number | null
+  membershipDueAmountPaise: number | null
+  planName: string | null
+  // Compatibility aliases
+  active_membership_id?: number | null
+  membership_status?: MembershipStatus | null
+  membership_start_date?: number | null
+  membership_end_date?: number | null
+  membership_due_amount_paise?: number | null
+  plan_name?: string | null
 }
 
 export interface PaymentWithDetails extends Payment {

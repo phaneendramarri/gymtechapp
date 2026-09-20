@@ -25,25 +25,25 @@ function createMockDb() {
               results: [
                 {
                   id: 1,
-                  gym_id: 101,
-                  first_name: 'Jane',
-                  last_name: 'Doe',
+                  gymId: 101,
+                  firstName: 'Jane',
+                  lastName: 'Doe',
                   phone: '9876543210',
-                  member_code: 'MEM-1001',
+                  memberCode: 'MEM-1001',
                   status: 'ACTIVE',
-                  created_at: 1700000000,
-                  active_membership_id: 10,
-                  membership_status: 'ACTIVE',
-                  membership_start_date: 1700000000,
-                  membership_end_date: 1705000000,
-                  membership_due_amount_paise: 0,
-                  plan_name: 'Annual Gold',
+                  createdAt: 1700000000,
+                  activeMembershipId: 10,
+                  membershipStatus: 'ACTIVE',
+                  membershipStartDate: 1700000000,
+                  membershipEndDate: 1705000000,
+                  membershipDueAmountPaise: 0,
+                  planName: 'Annual Gold',
                 },
               ],
             }),
             get: () => Promise.resolve({ id: 1, status: 'ACTIVE', deletedAt: null }),
-            first: () => Promise.resolve({ count: 1, id: 1, max_members: 100, next_val: 1, c: 1, revenue: 50000, total_dues: 0 }),
-            run: () => Promise.resolve({ success: true, meta: { last_row_id: 1, changes: 1 } }),
+            first: () => Promise.resolve({ count: 1, id: 1, maxMembers: 100, nextVal: 1, c: 1, revenue: 50000, totalDues: 0 }),
+            run: () => Promise.resolve({ success: true, meta: { lastRowId: 1, changes: 1 } }),
           };
         },
       };
@@ -72,9 +72,9 @@ describe('Production Hardening & System Invariants', () => {
       const lastStmt = mockDb.getLastStatement();
       expect(lastStmt.sql).not.toContain(maliciousStatus);
       expect(lastStmt.sql).not.toContain(maliciousSearch);
-      expect(lastStmt.sql).toContain('gym_id = ?');
+      expect(lastStmt.sql).toMatch(/(?:gymId|gym_id) = \?/);
       expect(lastStmt.sql).toContain('status = ?');
-      expect(lastStmt.sql).toContain('first_name LIKE ?');
+      expect(lastStmt.sql).toMatch(/(?:firstName|first_name) LIKE \?/);
       expect(lastStmt.bindings).toContain(GYM_ID);
       expect(lastStmt.bindings).toContain(maliciousStatus);
       expect(lastStmt.bindings).toContain(`%${maliciousSearch}%`);
@@ -103,7 +103,7 @@ describe('Production Hardening & System Invariants', () => {
       expect(first?.id).toBeDefined();
       expect(first?.firstName).toBe('Jane');
       expect(first?.memberCode).toBe('MEM-1001');
-      expect(first?.plan_name).toBe('Annual Gold');
+      expect(first?.planName ?? (first as any)?.plan_name).toBe('Annual Gold');
       expect((first as any)?.first_name).toBeUndefined();
     });
   });
@@ -131,11 +131,11 @@ describe('Production Hardening & System Invariants', () => {
 
       await repo.list({ limit: 10 });
       let stmt = mockDb.getLastStatement();
-      expect(stmt.sql.toLowerCase()).toContain('deleted_at');
+      expect(stmt.sql.toLowerCase()).toContain('deletedat');
 
       await repo.count();
       stmt = mockDb.getLastStatement();
-      expect(stmt.sql.toLowerCase()).toContain('deleted_at');
+      expect(stmt.sql.toLowerCase()).toContain('deletedat');
     });
   });
 
@@ -179,6 +179,23 @@ describe('Production Hardening & System Invariants', () => {
       await userRepo.update(10, { status: 'ACTIVE' });
       stmt = mockDb.getLastStatement();
       expect(stmt.bindings).toContain('ACTIVE');
+    });
+  });
+
+  describe('Secrets Hygiene Invariant', () => {
+    it('never tracks per-machine secret files in git', async () => {
+      // apps/api/.dev.vars once shipped real-looking keys (since rotated to
+      // placeholders). CI must fail if a secret file is ever staged again.
+      const { execFileSync } = await import('node:child_process');
+      const out = execFileSync('git', ['ls-files'], { encoding: 'utf8' });
+      const tracked = out.split('\n').map((f) => f.trim()).filter(Boolean);
+      const offenders = tracked.filter((f) =>
+        /(^|\/)\.dev\.vars(\..+)?$/.test(f) ||
+        (/(^|\/)\.env(\..+)?$/.test(f) && !f.endsWith('.env.example')) ||
+        /seed_.*\.sql$/.test(f) ||
+        /update_hash\.sql$/.test(f)
+      );
+      expect(offenders).toEqual([]);
     });
   });
 });

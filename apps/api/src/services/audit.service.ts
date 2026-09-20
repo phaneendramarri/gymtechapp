@@ -5,7 +5,7 @@
  * Neither normal users nor staff can modify or delete audit rows.
  *
  * Platform admin actions are recorded in the same append-only table with
- * actor_role = 'PLATFORM_ADMIN' and scoped to the affected gym_id (0 for
+ * actorRole = 'PLATFORM_ADMIN' and scoped to the affected gymId (0 for
  * platform-wide actions), so a single table holds the full audit trail.
  */
 
@@ -73,8 +73,8 @@ export async function auditGymFromCtx(
 }
 
 /**
- * Record a platform admin action into audit_events.
- * Uses the affectedGymId for gym_id scoping; falls back to gymId=0 for
+ * Record a platform admin action into auditEvents.
+ * Uses the affectedGymId for gymId scoping; falls back to gymId=0 for
  * platform-wide actions (e.g. creating a new gym).
  */
 export async function auditSaasFromCtx(
@@ -88,8 +88,8 @@ export async function auditSaasFromCtx(
   const ctx = c.get ? c.get('ctx' as never) as { user?: { id: number } | null } : null;
   if (!ctx?.user) return;
   const client = extractClientInfo(c.req.raw);
-  // Platform admin events go into audit_events with gym_id = affectedGymId (or 0)
-  // and actor_role = 'PLATFORM_ADMIN' for easy filtering.
+  // Platform admin events go into auditEvents with gymId = affectedGymId (or 0)
+  // and actorRole = 'PLATFORM_ADMIN' for easy filtering.
   try {
     await new AuditService(c.env.DB).recordGymEvent({
       gymId: affectedGymId ?? 0,
@@ -115,9 +115,9 @@ export class AuditService {
     try {
       await this.db
         .prepare(
-          `INSERT INTO audit_events (
-            gym_id, actor_user_id, actor_role, action, entity_type, entity_id,
-            before_state, after_state, ip, user_agent, device_info, metadata, created_at
+          `INSERT INTO auditEvents (
+            gymId, actorUserId, actorRole, action, entityType, entityId,
+            beforeState, afterState, ip, userAgent, deviceInfo, metadata, createdAt
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())`
         )
         .bind(
@@ -149,7 +149,7 @@ export class AuditService {
     const limit = Math.min(params.limit || 50, 100);
     const offset = params.offset || 0;
 
-    let whereClause = 'WHERE a.gym_id = ?';
+    let whereClause = 'WHERE a.gymId = ?';
     const bindings: any[] = [gymId];
 
     if (params.action) {
@@ -157,21 +157,21 @@ export class AuditService {
       bindings.push(params.action);
     }
     if (params.entityType) {
-      whereClause += ' AND a.entity_type = ?';
+      whereClause += ' AND a.entityType = ?';
       bindings.push(params.entityType);
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM audit_events a ${whereClause}`)
+      .prepare(`SELECT COUNT(*) as count FROM auditEvents a ${whereClause}`)
       .bind(...bindings)
       .first<{ count: number }>();
 
     const query = `
-      SELECT a.*, u.name as actor_name, u.email as actor_email
-      FROM audit_events a
-      LEFT JOIN users u ON u.id = a.actor_user_id
+      SELECT a.*, u.name as actorName, u.email as actorEmail
+      FROM auditEvents a
+      LEFT JOIN users u ON u.id = a.actorUserId
       ${whereClause}
-      ORDER BY a.created_at DESC
+      ORDER BY a.createdAt DESC
       LIMIT ? OFFSET ?
     `;
 
@@ -195,11 +195,11 @@ export class AuditService {
     const limit = Math.min(params.limit || 50, 100);
     const offset = params.offset || 0;
 
-    let whereClause = "WHERE (s.actor_role = 'PLATFORM_ADMIN' OR s.gym_id = 0)";
+    let whereClause = "WHERE (s.actorRole = 'PLATFORM_ADMIN' OR s.gymId = 0)";
     const bindings: any[] = [];
 
     if (params.affectedGymId) {
-      whereClause += ' AND s.gym_id = ?';
+      whereClause += ' AND s.gymId = ?';
       bindings.push(params.affectedGymId);
     }
     if (params.action) {
@@ -208,17 +208,17 @@ export class AuditService {
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM audit_events s ${whereClause}`)
+      .prepare(`SELECT COUNT(*) as count FROM auditEvents s ${whereClause}`)
       .bind(...bindings)
       .first<{ count: number }>();
 
     const query = `
-      SELECT s.*, p.name as admin_name, p.email as admin_email, g.name as affected_gym_name
-      FROM audit_events s
-      LEFT JOIN platform_admins p ON p.id = s.actor_user_id
-      LEFT JOIN gyms g ON g.id = s.gym_id
+      SELECT s.*, p.name as adminName, p.email as adminEmail, g.name as affectedGymName
+      FROM auditEvents s
+      LEFT JOIN platformAdmins p ON p.id = s.actorUserId
+      LEFT JOIN gyms g ON g.id = s.gymId
       ${whereClause}
-      ORDER BY s.created_at DESC
+      ORDER BY s.createdAt DESC
       LIMIT ? OFFSET ?
     `;
 

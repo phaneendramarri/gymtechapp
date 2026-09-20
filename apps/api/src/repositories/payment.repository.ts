@@ -144,9 +144,9 @@ export class PaymentRepository {
     const now = Math.floor(Date.now() / 1000);
     const insertStmt = this.d1
       .prepare(
-        `INSERT INTO payments (gym_id, member_id, membership_id, payment_type, receipt_number,
-           amount_paise, payment_date, payment_mode, reference_id, status, recorded_by_user_id,
-           notes, created_at, updated_at)
+        `INSERT INTO payments (gymId, memberId, membershipId, paymentType, receiptNumber,
+           amountPaise, paymentDate, paymentMode, referenceId, status, recordedByUserId,
+           notes, createdAt, updatedAt)
          VALUES (?, ?, ?, 'GYM', ?, ?, ?, ?, ?, 'COMPLETED', ?, ?, ?, ?)`
       )
       .bind(
@@ -157,17 +157,17 @@ export class PaymentRepository {
     const duesStmt = this.d1
       .prepare(
         `UPDATE memberships
-         SET paid_amount_paise = paid_amount_paise + ?,
-             due_amount_paise = MAX(due_amount_paise - ?, 0),
-             updated_at = ?
-         WHERE id = ? AND gym_id = ?`
+         SET paidAmountPaise = paidAmountPaise + ?,
+             dueAmountPaise = MAX(dueAmountPaise - ?, 0),
+             updatedAt = ?
+         WHERE id = ? AND gymId = ?`
       )
       .bind(data.amountPaise, data.amountPaise, now, data.membershipId, this.gymId);
 
     await this.d1.batch([insertStmt, duesStmt]);
 
     const row = await this.d1
-      .prepare(`SELECT id FROM payments WHERE gym_id = ? AND receipt_number = ?`)
+      .prepare(`SELECT id FROM payments WHERE gymId = ? AND receiptNumber = ?`)
       .bind(this.gymId, data.receiptNumber)
       .first<{ id: number }>();
     return row!.id;

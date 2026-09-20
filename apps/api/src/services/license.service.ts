@@ -51,7 +51,7 @@ export class LicenseService {
     }
 
     const countRes = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM members WHERE gym_id = ? AND deleted_at IS NULL AND status = 'ACTIVE'`)
+      .prepare(`SELECT COUNT(*) as count FROM members WHERE gymId = ? AND deletedAt IS NULL AND status = 'ACTIVE'`)
       .bind(this.gymId)
       .first<{ count: number }>();
     const current = countRes?.count || 0;
@@ -82,9 +82,9 @@ export class LicenseService {
     const countRes = await this.db
       .prepare(
         `SELECT COUNT(*) as count FROM users u
-         JOIN roles r ON r.id = u.role_id
-         WHERE u.gym_id = ? AND UPPER(r.name) = 'MANAGER'
-           AND u.deleted_at IS NULL AND u.status = 'ACTIVE'`
+         JOIN roles r ON r.id = u.roleId
+         WHERE u.gymId = ? AND UPPER(r.name) = 'MANAGER'
+           AND u.deletedAt IS NULL AND u.status = 'ACTIVE'`
       )
       .bind(this.gymId)
       .first<{ count: number }>();
@@ -116,10 +116,10 @@ export class LicenseService {
     const countRes = await this.db
       .prepare(
         `SELECT COUNT(*) as count FROM users u
-         LEFT JOIN roles r ON r.id = u.role_id
-         WHERE u.gym_id = ? AND u.is_owner = 0
-           AND u.deleted_at IS NULL AND u.status = 'ACTIVE'
-           AND (u.role_id IS NULL OR UPPER(r.name) NOT IN ('MANAGER', 'MEMBER'))`
+         LEFT JOIN roles r ON r.id = u.roleId
+         WHERE u.gymId = ? AND u.isOwner = 0
+           AND u.deletedAt IS NULL AND u.status = 'ACTIVE'
+           AND (u.roleId IS NULL OR UPPER(r.name) NOT IN ('MANAGER', 'MEMBER'))`
       )
       .bind(this.gymId)
       .first<{ count: number }>();
@@ -189,7 +189,7 @@ export class LicenseService {
     const used = (updatedLicense as any)?.[`${channelKey}Used`] ?? 0;
     const remaining = max === -1 ? 999999 : Math.max(0, max - used);
 
-    // Audit granular consumption in communication_logs.
+    // Audit granular consumption in communicationLogs.
     //
     // Every row records the member it concerns plus the GDPR basis for sending
     // and keeping it (`lawfulBasisFor` / `retentionUntilFor` own that policy), so
@@ -212,7 +212,7 @@ export class LicenseService {
         sentAt,
       });
     } catch (e) {
-      console.warn('Failed to insert communication_logs row:', (e as Error).message);
+      console.warn('Failed to insert communicationLogs row:', (e as Error).message);
     }
 
     return {

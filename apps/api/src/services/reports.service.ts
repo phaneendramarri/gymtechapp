@@ -32,15 +32,15 @@ export class ReportsService {
     const totalRevenue = await this.db
       .prepare(
         `SELECT
-          COALESCE(SUM(amount_paise), 0) as total_paise,
-          COUNT(*) as payment_count,
-          COALESCE(SUM(CASE WHEN payment_mode = 'CASH' THEN amount_paise ELSE 0 END), 0) as cash_paise,
-          COALESCE(SUM(CASE WHEN payment_mode = 'UPI' THEN amount_paise ELSE 0 END), 0) as upi_paise,
-          COALESCE(SUM(CASE WHEN payment_mode = 'CARD' THEN amount_paise ELSE 0 END), 0) as card_paise,
-          COALESCE(SUM(CASE WHEN payment_mode = 'BANK_TRANSFER' THEN amount_paise ELSE 0 END), 0) as bank_paise
+          COALESCE(SUM(amountPaise), 0) as totalPaise,
+          COUNT(*) as paymentCount,
+          COALESCE(SUM(CASE WHEN paymentMode = 'CASH' THEN amountPaise ELSE 0 END), 0) as cashPaise,
+          COALESCE(SUM(CASE WHEN paymentMode = 'UPI' THEN amountPaise ELSE 0 END), 0) as upiPaise,
+          COALESCE(SUM(CASE WHEN paymentMode = 'CARD' THEN amountPaise ELSE 0 END), 0) as cardPaise,
+          COALESCE(SUM(CASE WHEN paymentMode = 'BANK_TRANSFER' THEN amountPaise ELSE 0 END), 0) as bankPaise
          FROM payments
-         WHERE gym_id = ? AND status = 'COMPLETED'
-         AND payment_date >= ? AND payment_date <= ?`
+         WHERE gymId = ? AND status = 'COMPLETED'
+         AND paymentDate >= ? AND paymentDate <= ?`
       )
       .bind(this.gymId, startDate, endDate)
       .first<any>();
@@ -48,18 +48,18 @@ export class ReportsService {
     // Revenue by plan
     const revenueByPlan = await this.db
       .prepare(
-        `SELECT mp.name as plan_name,
-          COALESCE(SUM(p.amount_paise), 0) as revenue_paise,
-          COUNT(DISTINCT p.id) as payment_count,
-          COUNT(DISTINCT m.id) as member_count
+        `SELECT mp.name as planName,
+          COALESCE(SUM(p.amountPaise), 0) as revenuePaise,
+          COUNT(DISTINCT p.id) as paymentCount,
+          COUNT(DISTINCT m.id) as memberCount
          FROM payments p
-         LEFT JOIN memberships ms ON p.membership_id = ms.id
-         LEFT JOIN membership_plans mp ON ms.membership_plan_id = mp.id
-         LEFT JOIN members m ON p.member_id = m.id
-         WHERE p.gym_id = ? AND p.status = 'COMPLETED'
-         AND p.payment_date >= ? AND p.payment_date <= ?
+         LEFT JOIN memberships ms ON p.membershipId = ms.id
+         LEFT JOIN membershipPlans mp ON ms.membershipPlanId = mp.id
+         LEFT JOIN members m ON p.memberId = m.id
+         WHERE p.gymId = ? AND p.status = 'COMPLETED'
+         AND p.paymentDate >= ? AND p.paymentDate <= ?
          GROUP BY mp.id, mp.name
-         ORDER BY revenue_paise DESC`
+         ORDER BY revenuePaise DESC`
       )
       .bind(this.gymId, startDate, endDate)
       .all();
@@ -77,12 +77,12 @@ export class ReportsService {
     const timeSeries = await this.db
       .prepare(
         `SELECT
-          strftime('${dateFormat}', payment_date, 'unixepoch') as period,
-          COALESCE(SUM(amount_paise), 0) as revenue_paise,
-          COUNT(*) as payment_count
+          strftime('${dateFormat}', paymentDate, 'unixepoch') as period,
+          COALESCE(SUM(amountPaise), 0) as revenuePaise,
+          COUNT(*) as paymentCount
          FROM payments
-         WHERE gym_id = ? AND status = 'COMPLETED'
-         AND payment_date >= ? AND payment_date <= ?
+         WHERE gymId = ? AND status = 'COMPLETED'
+         AND paymentDate >= ? AND paymentDate <= ?
          GROUP BY period
          ORDER BY period`
       )
@@ -91,12 +91,12 @@ export class ReportsService {
 
     return {
       summary: {
-        totalRevenue: totalRevenue?.total_paise || 0,
-        paymentCount: totalRevenue?.payment_count || 0,
-        cashRevenue: totalRevenue?.cash_paise || 0,
-        upiRevenue: totalRevenue?.upi_paise || 0,
-        cardRevenue: totalRevenue?.card_paise || 0,
-        bankRevenue: totalRevenue?.bank_paise || 0,
+        totalRevenue: totalRevenue?.totalPaise || 0,
+        paymentCount: totalRevenue?.paymentCount || 0,
+        cashRevenue: totalRevenue?.cashPaise || 0,
+        upiRevenue: totalRevenue?.upiPaise || 0,
+        cardRevenue: totalRevenue?.cardPaise || 0,
+        bankRevenue: totalRevenue?.bankPaise || 0,
       },
       byPlan: revenueByPlan.results || [],
       timeSeries: timeSeries.results || [],
@@ -118,21 +118,21 @@ export class ReportsService {
     // number.
     const HAS_EARLIER = `EXISTS (
         SELECT 1 FROM memberships prev
-         WHERE prev.member_id = ms.member_id AND prev.gym_id = ms.gym_id
-           AND prev.deleted_at IS NULL AND prev.id <> ms.id
-           AND prev.created_at < ms.created_at)`;
+         WHERE prev.memberId = ms.memberId AND prev.gymId = ms.gymId
+           AND prev.deletedAt IS NULL AND prev.id <> ms.id
+           AND prev.createdAt < ms.createdAt)`;
 
     // Snapshot counts (current) + period-scoped new/renewal split.
     const summary = await this.db
       .prepare(
         `SELECT
-          COALESCE(SUM(CASE WHEN ms.status = 'ACTIVE' THEN 1 ELSE 0 END), 0) as total_active,
-          COALESCE(SUM(CASE WHEN ms.created_at BETWEEN ? AND ? AND NOT ${HAS_EARLIER} THEN 1 ELSE 0 END), 0) as new_memberships,
-          COALESCE(SUM(CASE WHEN ms.created_at BETWEEN ? AND ? AND ${HAS_EARLIER} THEN 1 ELSE 0 END), 0) as renewals,
+          COALESCE(SUM(CASE WHEN ms.status = 'ACTIVE' THEN 1 ELSE 0 END), 0) as totalActive,
+          COALESCE(SUM(CASE WHEN ms.createdAt BETWEEN ? AND ? AND NOT ${HAS_EARLIER} THEN 1 ELSE 0 END), 0) as newMemberships,
+          COALESCE(SUM(CASE WHEN ms.createdAt BETWEEN ? AND ? AND ${HAS_EARLIER} THEN 1 ELSE 0 END), 0) as renewals,
           COALESCE(SUM(CASE WHEN ms.status = 'EXPIRED' THEN 1 ELSE 0 END), 0) as expired,
           COALESCE(SUM(CASE WHEN ms.status = 'FROZEN' THEN 1 ELSE 0 END), 0) as frozen
          FROM memberships ms
-         WHERE ms.gym_id = ? AND ms.deleted_at IS NULL`
+         WHERE ms.gymId = ? AND ms.deletedAt IS NULL`
       )
       .bind(startDate, endDate, startDate, endDate, this.gymId)
       .first<any>();
@@ -144,14 +144,14 @@ export class ReportsService {
     // list for exactly the members who need chasing.
     const byPlan = await this.db
       .prepare(
-        `SELECT mp.name as plan_name,
-          COUNT(DISTINCT ms.id) as active_count,
-          COALESCE(SUM(CASE WHEN ms.end_date BETWEEN ? AND ? + 7 * 86400 THEN 1 ELSE 0 END), 0) as expiring_soon
+        `SELECT mp.name as planName,
+          COUNT(DISTINCT ms.id) as activeCount,
+          COALESCE(SUM(CASE WHEN ms.endDate BETWEEN ? AND ? + 7 * 86400 THEN 1 ELSE 0 END), 0) as expiringSoon
          FROM memberships ms
-         JOIN membership_plans mp ON ms.membership_plan_id = mp.id
-         WHERE ms.gym_id = ? AND ms.deleted_at IS NULL AND ms.status = 'ACTIVE'
+         JOIN membershipPlans mp ON ms.membershipPlanId = mp.id
+         WHERE ms.gymId = ? AND ms.deletedAt IS NULL AND ms.status = 'ACTIVE'
          GROUP BY mp.id, mp.name
-         ORDER BY active_count DESC`
+         ORDER BY activeCount DESC`
       )
       .bind(now, now, this.gymId)
       .all();
@@ -159,17 +159,17 @@ export class ReportsService {
     // Members whose ACTIVE membership expires within 7 days.
     const expiring = await this.db
       .prepare(
-        `SELECT m.id as member_id,
-                m.first_name || ' ' || COALESCE(m.last_name, '') as member_name,
-                m.member_code,
-                mp.name as plan_name,
-                ms.end_date
+        `SELECT m.id as memberId,
+                m.firstName || ' ' || COALESCE(m.lastName, '') as memberName,
+                m.memberCode,
+                mp.name as planName,
+                ms.endDate
          FROM memberships ms
-         JOIN members m ON m.id = ms.member_id AND m.deleted_at IS NULL
-         LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-         WHERE ms.gym_id = ? AND ms.deleted_at IS NULL AND ms.status = 'ACTIVE'
-           AND ms.end_date BETWEEN ? AND ? + 7 * 86400
-         ORDER BY ms.end_date ASC
+         JOIN members m ON m.id = ms.memberId AND m.deletedAt IS NULL
+         LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+         WHERE ms.gymId = ? AND ms.deletedAt IS NULL AND ms.status = 'ACTIVE'
+           AND ms.endDate BETWEEN ? AND ? + 7 * 86400
+         ORDER BY ms.endDate ASC
          LIMIT 50`
       )
       .bind(this.gymId, now, now)
@@ -177,8 +177,8 @@ export class ReportsService {
 
     return {
       summary: {
-        total_active: summary?.total_active || 0,
-        new_memberships: summary?.new_memberships || 0,
+        totalActive: summary?.totalActive || 0,
+        newMemberships: summary?.newMemberships || 0,
         renewals: summary?.renewals || 0,
         expired: summary?.expired || 0,
         frozen: summary?.frozen || 0,
@@ -209,9 +209,9 @@ export class ReportsService {
       .prepare(
         `SELECT COUNT(*) as count
          FROM attendance
-         WHERE gym_id = ? AND deleted_at IS NULL
-         AND attendance_date >= ? AND attendance_date <= ?
-         ${memberId ? 'AND member_id = ?' : ''}`
+         WHERE gymId = ? AND deletedAt IS NULL
+         AND attendanceDate >= ? AND attendanceDate <= ?
+         ${memberId ? 'AND memberId = ?' : ''}`
       )
       .bind(this.gymId, startDateInt, endDateInt, ...(memberId ? [memberId] : []))
       .first<{ count: number }>();
@@ -219,13 +219,13 @@ export class ReportsService {
     // Daily breakdown
     const dailyAttendance = await this.db
       .prepare(
-        `SELECT attendance_date, COUNT(*) as check_ins
+        `SELECT attendanceDate, COUNT(*) as checkIns
          FROM attendance
-         WHERE gym_id = ? AND deleted_at IS NULL
-         AND attendance_date >= ? AND attendance_date <= ?
-         ${memberId ? 'AND member_id = ?' : ''}
-         GROUP BY attendance_date
-         ORDER BY attendance_date`
+         WHERE gymId = ? AND deletedAt IS NULL
+         AND attendanceDate >= ? AND attendanceDate <= ?
+         ${memberId ? 'AND memberId = ?' : ''}
+         GROUP BY attendanceDate
+         ORDER BY attendanceDate`
       )
       .bind(this.gymId, startDateInt, endDateInt, ...(memberId ? [memberId] : []))
       .all();
@@ -233,10 +233,10 @@ export class ReportsService {
     // Peak hours (group by hour of day)
     const peakHours = await this.db
       .prepare(
-        `SELECT strftime('%H', check_in_time, 'unixepoch') as hour, COUNT(*) as count
+        `SELECT strftime('%H', checkInTime, 'unixepoch') as hour, COUNT(*) as count
          FROM attendance
-         WHERE gym_id = ? AND deleted_at IS NULL
-         AND attendance_date >= ? AND attendance_date <= ?
+         WHERE gymId = ? AND deletedAt IS NULL
+         AND attendanceDate >= ? AND attendanceDate <= ?
          GROUP BY hour
          ORDER BY count DESC
          LIMIT 5`
@@ -249,13 +249,13 @@ export class ReportsService {
     if (!memberId) {
       const topMembersResult = await this.db
         .prepare(
-          `SELECT m.first_name, m.last_name, m.member_code, COUNT(a.id) as visit_count
+          `SELECT m.firstName, m.lastName, m.memberCode, COUNT(a.id) as visitCount
            FROM members m
-           JOIN attendance a ON a.member_id = m.id AND a.gym_id = m.gym_id
-           WHERE m.gym_id = ? AND a.deleted_at IS NULL
-           AND a.attendance_date >= ? AND a.attendance_date <= ?
+           JOIN attendance a ON a.memberId = m.id AND a.gymId = m.gymId
+           WHERE m.gymId = ? AND a.deletedAt IS NULL
+           AND a.attendanceDate >= ? AND a.attendanceDate <= ?
            GROUP BY m.id
-           ORDER BY visit_count DESC
+           ORDER BY visitCount DESC
            LIMIT 10`
         )
         .bind(this.gymId, startDateInt, endDateInt)
@@ -284,11 +284,11 @@ export class ReportsService {
     const growth = await this.db
       .prepare(
         `SELECT
-          strftime('%Y-%m', joined_date, 'unixepoch') as month,
-          COUNT(*) as new_members
+          strftime('%Y-%m', joinedDate, 'unixepoch') as month,
+          COUNT(*) as newMembers
          FROM members
-         WHERE gym_id = ? AND deleted_at IS NULL
-         AND joined_date >= ? AND joined_date <= ?
+         WHERE gymId = ? AND deletedAt IS NULL
+         AND joinedDate >= ? AND joinedDate <= ?
          GROUP BY month
          ORDER BY month`
       )
@@ -298,11 +298,11 @@ export class ReportsService {
     const churn = await this.db
       .prepare(
         `SELECT
-          strftime('%Y-%m', updated_at, 'unixepoch') as month,
-          COUNT(*) as churned_members
+          strftime('%Y-%m', updatedAt, 'unixepoch') as month,
+          COUNT(*) as churnedMembers
          FROM members
-         WHERE gym_id = ? AND status IN ('CANCELLED', 'EXPIRED')
-         AND updated_at >= ? AND updated_at <= ?
+         WHERE gymId = ? AND status IN ('CANCELLED', 'EXPIRED')
+         AND updatedAt >= ? AND updatedAt <= ?
          GROUP BY month
          ORDER BY month`
       )

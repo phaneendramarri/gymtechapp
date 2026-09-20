@@ -9,7 +9,7 @@ import { requestId } from 'hono/request-id';
 import { contextMiddleware, type RequestContext } from './middleware/context';
 import { csrfMiddleware } from './middleware/csrf';
 import { rateLimitMiddleware, createRateLimitMiddleware, type RateLimitTier } from './middleware/ratelimit';
-import { kvRateLimiterStore } from './lib/ratelimit';
+import { kvRateLimiterStore, createRateLimiter } from './lib/ratelimit';
 import type { TenantResolution } from './middleware/auth';
 
 import { authRoutes } from './routes/auth.routes';
@@ -80,12 +80,11 @@ app.use(
       const raw = c.env.CORS_ORIGINS;
       // SECURITY: never combine wildcard origin with `credentials: true`
       // — browsers reject it AND servers that accept it leak cookies to
-      // any attacker-controlled origin. We refuse the wildcard in
-      // production-like envs and force the caller to ship an explicit
-      // allowlist. Local dev keeps a wildcard for convenience.
-      const isProd = (c.env.APP_ENV ?? 'development') !== 'development';
+      // any attacker-controlled origin. We ALWAYS require an explicit
+      // allowlist. If not configured, return empty string to reject.
       if (!raw || raw === '*') {
-        return isProd ? '' : '*';
+        console.warn('[CORS] CORS_ORIGINS not configured or set to wildcard. Request rejected.');
+        return '';
       }
       const list = raw.split(',').map((o: string) => o.trim()).filter(Boolean);
       // Echo the requested origin only if it matches the allowlist;
@@ -100,22 +99,32 @@ app.use(
   })
 );
 app.use('*', contextMiddleware as unknown as MiddlewareHandler<{ Bindings: AppEnv; Variables: AppVars }>);
+// Request body size limit — prevent DoS via large payloads (Cloudflare Workers limit: 128MB)
+app.use('/api/*', async (c, next) => {
+  const contentLength = c.req.header('content-length');
+  if (contentLength && parseInt(contentLength, 10) > 1024 * 1024) { // 1MB
+    return c.json({ error: 'Payload too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
+  }
+  await next();
+});
 // CSRF protection — runs for every request, but only enforces on
 // state-changing methods (POST/PUT/PATCH/DELETE). See middleware/csrf.ts.
 app.use('/api/*', csrfMiddleware as unknown as MiddlewareHandler<{ Bindings: AppEnv; Variables: AppVars }>);
 // Rate limiting — KV-backed sliding window; falls back to in-memory when
-// RATELIMIT_KV is not bound. Applied before auth so attackers can be blocked
-// before consuming CPU on password hashing.
+// RATELIMIT_KV is not bound (local dev only). Applied before auth so attackers
+// can be blocked before consuming CPU on password hashing.
+// In production, RATELIMIT_KV MUST be bound; otherwise the app will fail to start.
 // Tier derivation: auth routes use tier 'auth' (10 req/min), other safe methods
 // 'read' (600 req/min) and other writes 'write' (120 req/min). Each tier keeps a
 // separate per-IP bucket.
 app.use('/api/*', (c, next) => {
   const kv = c.env?.RATELIMIT_KV;
-  const store = kv ? kvRateLimiterStore(kv) : undefined;
+  const isProd = (c.env.APP_ENV ?? 'development') !== 'development';
+  const store = kv ? kvRateLimiterStore(kv) : createRateLimiter(undefined, isProd);
   const getTier = (cc: Context<{ Bindings: AppEnv; Variables: AppVars }>): RateLimitTier => {
     const path = cc.req.path;
     const method = cc.req.method.toUpperCase();
-    // Auth routes get the stricter 'auth' tier (5 req/min).
+    // Auth routes get the stricter 'auth' tier (10 req/min).
     if (path.startsWith('/api/auth/login') ||
         path.startsWith('/api/auth/member-login') ||
         path.startsWith('/api/auth/platform-login') ||

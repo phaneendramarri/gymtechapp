@@ -65,8 +65,8 @@ ptRoutes.get('/summary', requireGym, requireFeature('pt_collections'), requirePe
 
   return jsonOk({
     totalCollected: totals.totalCollected,
-    totalCommissionPending: totals.commissionPending,
-    totalCommissionPaid: totals.commissionPaid,
+    totalCommissionPending: totals.totalCommissionPending,
+    totalCommissionPaid: totals.totalCommissionPaid,
     byTrainer,
   });
 }));
@@ -114,7 +114,7 @@ ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safe
     'pt_collection.create',
     'pt_collection',
     id,
-    { after: { amount_paise: parsed.data.amountPaise, commission_paise: commissionPaise } }
+    { after: { amountPaise: parsed.data.amountPaise, commissionPaise } }
   );
 
   return jsonOk({ id, receiptNumber, commissionPaise }, 201);
@@ -152,7 +152,7 @@ ptRoutes.get('/packages', requireGym, requireFeature('pt_collections'), safeHand
   // Member portal: the session's own id IS the member id, so the query is
   // pinned to it and `?memberId=`/`?trainerId=` are ignored. Without this the
   // member was treated as a trainer ("not an owner, no staff permission") and
-  // their package list was filtered by trainer_user_id — always empty.
+  // their package list was filtered by trainerUserId — always empty.
   const packages = isMemberSession(ctx.user)
     ? await new PtRepository(ctx.env.DB).listPackages(ctx.gymId!, ctx.user!.id, undefined)
     : await new PtRepository(ctx.env.DB).listPackages(
@@ -219,17 +219,19 @@ ptRoutes.post('/sessions', requireGym, requireFeature('pt_collections'), require
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid PT session payload');
 
   const ptRepo = new PtRepository(ctx.env.DB);
-  const pkg = await ptRepo.findPackageById(parsed.data.packageId, ctx.gymId!);
+  const pkg: any = await ptRepo.findPackageById(parsed.data.packageId, ctx.gymId!);
   if (!pkg) return jsonErr('PT package not found', 404);
-  if (pkg.completed_sessions >= pkg.total_sessions) {
+  const completedSessions = Number(pkg.completedSessions ?? 0);
+  const totalSessions = Number(pkg.totalSessions ?? 0);
+  if (completedSessions >= totalSessions) {
     return jsonErr('This PT package has no remaining sessions', 400);
   }
 
   const id = await ptRepo.logSession({
     gymId: ctx.gymId!,
     packageId: pkg.id,
-    memberId: pkg.member_id,
-    trainerId: pkg.trainer_user_id,
+    memberId: pkg.memberId,
+    trainerId: pkg.trainerUserId,
     sessionDate: parsed.data.sessionDate,
     sessionNotes: parsed.data.sessionNotes,
     feedback: parsed.data.feedback,
@@ -237,5 +239,5 @@ ptRoutes.post('/sessions', requireGym, requireFeature('pt_collections'), require
   });
 
   await auditGymFromCtx(c, 'pt_session.log', 'pt_session', id, { after: parsed.data });
-  return jsonOk({ id, remainingSessions: pkg.total_sessions - (pkg.completed_sessions + 1) }, 201);
+  return jsonOk({ id, remainingSessions: totalSessions - (completedSessions + 1) }, 201);
 }));

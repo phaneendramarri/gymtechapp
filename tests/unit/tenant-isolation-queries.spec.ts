@@ -37,18 +37,18 @@ function collectQueries(): QueryHit[] {
 }
 
 const TENANT_TABLES = [
-  'gyms', 'licenses', 'users', 'gym_settings', 'membership_plans',
-  'members', 'memberships', 'payments', 'pt_collections', 'attendance',
-  'user_sessions', 'user_password_resets', 'audit_events', 'gym_features',
-  'communication_logs',
+  'gyms', 'licenses', 'users', 'membershipPlans',
+  'members', 'memberships', 'payments', 'ptCollections', 'attendance',
+  'userSessions', 'userPasswordResets', 'auditEvents',
+  'communicationLogs',
 ];
 const NON_TENANT_QUERIES: Array<{ file: string; match: (q: QueryHit) => boolean; reason: string }> = [
-  // The `gyms` table is its own tenant — gyms.id == gyms.gym_id, so a
+  // The `gyms` table is its own tenant — gyms.id == gyms.gymId, so a
   // `WHERE id = ?` predicate is sufficient tenant isolation.
   {
     file: 'settings.routes.ts',
     match: (q) => /UPDATE\s+gyms\s+SET.*WHERE\s+id\s*=/i.test(q.sql),
-    reason: 'updates the current gym by primary key (id == gym_id)',
+    reason: 'updates the current gym by primary key (id == gymId)',
   },
   // Platform admin routes look up gyms across tenants by primary key — they
   // are guarded by `requireSuperAdminMiddleware` upstream.
@@ -62,14 +62,13 @@ const NON_TENANT_QUERIES: Array<{ file: string; match: (q: QueryHit) => boolean;
 describe('Multi-tenant safety — raw SQL in routes', () => {
   const queries = collectQueries();
 
-  it('no raw SQL targets a tenant table without a gym_id filter', () => {
+  it('no raw SQL targets a tenant table without a gymId filter', () => {
     const violations: string[] = [];
     for (const q of queries) {
-      const upper = q.sql.toUpperCase();
       for (const table of TENANT_TABLES) {
         if (!new RegExp(`\\b(?:FROM|INTO|UPDATE)\\s+${table}\\b`, 'i').test(q.sql)) continue;
-        if (new RegExp(`\\b${table}\\.gym_id\\b`, 'i').test(q.sql)) continue;
-        if (new RegExp(`\\bgym_id\\b`, 'i').test(q.sql)) continue;
+        if (new RegExp(`\\b${table}\\.gymId\\b`, 'i').test(q.sql)) continue;
+        if (new RegExp(`\\bgymId\\b`, 'i').test(q.sql)) continue;
         if (NON_TENANT_QUERIES.some((e) => e.file === q.file && e.match(q))) continue;
         violations.push(`${q.file}:${q.line} → ${q.sql.substring(0, 90)}…`);
       }

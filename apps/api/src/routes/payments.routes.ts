@@ -91,7 +91,7 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), requirePermissio
     'payment.create',
     'payment',
     paymentId,
-    { after: { amount_paise: parsed.data.amountPaise, receipt_number: receiptNumber, member_id: member.id } }
+    { after: { amountPaise: parsed.data.amountPaise, receiptNumber, memberId: member.id } }
   );
 
   return jsonOk({ paymentId, receiptNumber, whatsappUrl }, 201);
@@ -100,34 +100,42 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), requirePermissio
 // Invoice details. Gated on the `payments` permission — an invoice carries the
 // member's name, phone and payment history, so a member-portal session must
 // not be able to read another member's by id.
-paymentRoutes.get('/:id/invoice', requireGym, requirePermission('payments'), safeHandler(async (c) => {
+paymentRoutes.get('/:id/invoice', requireGym, requireFeature('payments'), requirePermission('payments'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: any };
   const id = paramId(c.req.param() as Record<string, string>);
   const payment: any = await ctx.env.DB.prepare(`
-    SELECT p.*, m.first_name, m.last_name, m.phone as member_phone, m.member_code,
-           mp.name as plan_name, mp.tax_percentage as plan_tax_percentage
+    SELECT p.*, m.firstName, m.lastName, m.phone as memberPhone, m.memberCode,
+           mp.name as planName, mp.taxPercentage as planTaxPercentage
     FROM payments p
-    JOIN members m ON m.id = p.member_id
-    LEFT JOIN memberships ms ON ms.id = p.membership_id
-    LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-    WHERE p.id = ? AND p.gym_id = ?
+    JOIN members m ON m.id = p.memberId
+    LEFT JOIN memberships ms ON ms.id = p.membershipId
+    LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+    WHERE p.id = ? AND p.gymId = ?
   `).bind(id, ctx.gymId!).first();
   if (!payment) return jsonErr('Payment not found', 404);
 
-  const taxPercentage = Number(payment.plan_tax_percentage || 0);
-  const { taxableAmount, taxAmount, cgst, sgst } = splitGstInclusiveAmount(payment.amount_paise, taxPercentage);
+  const taxPercentage = Number(payment.planTaxPercentage || 0);
+  const amountPaise = Number(payment.amountPaise ?? 0);
+  const { taxableAmount, taxAmount, cgst, sgst } = splitGstInclusiveAmount(amountPaise, taxPercentage);
 
   return jsonOk({
-    receiptNumber: payment.receipt_number, paymentDate: payment.payment_date,
-    paymentMode: payment.payment_mode, referenceId: payment.reference_id, status: payment.status,
+    receiptNumber: payment.receiptNumber,
+    paymentDate: payment.paymentDate,
+    paymentMode: payment.paymentMode,
+    referenceId: payment.referenceId,
+    status: payment.status,
     gym: {
       name: tenant.gym.name, address: tenant.gym.address, city: tenant.gym.city,
       state: tenant.gym.state, pincode: tenant.gym.pincode, phone: tenant.gym.phone,
-      email: tenant.gym.email, gstNumber: tenant.gym.gst_number,
+      email: tenant.gym.email, gstNumber: tenant.gym.gstNumber,
     },
-    member: { name: `${payment.first_name} ${payment.last_name || ''}`.trim(), memberCode: payment.member_code, phone: payment.member_phone },
-    planName: payment.plan_name || null, sacCode: '999723', amount: payment.amount_paise,
+    member: {
+      name: `${payment.firstName} ${payment.lastName || ''}`.trim(),
+      memberCode: payment.memberCode,
+      phone: payment.memberPhone,
+    },
+    planName: payment.planName ?? null, sacCode: '999723', amount: amountPaise,
     taxPercentage, taxableAmount, taxAmount,
     cgst: Math.round(taxAmount / 2), sgst: taxAmount - Math.round(taxAmount / 2),
     notes: payment.notes,
@@ -135,26 +143,32 @@ paymentRoutes.get('/:id/invoice', requireGym, requirePermission('payments'), saf
 }));
 
 // Add receipt endpoint at end of file before export
-paymentRoutes.get('/:id/receipt', requireGym, requirePermission('payments'), safeHandler(async (c) => {
+paymentRoutes.get('/:id/receipt', requireGym, requireFeature('payments'), requirePermission('payments'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: any };
   const id = paramId(c.req.param() as Record<string, string>);
   const payment: any = await ctx.env.DB.prepare(`
-    SELECT p.*, m.first_name, m.last_name, m.phone, m.member_code, mp.name as plan_name
-    FROM payments p JOIN members m ON m.id = p.member_id
-    LEFT JOIN memberships ms ON ms.id = p.membership_id
-    LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-    WHERE p.id = ? AND p.gym_id = ?`).bind(id, ctx.gymId!).first();
+    SELECT p.*, m.firstName, m.lastName, m.phone, m.memberCode, mp.name as planName
+    FROM payments p JOIN members m ON m.id = p.memberId
+    LEFT JOIN memberships ms ON ms.id = p.membershipId
+    LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+    WHERE p.id = ? AND p.gymId = ?`).bind(id, ctx.gymId!).first();
   if (!payment) return jsonErr('Payment not found', 404);
   const { generateReceiptHTML } = await import('../lib/receipt-generator');
+  const amountPaise = Number(payment.amountPaise ?? 0);
   const html = generateReceiptHTML({
-    receiptNumber: payment.receipt_number, paymentDate: payment.payment_date,
-    memberName: `${payment.first_name} ${payment.last_name || ''}`.trim(),
-    memberCode: payment.member_code, phone: payment.phone, amountPaise: payment.amount_paise,
-    paymentMode: payment.payment_mode, referenceId: payment.reference_id,
-    planName: payment.plan_name, notes: payment.notes,
+    receiptNumber: payment.receiptNumber,
+    paymentDate: payment.paymentDate,
+    memberName: `${payment.firstName} ${payment.lastName || ''}`.trim(),
+    memberCode: payment.memberCode,
+    phone: payment.phone,
+    amountPaise,
+    paymentMode: payment.paymentMode,
+    referenceId: payment.referenceId,
+    planName: payment.planName,
+    notes: payment.notes,
     gymName: tenant.gym.name, gymPhone: tenant.gym.phone, gymAddress: tenant.gym.address,
-    gymEmail: tenant.gym.email, gstNumber: tenant.gym.gst_number,
+    gymEmail: tenant.gym.email, gstNumber: tenant.gym.gstNumber,
   });
   return new Response(html, { headers: { 'Content-Type': 'text/html' } });
 }));

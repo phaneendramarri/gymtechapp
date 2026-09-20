@@ -71,15 +71,15 @@ export class MemberService {
   }) {
     // 1. License limit check
     const license = await this.db
-      .prepare(`SELECT max_members FROM licenses WHERE gym_id = ?`)
+      .prepare(`SELECT maxMembers FROM licenses WHERE gymId = ?`)
       .bind(this.gymId)
-      .first<{ max_members: number }>();
+      .first<{ maxMembers: number }>();
 
-    if (license && license.max_members > 0) {
+    if (license && license.maxMembers > 0) {
       const activeCount = await this.memberRepo.countActive();
-      if (!isWithinLicenseLimit(activeCount, license.max_members)) {
+      if (!isWithinLicenseLimit(activeCount, license.maxMembers)) {
         throw new Error(
-          `License limit reached (maximum ${license.max_members} active members). Please upgrade.`
+          `License limit reached (maximum ${license.maxMembers} active members). Please upgrade.`
         );
       }
     }
@@ -214,8 +214,8 @@ export class MemberService {
     let startTimestamp: number;
     if (data.startDate) {
       startTimestamp = data.startDate;
-    } else if (currentActive && currentActive.end_date > nowSec) {
-      startTimestamp = currentActive.end_date;
+    } else if (currentActive && currentActive.endDate > nowSec) {
+      startTimestamp = currentActive.endDate;
     } else {
       startTimestamp = nowSec;
     }
@@ -327,8 +327,8 @@ export class MemberService {
     if (!activeMs) throw new Error('Only members with an active membership can be frozen');
 
     await this.db.batch([
-      this.db.prepare(`UPDATE members SET status = 'FROZEN', updated_at = ? WHERE id = ? AND gym_id = ?`).bind(nowSec, memberId, this.gymId),
-      this.db.prepare(`UPDATE memberships SET status = 'FROZEN', frozen_at = ?, updated_at = ? WHERE id = ? AND gym_id = ?`).bind(nowSec, nowSec, activeMs.id, this.gymId),
+      this.db.prepare(`UPDATE members SET status = 'FROZEN', updatedAt = ? WHERE id = ? AND gymId = ?`).bind(nowSec, memberId, this.gymId),
+      this.db.prepare(`UPDATE memberships SET status = 'FROZEN', frozenAt = ?, updatedAt = ? WHERE id = ? AND gymId = ?`).bind(nowSec, nowSec, activeMs.id, this.gymId),
     ]);
 
     await this.audit.recordGymEvent({
@@ -352,17 +352,19 @@ export class MemberService {
     if (member.status !== 'FROZEN') throw new Error('Membership is not currently frozen');
 
     const frozenMs: any = await this.db
-      .prepare(`SELECT * FROM memberships WHERE member_id = ? AND gym_id = ? AND status = 'FROZEN' ORDER BY end_date DESC LIMIT 1`)
+      .prepare(`SELECT * FROM memberships WHERE memberId = ? AND gymId = ? AND status = 'FROZEN' ORDER BY endDate DESC LIMIT 1`)
       .bind(memberId, this.gymId)
       .first();
     let extendedTo: number | null = null;
     const stmts: D1PreparedStatement[] = [];
     if (frozenMs) {
-      const { extendedTo: newEndDate } = calculateFreezeExtension(frozenMs.end_date, frozenMs.frozen_at || nowSec, nowSec);
+      const currentEndDate = Number(frozenMs.endDate);
+      const frozenAt = Number(frozenMs.frozenAt ?? nowSec);
+      const { extendedTo: newEndDate } = calculateFreezeExtension(currentEndDate, frozenAt, nowSec);
       extendedTo = newEndDate;
-      stmts.push(this.db.prepare(`UPDATE memberships SET status = 'ACTIVE', end_date = ?, frozen_at = NULL, updated_at = ? WHERE id = ? AND gym_id = ?`).bind(extendedTo, nowSec, frozenMs.id, this.gymId));
+      stmts.push(this.db.prepare(`UPDATE memberships SET status = 'ACTIVE', endDate = ?, frozenAt = NULL, updatedAt = ? WHERE id = ? AND gymId = ?`).bind(extendedTo, nowSec, frozenMs.id, this.gymId));
     }
-    stmts.push(this.db.prepare(`UPDATE members SET status = 'ACTIVE', updated_at = ? WHERE id = ? AND gym_id = ?`).bind(nowSec, memberId, this.gymId));
+    stmts.push(this.db.prepare(`UPDATE members SET status = 'ACTIVE', updatedAt = ? WHERE id = ? AND gymId = ?`).bind(nowSec, memberId, this.gymId));
     if (stmts.length > 0) await this.db.batch(stmts);
 
     await this.audit.recordGymEvent({

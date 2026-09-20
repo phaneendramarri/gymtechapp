@@ -40,22 +40,22 @@ export class MemberRepository {
     offset?: number;
   }): Promise<MemberListItem[]> {
     // Build WHERE clause with parameterized bindings
-    const whereParts: string[] = [`m.gym_id = ?`, `m.deleted_at IS NULL`];
+    const whereParts: string[] = [`m.gymId = ?`, `m.deletedAt IS NULL`];
     const bindings: any[] = [this.gymId];
 
     if (params.status && params.status !== 'ALL') {
       if (params.status === 'EXPIRED') {
         whereParts.push(`(m.status = 'EXPIRED' OR EXISTS (
           SELECT 1 FROM memberships ms2
-          WHERE ms2.member_id = m.id
-            AND ms2.gym_id = m.gym_id
+          WHERE ms2.memberId = m.id
+            AND ms2.gymId = m.gymId
             AND ms2.status = 'ACTIVE'
-            AND ms2.end_date < unixepoch()
-            AND ms2.deleted_at IS NULL
+            AND ms2.endDate < unixepoch()
+            AND ms2.deletedAt IS NULL
         ))`);
       } else if (params.status === 'ACTIVE') {
         whereParts.push(`m.status = 'ACTIVE'`);
-        whereParts.push(`(ms.end_date IS NULL OR ms.end_date >= unixepoch())`);
+        whereParts.push(`(ms.endDate IS NULL OR ms.endDate >= unixepoch())`);
       } else {
         whereParts.push(`m.status = ?`);
         bindings.push(params.status);
@@ -64,7 +64,7 @@ export class MemberRepository {
 
     if (params.search) {
       const term = `%${params.search}%`;
-      whereParts.push(`(m.first_name LIKE ? OR m.last_name LIKE ? OR m.phone LIKE ? OR m.member_code LIKE ? OR m.email LIKE ?)`);
+      whereParts.push(`(m.firstName LIKE ? OR m.lastName LIKE ? OR m.phone LIKE ? OR m.memberCode LIKE ? OR m.email LIKE ?)`);
       bindings.push(term, term, term, term, term);
     }
 
@@ -74,61 +74,56 @@ export class MemberRepository {
 
     const query = `
       SELECT m.*,
-             ms.id as active_membership_id,
-             ms.status as membership_status,
-             ms.start_date as membership_start_date,
-             ms.end_date as membership_end_date,
-             ms.due_amount_paise as membership_due_amount_paise,
-             mp.name as plan_name
+             ms.id as activeMembershipId,
+             ms.status as membershipStatus,
+             ms.startDate as membershipStartDate,
+             ms.endDate as membershipEndDate,
+             ms.dueAmountPaise as membershipDueAmountPaise,
+             mp.name as planName
       FROM members m
-      LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.id = (
-        SELECT id FROM memberships WHERE member_id = m.id ORDER BY end_date DESC LIMIT 1
+      LEFT JOIN memberships ms ON ms.memberId = m.id AND ms.id = (
+        SELECT id FROM memberships WHERE memberId = m.id ORDER BY endDate DESC LIMIT 1
       )
-      LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
+      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
       WHERE ${whereClause}
-      ORDER BY m.created_at DESC
+      ORDER BY m.createdAt DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
 
-    const { results } = await this.d1.prepare(query).bind(...bindings).all() as { results: MemberListItem[] };
-    // Map raw snake_case columns onto the shared camelCase contract so client-side
-    // field access (memberCode, firstName, ...) matches MemberListItem.
+    const { results } = await this.d1.prepare(query).bind(...bindings).all() as { results: any[] };
     return (results || []).map((r: any) => ({
       id: r.id,
-      gymId: r.gym_id,
-      memberCode: r.member_code,
-      firstName: r.first_name,
-      lastName: r.last_name,
+      gymId: r.gymId,
+      memberCode: r.memberCode,
+      firstName: r.firstName,
+      lastName: r.lastName,
       email: r.email,
       phone: r.phone,
       gender: r.gender,
-      dateOfBirth: r.date_of_birth,
-      photoUrl: r.photo_url,
-      faceEmbedding: r.face_embedding,
-      biometricConsentGiven: r.biometric_consent_given,
-      biometricConsentAt: r.biometric_consent_at,
-      biometricConsentVersion: r.biometric_consent_version,
+      dateOfBirth: r.dateOfBirth,
+      photoUrl: r.photoUrl,
+      faceEmbedding: r.faceEmbedding,
+      biometricConsentGiven: r.biometricConsentGiven,
+      biometricConsentAt: r.biometricConsentAt,
+      biometricConsentVersion: r.biometricConsentVersion,
       address: r.address,
       city: r.city,
       pincode: r.pincode,
-      emergencyContactName: r.emergency_contact_name,
-      emergencyContactPhone: r.emergency_contact_phone,
-      healthNotes: r.health_notes,
+      emergencyContactName: r.emergencyContactName,
+      emergencyContactPhone: r.emergencyContactPhone,
+      healthNotes: r.healthNotes,
       status: r.status,
-      joinedDate: r.joined_date ?? 0,
-      createdAt: r.created_at,
-      updatedAt: r.updated_at,
-      deletedAt: r.deleted_at,
-      planName: r.plan_name,
-      plan_name: r.plan_name,
-      active_membership_id: r.active_membership_id,
-      membership_status: r.membership_status,
-      membership_start_date: r.membership_start_date,
-      membership_end_date: r.membership_end_date,
-      membership_due_amount_paise: r.membership_due_amount_paise,
-      dueAmountPaise: r.membership_due_amount_paise ?? r.dueAmountPaise,
-      startDate: r.membership_start_date ?? r.startDate,
-      endDate: r.membership_end_date ?? r.endDate,
+      joinedDate: r.joinedDate ?? 0,
+      createdAt: r.createdAt,
+      updatedAt: r.updatedAt,
+      deletedAt: r.deletedAt,
+      planName: r.planName,
+      activeMembershipId: r.activeMembershipId,
+      membershipStatus: r.membershipStatus,
+      membershipStartDate: r.membershipStartDate,
+      membershipEndDate: r.membershipEndDate,
+      membershipDueAmountPaise: r.membershipDueAmountPaise ?? 0,
+      endDate: r.membershipEndDate ?? r.endDate,
     }));
   }
 
@@ -147,18 +142,18 @@ export class MemberRepository {
   }
 
   async countTotal(params: { search?: string; status?: string } = {}): Promise<number> {
-    const whereParts: string[] = [`gym_id = ?`, `deleted_at IS NULL`];
+    const whereParts: string[] = [`gymId = ?`, `deletedAt IS NULL`];
     const bindings: any[] = [this.gymId];
 
     if (params.status && params.status !== 'ALL') {
       if (params.status === 'EXPIRED') {
         whereParts.push(`(status = 'EXPIRED' OR EXISTS (
           SELECT 1 FROM memberships ms2
-          WHERE ms2.member_id = members.id
-            AND ms2.gym_id = members.gym_id
+          WHERE ms2.memberId = members.id
+            AND ms2.gymId = members.gymId
             AND ms2.status = 'ACTIVE'
-            AND ms2.end_date < unixepoch()
-            AND ms2.deleted_at IS NULL
+            AND ms2.endDate < unixepoch()
+            AND ms2.deletedAt IS NULL
         ))`);
       } else if (params.status === 'ACTIVE') {
         whereParts.push(`status = 'ACTIVE'`);
@@ -170,7 +165,7 @@ export class MemberRepository {
 
     if (params.search) {
       const term = `%${params.search}%`;
-      whereParts.push(`(first_name LIKE ? OR last_name LIKE ? OR phone LIKE ? OR member_code LIKE ? OR email LIKE ?)`);
+      whereParts.push(`(firstName LIKE ? OR lastName LIKE ? OR phone LIKE ? OR memberCode LIKE ? OR email LIKE ?)`);
       bindings.push(term, term, term, term, term);
     }
 
@@ -185,21 +180,21 @@ export class MemberRepository {
     // L8: Single-query summary counts using current membership status.
     // gymId is bound, not interpolated.
     const base = `FROM members m
-      LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.deleted_at IS NULL
+      LEFT JOIN memberships ms ON ms.memberId = m.id AND ms.deletedAt IS NULL
       AND ms.id = (
         SELECT ms2.id FROM memberships ms2
-        WHERE ms2.member_id = m.id AND ms2.deleted_at IS NULL
-        ORDER BY ms2.created_at DESC LIMIT 1
+        WHERE ms2.memberId = m.id AND ms2.deletedAt IS NULL
+        ORDER BY ms2.createdAt DESC LIMIT 1
       )
-      WHERE m.gym_id = ? AND m.deleted_at IS NULL`;
+      WHERE m.gymId = ? AND m.deletedAt IS NULL`;
 
     const [total, active, frozen, blocked, expiring, expired] = await Promise.all([
       this.d1.prepare(`SELECT COUNT(*) as c ${base}`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
       this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
       this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'FROZEN'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
       this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'BLOCKED'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
-      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE' AND ms.end_date BETWEEN ? AND ?`).bind(this.gymId, params.now, params.sevenDays).first() as Promise<{ c: number } | undefined>,
-      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND (m.status = 'EXPIRED' OR (ms.status = 'ACTIVE' AND ms.end_date IS NOT NULL AND ms.end_date < ?))`).bind(this.gymId, params.now).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE' AND ms.endDate BETWEEN ? AND ?`).bind(this.gymId, params.now, params.sevenDays).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND (m.status = 'EXPIRED' OR (ms.status = 'ACTIVE' AND ms.endDate IS NOT NULL AND ms.endDate < ?))`).bind(this.gymId, params.now).first() as Promise<{ c: number } | undefined>,
     ]);
 
     return {
@@ -243,14 +238,14 @@ export class MemberRepository {
   async expireMembersWithoutActiveMembership(gymId: number, nowUnix: number): Promise<number> {
     const result = await this.d1
       .prepare(
-        `UPDATE members SET status = 'EXPIRED', updated_at = ?
-         WHERE gym_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL
+        `UPDATE members SET status = 'EXPIRED', updatedAt = ?
+         WHERE gymId = ? AND status = 'ACTIVE' AND deletedAt IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM memberships
-             WHERE memberships.member_id = members.id
-               AND memberships.gym_id = members.gym_id
+             WHERE memberships.memberId = members.id
+               AND memberships.gymId = members.gymId
                AND memberships.status = 'ACTIVE'
-               AND memberships.deleted_at IS NULL
+               AND memberships.deletedAt IS NULL
            )`
       )
       .bind(nowUnix, gymId)
@@ -361,9 +356,10 @@ export class MemberRepository {
     // codes that collide after members are deleted (the counter never rewinds).
 
     const license = await this.d1
-      .prepare(`SELECT max_members FROM licenses WHERE gym_id = ?`)
+      .prepare(`SELECT maxMembers FROM licenses WHERE gymId = ?`)
       .bind(this.gymId)
-      .first() as { max_members: number } | undefined;
+      .first() as { maxMembers?: number } | undefined;
+    const maxMembers = license?.maxMembers ?? 0;
     let currentActive = await this.countActive();
 
     let importedCount = 0;
@@ -371,9 +367,9 @@ export class MemberRepository {
     const errors: string[] = [];
 
     for (let i = 0; i < rows.length; i++) {
-      if (license && license.max_members > 0 && !isWithinLicenseLimit(currentActive + importedCount, license.max_members)) {
+      if (maxMembers > 0 && !isWithinLicenseLimit(currentActive + importedCount, maxMembers)) {
         skippedCount += rows.length - i;
-        errors.push(`License capacity reached (max ${license.max_members} active members). ${rows.length - i} remaining rows skipped.`);
+        errors.push(`License capacity reached (max ${maxMembers} active members). ${rows.length - i} remaining rows skipped.`);
         break;
       }
 
@@ -489,14 +485,14 @@ export class MemberRepository {
   async getActiveMembership(memberId: number): Promise<any | null> {
     const row = await this.d1
       .prepare(`
-        SELECT ms.*, mp.name as plan_name
+        SELECT ms.*, mp.name as planName
         FROM memberships ms
-        LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
-        WHERE ms.member_id = ?
-          AND ms.deleted_at IS NULL
+        LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+        WHERE ms.memberId = ?
+          AND ms.deletedAt IS NULL
           AND ms.status IN ('ACTIVE', 'FROZEN')
-          AND ms.end_date >= unixepoch()
-        ORDER BY ms.end_date DESC
+          AND ms.endDate >= unixepoch()
+        ORDER BY ms.endDate DESC
         LIMIT 1
       `)
       .bind(memberId)
@@ -512,9 +508,9 @@ export class MemberRepository {
   async findLoginRow(identifier: string): Promise<any | null> {
     const row = await this.d1
       .prepare(`
-        SELECT m.*, g.name as gym_name, g.slug as gym_slug
-        FROM members m JOIN gyms g ON g.id = m.gym_id
-        WHERE m.gym_id = ? AND (m.member_code = ? OR m.phone = ? OR m.email = ?) AND m.deleted_at IS NULL
+        SELECT m.*, g.name as gymName, g.slug as gymSlug
+        FROM members m JOIN gyms g ON g.id = m.gymId
+        WHERE m.gymId = ? AND (m.memberCode = ? OR m.phone = ? OR m.email = ?) AND m.deletedAt IS NULL
         LIMIT 1
       `)
       .bind(this.gymId, identifier, identifier, identifier)
@@ -535,18 +531,18 @@ export class MemberRepository {
   }> {
     const member = await this.d1
       .prepare(`
-        SELECT m.*, g.name as gym_name, g.address as gym_address, g.phone as gym_phone
-        FROM members m JOIN gyms g ON g.id = m.gym_id
-        WHERE m.id = ? AND m.deleted_at IS NULL
+        SELECT m.*, g.name as gymName, g.address as gymAddress, g.phone as gymPhone
+        FROM members m JOIN gyms g ON g.id = m.gymId
+        WHERE m.id = ? AND m.deletedAt IS NULL
       `)
       .bind(memberId)
       .first();
     if (!member) return { member: null, memberships: [], payments: [], attendance: [] };
-    const gymId = (member as any).gym_id;
+    const gymId = (member as any).gymId;
     const [memberships, payments, attendance] = await Promise.all([
-      this.d1.prepare(`SELECT ms.*, mp.name as plan_name, mp.duration_months FROM memberships ms LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id WHERE ms.member_id = ? AND ms.gym_id = ? ORDER BY ms.end_date DESC`).bind(memberId, gymId).all(),
-      this.d1.prepare(`SELECT * FROM payments WHERE member_id = ? AND gym_id = ? ORDER BY payment_date DESC LIMIT 20`).bind(memberId, gymId).all(),
-      this.d1.prepare(`SELECT * FROM attendance WHERE member_id = ? AND gym_id = ? ORDER BY check_in_time DESC LIMIT 30`).bind(memberId, gymId).all(),
+      this.d1.prepare(`SELECT ms.*, mp.name as planName, mp.durationMonths as durationMonths FROM memberships ms LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId WHERE ms.memberId = ? AND ms.gymId = ? ORDER BY ms.endDate DESC`).bind(memberId, gymId).all(),
+      this.d1.prepare(`SELECT * FROM payments WHERE memberId = ? AND gymId = ? ORDER BY paymentDate DESC LIMIT 20`).bind(memberId, gymId).all(),
+      this.d1.prepare(`SELECT * FROM attendance WHERE memberId = ? AND gymId = ? ORDER BY checkInTime DESC LIMIT 30`).bind(memberId, gymId).all(),
     ]);
     return {
       member,

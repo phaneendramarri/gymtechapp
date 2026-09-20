@@ -19,12 +19,12 @@ describe('PT collections E2E', () => {
 
     // Seed: owner gym, first member, and a trainer user in the same gym.
     const member = await env.DB.prepare(
-      `SELECT id FROM members WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1`
+      `SELECT id FROM members WHERE deletedAt IS NULL ORDER BY id ASC LIMIT 1`
     ).first<{ id: number }>();
     const trainer = await env.DB.prepare(
       `SELECT u.id FROM users u
-       JOIN roles r ON r.id = u.role_id AND r.name = 'TRAINER'
-       WHERE u.gym_id = (SELECT gym_id FROM users WHERE email = ?) AND u.deleted_at IS NULL
+       JOIN roles r ON r.id = u.roleId AND r.name = 'TRAINER'
+       WHERE u.gymId = (SELECT gymId FROM users WHERE email = ?) AND u.deletedAt IS NULL
        ORDER BY u.id ASC LIMIT 1`
     )
       .bind('owner@gymtech.app')
@@ -66,12 +66,12 @@ describe('PT collections E2E', () => {
   it('rejects a PT collection for an out-of-gym trainer', async () => {
     const { client, env } = await loginAsOwner();
     const member = await env.DB.prepare(
-      `SELECT id FROM members WHERE deleted_at IS NULL ORDER BY id ASC LIMIT 1`
+      `SELECT id FROM members WHERE deletedAt IS NULL ORDER BY id ASC LIMIT 1`
     ).first<{ id: number }>();
     const otherTrainer = await env.DB.prepare(
       `SELECT u.id FROM users u
-       JOIN roles r ON r.id = u.role_id AND r.name = 'TRAINER'
-       WHERE u.gym_id <> (SELECT gym_id FROM users WHERE email = ?) AND u.deleted_at IS NULL
+       JOIN roles r ON r.id = u.roleId AND r.name = 'TRAINER'
+       WHERE u.gymId <> (SELECT gymId FROM users WHERE email = ?) AND u.deletedAt IS NULL
        ORDER BY u.id ASC LIMIT 1`
     )
       .bind('owner@gymtech.app')

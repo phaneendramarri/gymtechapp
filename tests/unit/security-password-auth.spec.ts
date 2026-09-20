@@ -1,9 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   hashPassword,
-  hashPasswordLegacySha256,
   verifyPassword,
-  isLegacyHash,
   createSessionToken,
   verifySessionToken,
   payloadToSessionUser,
@@ -42,14 +40,6 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
       await expect(hashPassword('x'.repeat(1025))).rejects.toThrow();
       const realHash = await hashPassword('AdminPass@123');
       expect(await verifyPassword('', realHash)).toBe(false);
-    });
-
-    it('legacy sha256$… hashes verify correctly (migration path)', async () => {
-      const legacy = await hashPasswordLegacySha256('admin123');
-      expect(legacy).toBe('sha256$240be518fabd2724ddb6f04eeb1da5967448d7e831c08c8fa822809f74c720a9');
-      expect(isLegacyHash(legacy)).toBe(true);
-      expect(await verifyPassword('admin123', legacy)).toBe(true);
-      expect(await verifyPassword('wrong', legacy)).toBe(false);
     });
 
     it('rejects malformed stored hashes without throwing', async () => {

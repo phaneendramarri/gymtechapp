@@ -4,7 +4,6 @@ import { SessionRepository } from '../repositories/session.repository';
 import {
   hashPassword,
   verifyPassword,
-  isLegacyHash,
   createSessionToken,
   verifySessionToken,
   createRefreshToken,
@@ -93,18 +92,9 @@ export class AuthService {
     }
     if (user.failedLoginCount > 0 || user.lockedUntil !== null) { await this.userRepo.resetFailedLogin(user.id, user.gymId); }
 
-    if (isLegacyHash(user.passwordHash)) {
-      try {
-        const newHash = await hashPassword(passwordPlain);
-        if (newHash.startsWith('pbkdf2$')) {
-          await this.userRepo.upgradePasswordHash(user.id, user.gymId, newHash);
-        }
-      } catch (err) { console.error('Lazy rehash failed for user', user.id, err); }
-    }
-
     let gym: Gym | null = null;
     if (user.gymId) {
-      gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`).bind(user.gymId).first<Gym>();
+      gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deletedAt IS NULL`).bind(user.gymId).first<Gym>();
       if (gym && gym.status === 'SUSPENDED') { throw new Error('This gym account has been suspended by the platform administrator'); }
     }
 
@@ -145,15 +135,6 @@ export class AuthService {
       throw new Error(GENERIC_INVALID_CREDENTIALS);
     }
     if (admin.failedLoginCount > 0 || admin.lockedUntil !== null) { await this.userRepo.resetPlatformAdminFailedLogin(admin.id); }
-
-    if (isLegacyHash(admin.passwordHash)) {
-      try {
-        const newHash = await hashPassword(passwordPlain);
-        if (newHash.startsWith('pbkdf2$')) {
-          await this.userRepo.upgradePlatformAdminPasswordHash(admin.id, newHash);
-        }
-      } catch (err) { console.error('Lazy rehash failed for platform admin', admin.id, err); }
-    }
 
     await this.userRepo.touchPlatformAdminLogin(admin.id);
 
@@ -227,14 +208,14 @@ export class AuthService {
     let gym: Gym | null = null;
     let enabledFeatures: GymFeatureKey[] = [...GYM_FEATURES];
     if (user.gymId) {
-      gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`).bind(user.gymId).first<Gym>();
-      const license = await this.db.prepare(`SELECT features FROM licenses WHERE gym_id = ? LIMIT 1`).bind(user.gymId).first<{ features: string | null }>();
+      gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deletedAt IS NULL`).bind(user.gymId).first<Gym>();
+      const license = await this.db.prepare(`SELECT features FROM licenses WHERE gymId = ? LIMIT 1`).bind(user.gymId).first<{ features: string | null }>();
       enabledFeatures = parseEnabledFeatures(license?.features);
     }
     return { user, gym, enabledFeatures };
   }
 
-  async signMemberToken(member: { id: number; gymId: number; memberCode: string; phone: string; name: string }): Promise<{ token: string; jti: string }> {
+  async signMemberToken(member: { id: number; gymId: number; memberCode: string; phone: string; name: string }): Promise<{ token: string; refreshToken: string; jti: string }> {
     const sessionUser: SessionUser = {
       id: member.id,
       email: `${member.memberCode.toLowerCase()}@member.gymtech.app`,
@@ -245,26 +226,31 @@ export class AuthService {
       permissions: [], // Members have no dashboard permissions
       roleId: null,
     };
-    const { token, jti } = await this._createAccessToken(sessionUser);
+    const { token, refreshToken } = await this._mintSession(sessionUser, member.gymId);
 
-    // CR-5 fix: Insert session record so the token can be revoked via logout/revokeByTokenHash.
-    const now = Math.floor(Date.now() / 1000);
-    await this.sessionRepo.create({
-      gymId: member.gymId,
-      userId: member.id,
-      tokenHash: jti,
-      refreshTokenHash: undefined,
-      refreshTokenExpiresAt: undefined,
-      issuedAt: now,
-      expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
-    });
-
-    return { token, jti };
+    return { token, refreshToken, jti: sessionUser.jti ?? '' };
   }
 
   async verifyToken(token: string) {
     const payload = await verifySessionToken(token, this.jwtSecret, { iss: this.ISS, aud: this.AUD });
     if (!payload) return null;
+
+    // Phase 3.5c: Check jti has not been revoked server-side (DB check)
+    if (payload.jti) {
+      const now = Math.floor(Date.now() / 1000);
+      const dbSession = await this.db
+        .prepare(`SELECT 1 FROM userSessions WHERE tokenHash = ? AND revokedAt IS NULL AND expiresAt > ?`)
+        .bind(payload.jti, now)
+        .first();
+      if (!dbSession) return null;
+
+      // Phase 3.5d: Also check KV denylist for faster revocation without a DB round-trip
+      if (this.denyListKV) {
+        const denied = await this.denyListKV.get(`denylist:${payload.jti}`);
+        if (denied) return null;
+      }
+    }
+
     return { userId: payload.id, email: payload.email, role: payload.role, gymId: payload.gymId, jti: payload.jti };
   }
 }

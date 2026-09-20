@@ -32,8 +32,7 @@ export interface UserSessionPayload {
 }
 
 // Re-export the password hashing API. The implementation lives in
-// `lib/password.ts` (PBKDF2-SHA256 with legacy SHA-256 support).
-// Existing call-sites can keep importing `hashPassword` from `lib/session`.
+// `lib/password.ts` (PBKDF2-SHA256).
 
 /** How long an access token is valid (seconds). */
 export const ACCESS_TOKEN_EXPIRY_SECONDS = 900; // 15 minutes
@@ -41,9 +40,7 @@ export const ACCESS_TOKEN_EXPIRY_SECONDS = 900; // 15 minutes
 export const REFRESH_TOKEN_EXPIRY_SECONDS = 2_592_000; // 30 days
 export {
   hashPassword,
-  hashPasswordLegacySha256,
   verifyPassword,
-  isLegacyHash,
   hashOpaqueToken,
   verifyOpaqueToken,
 } from './password';

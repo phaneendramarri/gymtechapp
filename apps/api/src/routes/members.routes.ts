@@ -174,8 +174,8 @@ memberRoutes.put('/:id', requireGym, requireFeature('members'), requirePermissio
   return jsonOk(after);
 }));
 
-// ----- Soft delete -----
-memberRoutes.delete('/:id', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
+// ----- Soft delete / Archive -----
+const handleArchive = safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
@@ -186,7 +186,10 @@ memberRoutes.delete('/:id', requireGym, requireFeature('members'), requirePermis
     before, after: { ...before, deletedAt: Math.floor(Date.now() / 1000), status: 'INACTIVE' },
   });
   return jsonOk({ success: true, message: 'Member archived successfully. Historical records preserved.' });
-}));
+});
+
+memberRoutes.delete('/:id', requireGym, requireFeature('members'), requirePermission('members'), handleArchive);
+memberRoutes.post('/:id/archive', requireGym, requireFeature('members'), requirePermission('members'), handleArchive);
 
 // ----- GDPR Article 17 erasure (right to be forgotten) -----
 // DELETE /members/:id/personal-data — wipes all personal data, deletes comms logs, clears biometric

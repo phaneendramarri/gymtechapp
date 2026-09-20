@@ -17,13 +17,13 @@ export class CounterRepository {
   async nextValue(gymId: number, counterType: string): Promise<number> {
     const result = await this.d1
       .prepare(
-        `INSERT INTO counters (gym_id, counter_type, value)
+        `INSERT INTO counters (gymId, counterType, value)
          VALUES (?, ?, 1)
-         ON CONFLICT (gym_id, counter_type) DO UPDATE SET value = value + 1
-         RETURNING value AS next_val`
+         ON CONFLICT (gymId, counterType) DO UPDATE SET value = value + 1
+         RETURNING value AS nextVal`
       )
       .bind(gymId, counterType)
-      .all<{ next_val: number }>();
-    return result.results?.[0]?.next_val ?? 1;
+      .all<{ nextVal?: number }>();
+    return result.results?.[0]?.nextVal ?? 1;
   }
 }

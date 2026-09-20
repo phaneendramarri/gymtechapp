@@ -40,7 +40,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState<boolean>(true);
 
   const hasFeature = (key: GymFeatureKey): boolean => {
-    if (!enabledFeatures) return true;
+    if (!enabledFeatures) return false;
     return enabledFeatures.includes(key);
   };
 

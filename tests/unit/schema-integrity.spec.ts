@@ -149,9 +149,9 @@ describe('Schema integrity — composite foreign keys', () => {
     expect(violations).toEqual([]);
   });
 
-  it('memberships → membership_plans keeps its parent unique key (regression)', () => {
+  it('memberships → membershipPlans keeps its parent unique key (regression)', () => {
     // The exact defect that broke member enrollment.
-    expect(uniqueKeys.get('membership_plans')?.has('gym_id,id')).toBe(true);
+    expect(uniqueKeys.get('membershipPlans')?.has('gymId,id')).toBe(true);
   });
 });
 
@@ -194,10 +194,10 @@ describe('Schema integrity — table parity with the Drizzle schema', () => {
 });
 
 describe('Schema integrity — tenant isolation', () => {
-  it('every tenant-owned table carries gym_id', () => {
+  it('every tenant-owned table carries gymId', () => {
     const sql = stripComments(allSql());
-    // Global/platform tables legitimately have no gym_id.
-    const globalTables = new Set(['gyms', 'platform_admins', 'platform_settings', 'menu_items']);
+    // Global/platform tables legitimately have no gymId.
+    const globalTables = new Set(['gyms', 'platformAdmins', 'platformSettings', 'menuItems']);
     const tableRe = /CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?(\w+)"?\s*\(([\s\S]*?)\n\);/g;
 
     const violations: string[] = [];
@@ -207,7 +207,7 @@ describe('Schema integrity — tenant isolation', () => {
       const body = m[2];
       if (!table || !body) continue;
       if (globalTables.has(table)) continue;
-      if (!/\bgym_id\b/.test(body)) violations.push(table);
+      if (!/\bgymId\b/.test(body)) violations.push(table);
     }
     expect(violations).toEqual([]);
   });

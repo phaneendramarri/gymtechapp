@@ -34,23 +34,23 @@ reportRoutes.get('/', requireGym, requireFeature('reports'), requirePermission('
   const metrics = await dashboardService.getMetrics(ctx.user?.role);
 
   const periodRevenueRes = await ctx.env.DB.prepare(`
-    SELECT COALESCE(SUM(amount_paise), 0) as revenue, COUNT(*) as payment_count
-    FROM payments WHERE gym_id = ? AND status = 'COMPLETED' AND payment_date >= ?
-  `).bind(ctx.gymId!, periodStart).first<{ revenue: number; payment_count: number }>();
+    SELECT COALESCE(SUM(amountPaise), 0) as revenue, COUNT(*) as paymentCount
+    FROM payments WHERE gymId = ? AND status = 'COMPLETED' AND paymentDate >= ?
+  `).bind(ctx.gymId!, periodStart).first<{ revenue: number; paymentCount: number }>();
 
   const planBreakdownRes = await ctx.env.DB.prepare(`
-    SELECT mp.name, COUNT(DISTINCT m.id) as count, SUM(ms.final_amount_paise) as revenue
-    FROM membership_plans mp
-    LEFT JOIN memberships ms ON ms.membership_plan_id = mp.id AND ms.gym_id = ? AND ms.start_date >= ?
-    LEFT JOIN members m ON ms.member_id = m.id AND m.gym_id = ?
-    WHERE mp.gym_id = ? AND mp.is_active = 1
+    SELECT mp.name, COUNT(DISTINCT m.id) as count, SUM(ms.finalAmountPaise) as revenue
+    FROM membershipPlans mp
+    LEFT JOIN memberships ms ON ms.membershipPlanId = mp.id AND ms.gymId = ? AND ms.startDate >= ?
+    LEFT JOIN members m ON ms.memberId = m.id AND m.gymId = ?
+    WHERE mp.gymId = ? AND mp.isActive = 1
     GROUP BY mp.id, mp.name ORDER BY revenue DESC LIMIT 8
   `).bind(ctx.gymId, periodStart, ctx.gymId, ctx.gymId).all();
 
   return jsonOk({
     metrics, period,
     periodRevenue: periodRevenueRes?.revenue || 0,
-    periodPaymentCount: periodRevenueRes?.payment_count || 0,
+    periodPaymentCount: periodRevenueRes?.paymentCount || 0,
     planBreakdown: planBreakdownRes.results || [],
   });
 }));
@@ -63,76 +63,76 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
 
   if (type === 'payments') {
     const rows = await ctx.env.DB.prepare(`
-      SELECT p.receipt_number, p.payment_date, m.first_name, m.last_name, m.member_code,
-             p.amount_paise, p.payment_mode, p.reference_id, p.status, u.name as recorded_by
+      SELECT p.receiptNumber, p.paymentDate, m.firstName, m.lastName, m.memberCode,
+             p.amountPaise, p.paymentMode, p.referenceId, p.status, u.name as recordedBy
       FROM payments p
-      JOIN members m ON m.id = p.member_id AND m.deleted_at IS NULL
-      LEFT JOIN users u ON u.id = p.recorded_by_user_id
-      WHERE p.gym_id = ? AND p.deleted_at IS NULL
-      ORDER BY p.payment_date DESC LIMIT 2000
+      JOIN members m ON m.id = p.memberId AND m.deletedAt IS NULL
+      LEFT JOIN users u ON u.id = p.recordedByUserId
+      WHERE p.gymId = ? AND p.deletedAt IS NULL
+      ORDER BY p.paymentDate DESC LIMIT 2000
     `).bind(ctx.gymId!).all();
     csv = toCsv(
       ['Receipt No', 'Date', 'Member', 'Member Code', 'Amount (INR)', 'Mode', 'Reference', 'Status', 'Recorded By'],
       (rows.results || []).map((r: any) => [
-        r.receipt_number, new Date(r.payment_date * 1000).toLocaleDateString('en-IN'),
-        `${r.first_name} ${r.last_name || ''}`.trim(), r.member_code,
-        (r.amount_paise / 100).toFixed(2), r.payment_mode, r.reference_id || '', r.status, r.recorded_by || '',
+        r.receiptNumber, new Date(r.paymentDate * 1000).toLocaleDateString('en-IN'),
+        `${r.firstName} ${r.lastName || ''}`.trim(), r.memberCode,
+        (r.amountPaise / 100).toFixed(2), r.paymentMode, r.referenceId || '', r.status, r.recordedBy || '',
       ])
     );
   } else if (type === 'members') {
     const rows = await ctx.env.DB.prepare(`
-      SELECT m.member_code, m.first_name, m.last_name, m.phone, m.email, m.status, m.joined_date,
-             mp.name as plan_name, ms.end_date, ms.due_amount_paise
+      SELECT m.memberCode, m.firstName, m.lastName, m.phone, m.email, m.status, m.joinedDate,
+             mp.name as planName, ms.endDate, ms.dueAmountPaise
       FROM members m
-      LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.gym_id = m.gym_id AND ms.deleted_at IS NULL
-        AND ms.id = (SELECT id FROM memberships WHERE member_id = m.id AND deleted_at IS NULL ORDER BY end_date DESC LIMIT 1)
-      LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id AND mp.deleted_at IS NULL
-      WHERE m.gym_id = ? AND m.deleted_at IS NULL
-      GROUP BY m.id ORDER BY m.first_name ASC LIMIT 2000
+      LEFT JOIN memberships ms ON ms.memberId = m.id AND ms.gymId = m.gymId AND ms.deletedAt IS NULL
+        AND ms.id = (SELECT id FROM memberships WHERE memberId = m.id AND deletedAt IS NULL ORDER BY endDate DESC LIMIT 1)
+      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.deletedAt IS NULL
+      WHERE m.gymId = ? AND m.deletedAt IS NULL
+      GROUP BY m.id ORDER BY m.firstName ASC LIMIT 2000
     `).bind(ctx.gymId!).all();
     csv = toCsv(
       ['Member Code', 'First Name', 'Last Name', 'Phone', 'Email', 'Status', 'Joined', 'Plan', 'Expiry', 'Due (INR)'],
       (rows.results || []).map((r: any) => [
-        r.member_code, r.first_name, r.last_name || '', r.phone, r.email || '', r.status,
-        new Date(r.joined_date * 1000).toLocaleDateString('en-IN'),
-        r.plan_name || '',
-        r.end_date ? new Date(r.end_date * 1000).toLocaleDateString('en-IN') : '',
-        ((r.due_amount_paise || 0) / 100).toFixed(2),
+        r.memberCode, r.firstName, r.lastName || '', r.phone, r.email || '', r.status,
+        new Date(r.joinedDate * 1000).toLocaleDateString('en-IN'),
+        r.planName || '',
+        r.endDate ? new Date(r.endDate * 1000).toLocaleDateString('en-IN') : '',
+        ((r.dueAmountPaise || 0) / 100).toFixed(2),
       ])
     );
   } else if (type === 'attendance') {
     const rows = await ctx.env.DB.prepare(`
-      SELECT a.attendance_date, a.check_in_time, a.method, m.first_name, m.last_name, m.member_code
+      SELECT a.attendanceDate, a.checkInTime, a.method, m.firstName, m.lastName, m.memberCode
       FROM attendance a
-      JOIN members m ON m.id = a.member_id AND m.deleted_at IS NULL
-      WHERE a.gym_id = ? AND a.deleted_at IS NULL
-      ORDER BY a.check_in_time DESC LIMIT 5000
+      JOIN members m ON m.id = a.memberId AND m.deletedAt IS NULL
+      WHERE a.gymId = ? AND a.deletedAt IS NULL
+      ORDER BY a.checkInTime DESC LIMIT 5000
     `).bind(ctx.gymId!).all();
     csv = toCsv(
       ['Date', 'Check-in Time', 'Member', 'Member Code', 'Method'],
       (rows.results || []).map((r: any) => [
-        r.attendance_date, new Date(r.check_in_time * 1000).toLocaleTimeString('en-IN'),
-        `${r.first_name} ${r.last_name || ''}`.trim(), r.member_code, r.method,
+        r.attendanceDate, new Date(r.checkInTime * 1000).toLocaleTimeString('en-IN'),
+        `${r.firstName} ${r.lastName || ''}`.trim(), r.memberCode, r.method,
       ])
     );
   } else if (type === 'dues') {
     const rows = await ctx.env.DB.prepare(`
-      SELECT m.member_code, m.first_name, m.last_name, m.phone, mp.name as plan_name,
-             ms.end_date, ms.final_amount_paise, ms.paid_amount_paise, ms.due_amount_paise
+      SELECT m.memberCode, m.firstName, m.lastName, m.phone, mp.name as planName,
+             ms.endDate, ms.finalAmountPaise, ms.paidAmountPaise, ms.dueAmountPaise
       FROM memberships ms
-      JOIN members m ON m.id = ms.member_id AND m.deleted_at IS NULL
-      LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id AND mp.deleted_at IS NULL
-      WHERE ms.gym_id = ? AND ms.due_amount_paise > 0 AND ms.deleted_at IS NULL
-      ORDER BY ms.due_amount_paise DESC LIMIT 2000
+      JOIN members m ON m.id = ms.memberId AND m.deletedAt IS NULL
+      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.deletedAt IS NULL
+      WHERE ms.gymId = ? AND ms.dueAmountPaise > 0 AND ms.deletedAt IS NULL
+      ORDER BY ms.dueAmountPaise DESC LIMIT 2000
     `).bind(ctx.gymId!).all();
     csv = toCsv(
       ['Member Code', 'Member', 'Phone', 'Plan', 'Expiry', 'Final (INR)', 'Paid (INR)', 'Due (INR)'],
       (rows.results || []).map((r: any) => [
-        r.member_code, `${r.first_name} ${r.last_name || ''}`.trim(), r.phone, r.plan_name || '',
-        new Date(r.end_date * 1000).toLocaleDateString('en-IN'),
-        (r.final_amount_paise / 100).toFixed(2),
-        (r.paid_amount_paise / 100).toFixed(2),
-        (r.due_amount_paise / 100).toFixed(2),
+        r.memberCode, `${r.firstName} ${r.lastName || ''}`.trim(), r.phone, r.planName || '',
+        new Date(r.endDate * 1000).toLocaleDateString('en-IN'),
+        (r.finalAmountPaise / 100).toFixed(2),
+        (r.paidAmountPaise / 100).toFixed(2),
+        (r.dueAmountPaise / 100).toFixed(2),
       ])
     );
   } else {

@@ -67,6 +67,7 @@ export class PlanRepository {
     if (data.pricePaise !== undefined) sets.pricePaise = data.pricePaise;
     if (data.admissionFeePaise !== undefined) sets.admissionFeePaise = data.admissionFeePaise;
     if (data.taxPercentage !== undefined) sets.taxPercentage = data.taxPercentage;
+    if ((data as any).billingPeriod !== undefined) sets.billingPeriod = (data as any).billingPeriod;
     if (data.isActive !== undefined) sets.isActive = data.isActive;
     if (Object.keys(sets).length === 0) return;
     sets.updatedAt = Math.floor(Date.now() / 1000);

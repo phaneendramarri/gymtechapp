@@ -115,7 +115,7 @@ describe('E2E — tenant isolation probes', () => {
     // Find a member id from ANOTHER gym directly in D1, then try to read it
     // through the API as the owner of gym 1.
     const other = await env.DB.prepare(
-      `SELECT m.id FROM members m WHERE m.gym_id <> (SELECT gym_id FROM users WHERE email = ?)
+      `SELECT m.id FROM members m WHERE m.gymId <> (SELECT gymId FROM users WHERE email = ?)
        ORDER BY m.id DESC LIMIT 1`
     )
       .bind('owner@gymtech.app')
@@ -130,8 +130,8 @@ describe('E2E — tenant isolation probes', () => {
   it('rejects cross-gym plan update', async () => {
     const { client, env } = await loginAsOwner();
     const other = await env.DB.prepare(
-      `SELECT id FROM membership_plans
-       WHERE gym_id <> (SELECT gym_id FROM users WHERE email = ?)
+      `SELECT id FROM membershipPlans
+       WHERE gymId <> (SELECT gymId FROM users WHERE email = ?)
        ORDER BY id DESC LIMIT 1`
     )
       .bind('owner@gymtech.app')

@@ -51,6 +51,7 @@ export type MemberLoginRequest = z.infer<typeof MemberLoginRequestSchema>;
 
 export interface MemberLoginResponse {
   token: string;
+  refreshToken: string;
   member: Member;
   activeMembership?: Membership | null;
   gym?: Gym | null;

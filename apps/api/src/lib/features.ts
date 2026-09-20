@@ -15,21 +15,21 @@
 import { GYM_FEATURES, type GymFeatureKey } from '@gymtech/shared';
 
 export function parseEnabledFeatures(raw: string | null | undefined): GymFeatureKey[] {
-  if (!raw) return [...GYM_FEATURES];
+  if (!raw) return [];
 
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    return [...GYM_FEATURES];
+    return [];
   }
 
   if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    return [...GYM_FEATURES];
+    return [];
   }
 
   const map = parsed as Record<string, unknown>;
-  if (Object.keys(map).length === 0) return [...GYM_FEATURES];
+  if (Object.keys(map).length === 0) return [];
 
   return GYM_FEATURES.filter((key) => map[key] === true);
 }

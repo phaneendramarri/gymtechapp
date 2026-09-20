@@ -108,7 +108,7 @@ settingsRoutes.post('/notifications/dispatch', requireGym, requirePermission('se
   // than a constraint violation.
   if (memberId) {
     const owned = await ctx.env.DB
-      .prepare('SELECT id FROM members WHERE id = ? AND gym_id = ? AND deleted_at IS NULL')
+      .prepare('SELECT id FROM members WHERE id = ? AND gymId = ? AND deletedAt IS NULL')
       .bind(memberId, ctx.gymId!)
       .first();
     if (!owned) return jsonErr('Member not found in this gym', 404);

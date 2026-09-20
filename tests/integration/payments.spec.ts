@@ -53,7 +53,7 @@ describe('Payments E2E', () => {
   it('rejects a payment for a member from another gym (tenant isolation)', async () => {
     const { client, env } = await loginAsOwner();
     const other = await env.DB.prepare(
-      `SELECT id FROM members WHERE gym_id <> (SELECT gym_id FROM users WHERE email = ?) ORDER BY id DESC LIMIT 1`
+      `SELECT id FROM members WHERE gymId <> (SELECT gymId FROM users WHERE email = ?) ORDER BY id DESC LIMIT 1`
     )
       .bind('owner@gymtech.app')
       .first<{ id: number }>();

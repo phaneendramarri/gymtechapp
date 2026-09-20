@@ -29,12 +29,13 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 // These are the only entry points that establish a session — they
 // can't have a CSRF cookie yet, so requiring the token would brick
 // first-time users.
+// NOTE: /api/auth/logout is NOT exempt — it's a state-changing
+// operation that must be protected against CSRF.
 const CSRF_EXEMPT_PATHS = [
   '/api/auth/login',
   '/api/auth/platform-login',
   '/api/auth/member-login',
   '/api/auth/refresh',
-  '/api/auth/logout',
   '/api/auth/forgot-password',
   '/api/auth/reset-password',
   '/api/auth/csrf',

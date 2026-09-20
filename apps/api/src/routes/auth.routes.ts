@@ -107,13 +107,13 @@ authRoutes.post('/login', safeHandler(async (c) => {
   } catch (e: any) {
     try {
       const u = await ctx.env.DB
-        .prepare(`SELECT id, gym_id FROM users WHERE LOWER(email) = ? LIMIT 1`)
+        .prepare(`SELECT id, gymId FROM users WHERE LOWER(email) = ? AND deletedAt IS NULL LIMIT 1`)
         .bind(parsed.data.email.toLowerCase().trim())
-        .first<{ id: number; gym_id: number }>();
+        .first<{ id: number; gymId: number }>();
       if (u) {
         const audit = new AuditService(ctx.env.DB);
         await audit.recordGymEvent({
-          gymId: u.gym_id,
+          gymId: u.gymId,
           actorUserId: u.id,
           actorRole: null,
           action: 'auth.login.failed',
@@ -232,7 +232,7 @@ authRoutes.post('/forgot-password', safeHandler(async (c) => {
 
   const email = parsed.data.email.toLowerCase().trim();
   const user: any = await ctx.env.DB
-    .prepare(`SELECT id, gym_id, name, email FROM users WHERE LOWER(email) = ? AND deleted_at IS NULL LIMIT 1`)
+    .prepare(`SELECT id, gymId, name, email FROM users WHERE LOWER(email) = ? AND deletedAt IS NULL LIMIT 1`)
     .bind(email)
     .first();
   if (!user) {
@@ -247,7 +247,7 @@ authRoutes.post('/forgot-password', safeHandler(async (c) => {
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
 
   await new PasswordResetRepository(ctx.env.DB).create({
-    gymId: user.gym_id,
+    gymId: user.gymId,
     userId: user.id,
     tokenHash,
     expiresAt: expiresAt,
@@ -275,19 +275,22 @@ authRoutes.post('/reset-password', safeHandler(async (c) => {
   const { token, newPassword } = parsed.data;
   const tokenHash = await hashOpaqueToken(token, ctx.env.JWT_SECRET);
   const resetRepo = new PasswordResetRepository(ctx.env.DB);
-  const resetRecord = await resetRepo.findValidByTokenHash(tokenHash);
+  const resetRecord: any = await resetRepo.findValidByTokenHash(tokenHash);
   if (!resetRecord) return jsonErr('Reset link is invalid or has expired.', 400);
 
+  const resetGymId = resetRecord.gymId;
+  const resetUserId = resetRecord.userId;
+
   const user: any = await ctx.env.DB
-    .prepare(`SELECT id, name, email FROM users WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`)
-    .bind(resetRecord.user_id, resetRecord.gym_id)
+    .prepare(`SELECT id, name, email FROM users WHERE id = ? AND gymId = ? AND deletedAt IS NULL`)
+    .bind(resetUserId, resetGymId)
     .first();
   if (!user) return jsonErr('Associated user account was not found', 404);
 
   const newHash = await hashPassword(newPassword);
   await resetRepo.consumeAndSetPassword({
-    gymId: resetRecord.gym_id,
-    userId: resetRecord.user_id,
+    gymId: resetGymId,
+    userId: resetUserId,
     resetId: resetRecord.id,
     passwordHash: newHash,
   });
@@ -324,37 +327,55 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
 
   if (!member) return jsonErr('No member account found with this phone number or member code', 404);
 
-  const memberCodeMatches = member.member_code.toUpperCase() === trimCode.toUpperCase();
+  // Validate member status before allowing login
+  if (member.deletedAt !== null) {
+    return jsonErr('Member account has been archived or deleted', 401);
+  }
+  if (member.status === 'BLOCKED') {
+    return jsonErr('Member account is currently blocked by administrator', 403);
+  }
+  if (member.status === 'INACTIVE') {
+    return jsonErr('Member account is inactive. Please contact the gym.', 403);
+  }
+  if (member.status === 'CANCELLED') {
+    return jsonErr('Member account has been cancelled', 403);
+  }
+
+  const memberCode = member.memberCode ?? '';
+  const phone = member.phone ?? '';
+  const memberCodeMatches = memberCode.toUpperCase() === trimCode.toUpperCase();
   // phone can be NULL for portal-only imports; guard the endsWith probe.
-  const phoneMatches = (member.phone && (member.phone.endsWith(trimCode) || member.phone === trimCode)) || false;
-  const identMatchesCode = member.member_code.toUpperCase() === trimIdent.toUpperCase();
+  const phoneMatches = (phone && (phone.endsWith(trimCode) || phone === trimCode)) || false;
+  const identMatchesCode = memberCode.toUpperCase() === trimIdent.toUpperCase();
 
   if (!memberCodeMatches && !phoneMatches && !identMatchesCode) {
     return jsonErr('Invalid verification credential.', 401);
   }
 
+  const memberGymId = member.gymId;
   // M-17: Use shared repository helper instead of inline query.
-  const memberRepo = new MemberRepository(ctx.env.DB, member.gym_id);
+  const memberRepo = new MemberRepository(ctx.env.DB, memberGymId);
   const activeMembership = await memberRepo.getActiveMembership(member.id);
 
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
-  const { token } = await authService.signMemberToken({
-    id: member.id, gymId: member.gym_id, memberCode: member.member_code,
-    phone: member.phone, name: `${member.first_name} ${member.last_name || ''}`.trim(),
+  const { token, refreshToken } = await authService.signMemberToken({
+    id: member.id, gymId: memberGymId, memberCode,
+    phone, name: `${member.firstName} ${member.lastName ?? ''}`.trim(),
   });
 
   const csrf = generateCsrfToken();
   return jsonOk(
     {
       token,
+      refreshToken,
       member: {
-        id: member.id, gymId: member.gym_id, memberCode: member.member_code,
-        firstName: member.first_name, lastName: member.last_name,
-        email: member.email, phone: member.phone, photoUrl: member.photo_url,
-        status: member.status, joinedDate: member.joined_date,
+        id: member.id, gymId: memberGymId, memberCode,
+        firstName: member.firstName, lastName: member.lastName,
+        email: member.email, phone, photoUrl: member.photoUrl,
+        status: member.status, joinedDate: member.joinedDate,
       },
       activeMembership: activeMembership || null,
-      gym: { id: member.gym_id, name: member.gym_name, slug: member.gym_slug },
+      gym: { id: memberGymId, name: member.gymName, slug: member.gymSlug },
     },
     200,
     { 'X-CSRF-Token': csrf },
@@ -385,35 +406,63 @@ authRoutes.get('/portal', safeHandler(async (c) => {
   ).getPortalRows(session.userId as number);
   if (!member) return jsonErr('Member record not found', 404);
 
-  // Map raw rows onto the camelCase contracts the portal renders — raw
-  // snake_case here meant every field on the portal page rendered blank.
+  // Map raw rows onto the camelCase contracts the portal renders
   const ms = (memberships as any[]).map((m: any) => ({
-    id: m.id, gymId: m.gym_id, memberId: m.member_id, membershipPlanId: m.membership_plan_id,
-    startDate: m.start_date, endDate: m.end_date,
-    totalAmountPaise: m.total_amount_paise, discountPaise: m.discount_paise,
-    finalAmountPaise: m.final_amount_paise, paidAmountPaise: m.paid_amount_paise,
-    dueAmountPaise: m.due_amount_paise, status: m.status, frozenAt: m.frozen_at,
-    notes: m.notes, planName: m.plan_name, durationMonths: m.duration_months,
+    id: m.id,
+    gymId: m.gymId,
+    memberId: m.memberId,
+    membershipPlanId: m.membershipPlanId,
+    startDate: m.startDate,
+    endDate: m.endDate,
+    totalAmountPaise: m.totalAmountPaise,
+    discountPaise: m.discountPaise,
+    finalAmountPaise: m.finalAmountPaise,
+    paidAmountPaise: m.paidAmountPaise,
+    dueAmountPaise: m.dueAmountPaise,
+    status: m.status,
+    frozenAt: m.frozenAt,
+    notes: m.notes,
+    planName: m.planName,
+    durationMonths: m.durationMonths,
   }));
   const activeMembership = ms.find((m) => m.status === 'ACTIVE') || ms[0] || null;
 
   return jsonOk({
     member: {
-      id: member.id, gymId: member.gym_id, memberCode: member.member_code,
-      firstName: member.first_name, lastName: member.last_name,
-      email: member.email, phone: member.phone, gender: member.gender,
-      photoUrl: member.photo_url, status: member.status, joinedDate: member.joined_date,
+      id: member.id,
+      gymId: member.gymId,
+      memberCode: member.memberCode,
+      firstName: member.firstName,
+      lastName: member.lastName,
+      email: member.email,
+      phone: member.phone,
+      gender: member.gender,
+      photoUrl: member.photoUrl,
+      status: member.status,
+      joinedDate: member.joinedDate,
     },
     activeMembership,
     memberships: ms,
     payments: (payments as any[]).map((p: any) => ({
-      id: p.id, receiptNumber: p.receipt_number, amountPaise: p.amount_paise,
-      paymentDate: p.payment_date, paymentMode: p.payment_mode, status: p.status, notes: p.notes,
+      id: p.id,
+      receiptNumber: p.receiptNumber,
+      amountPaise: p.amountPaise,
+      paymentDate: p.paymentDate,
+      paymentMode: p.paymentMode,
+      status: p.status,
+      notes: p.notes,
     })),
     attendance: (attendance as any[]).map((a: any) => ({
-      id: a.id, checkInTime: a.check_in_time, attendanceDate: a.attendance_date, method: a.method,
+      id: a.id,
+      checkInTime: a.checkInTime,
+      attendanceDate: a.attendanceDate,
+      method: a.method,
     })),
-    gym: { name: member.gym_name, address: member.gym_address, phone: member.gym_phone },
+    gym: {
+      name: member.gymName,
+      address: member.gymAddress,
+      phone: member.gymPhone,
+    },
   });
 }));
 
