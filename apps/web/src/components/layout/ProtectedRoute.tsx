@@ -1,6 +1,8 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
+import { GymFeatureKey } from '@gymtech/shared';
 import { useAuth } from '@/lib/auth';
+import { RouteSplash } from './RouteSplash';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -8,6 +10,12 @@ interface ProtectedRouteProps {
   allowMember?: boolean;
   /** Required permission keys — user must have ALL of them (AND logic). Owner bypasses all. */
   requiredPermissions?: string[];
+  /**
+   * License feature key — mirrors the backend `requireFeature` gate.
+   * Applies to owners too (only platform admins bypass); redirects to
+   * /dashboard when the gym's license has the module disabled.
+   */
+  feature?: GymFeatureKey;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
@@ -15,16 +23,14 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   requireSuperAdmin = false,
   allowMember = false,
   requiredPermissions,
+  feature,
 }) => {
-  const { user, isLoading } = useAuth();
+  const { user, isLoading, hasFeature } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="size-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-          <p className="text-xs font-mono text-muted-foreground">Authenticating session...</p>
-        </div>
+      <div className="min-h-screen">
+        <RouteSplash message="Checking your session…" className="min-h-screen" />
       </div>
     );
   }
@@ -42,6 +48,13 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
   if (requireSuperAdmin && !isPlatformAdmin) {
     return <Navigate to="/dashboard" replace />;
+  }
+
+  // License feature gate — mirrors backend `requireFeature`. Owners are
+  // gated too; only platform admins bypass. Unloaded flags (null) mean
+  // "all enabled" so first paint never bounces.
+  if (feature && !isPlatformAdmin && !hasFeature(feature)) {
+    return <Navigate to={feature === 'dashboard' ? '/members' : '/dashboard'} replace />;
   }
 
   // Permission guard — PLATFORM_ADMIN and gym OWNER bypass all permission checks so they have

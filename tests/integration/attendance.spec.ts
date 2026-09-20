@@ -17,7 +17,7 @@ describe('Attendance E2E', () => {
   it('checks a member in by numeric id and by identifier', async () => {
     const { client } = await loginAsOwner();
     const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
-    const plan = plans.body.plans[0];
+    const plan = plans.body.plans[0]!;
     const suffix = uniqueSuffix();
 
     const created = await client.post<{ member: { id: number; phone: string } }>('/api/members', {
@@ -47,14 +47,14 @@ describe('Attendance E2E', () => {
 
     // Check in again by phone identifier — the second attempt may succeed
     // (alreadyCheckedIn=true) or be refused; either way no 5xx is the contract.
-    const byPhone = await client.post('/api/attendance/check-in', { memberIdOrCode: created.body.phone });
+    const byPhone = await client.post('/api/attendance/check-in', { memberIdOrCode: created.body.member.phone });
     expect(byPhone.status).toBeLessThan(500);
   });
 
   it('refuses check-in for archived members', async () => {
     const { client } = await loginAsOwner();
     const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
-    const plan = plans.body.plans[0];
+    const plan = plans.body.plans[0]!;
     const suffix = uniqueSuffix();
 
     const created = await client.post<{ member: { id: number } }>('/api/members', {
@@ -68,8 +68,8 @@ describe('Attendance E2E', () => {
     expect(created.status).toBe(201);
     const memberId = created.body.member.id;
 
-    const del = await client.request('DELETE', `/api/members/${memberId}`);
-    expect(del.status).toBe(200);
+    const archive = await client.post(`/api/members/${memberId}/archive`);
+    expect(archive.status).toBe(200);
 
     const res = await client.post('/api/attendance/check-in', { memberIdOrCode: String(memberId) });
     // Archived members are invisible to the lookup → 404 (not a permission leak).
@@ -80,7 +80,7 @@ describe('Attendance E2E', () => {
     const { client, env } = await loginAsOwner();
     // Expire an enrolled member's membership directly in D1 (no time travel needed).
     const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
-    const plan = plans.body.plans[0];
+    const plan = plans.body.plans[0]!;
     const suffix = uniqueSuffix();
     const created = await client.post<{ member: { id: number } }>('/api/members', {
       firstName: 'Expired',

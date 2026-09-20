@@ -1,5 +1,6 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Users, Send, Snowflake, UserMinus } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -21,9 +22,17 @@ interface MemberTableProps {
 
 export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { toast } = useToast()
   const [pendingDelete, setPendingDelete] = React.useState<any | null>(null)
   const [pendingFreeze, setPendingFreeze] = React.useState<any | null>(null)
+
+  // Refresh the directory (all search/status variants + summary tiles)
+  // without a full page reload, so toasts and filter state survive.
+  const refreshDirectory = () => {
+    queryClient.invalidateQueries({ queryKey: ['members'] });
+    queryClient.invalidateQueries({ queryKey: ['members-summary'] });
+  };
 
 
   if (members.length === 0 && !isLoading) {
@@ -219,7 +228,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
             `Plans frozen for ${frozen} member${frozen === 1 ? '' : 's'}`,
             'Memberships are paused until you unfreeze.'
           );
-          window.location.reload();
+          refreshDirectory();
         } catch (err: any) {
           toast(
             'error',
@@ -271,7 +280,8 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
           try {
             await api.archiveMember(pendingDelete.id);
             toast('success', 'Member archived', `${pendingDelete.firstName} was archived. Historical records preserved.`);
-            window.location.reload();
+            setPendingDelete(null);
+            refreshDirectory();
           } catch (err: any) {
             toast('error', 'Archive failed', err.message);
           }
@@ -290,7 +300,7 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
             await api.freezeMember(pendingFreeze.id, 'Frozen from member list');
             toast('success', 'Plan frozen', `${pendingFreeze.firstName}'s plan is paused. Unfreeze from the member detail page.`);
             setPendingFreeze(null);
-            window.location.reload();
+            refreshDirectory();
           } catch (err: any) {
             toast('error', 'Freeze failed', err.message);
           }

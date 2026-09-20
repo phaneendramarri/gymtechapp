@@ -64,224 +64,14 @@ import {
   LogPtSessionRequest,
 } from '@gymtech/shared';
 
-// The Hono API is served from the same origin as the SPA (single Cloudflare
-// Worker). Leave the base empty so all `/api/*` calls go to the same host.
-// In dev, Vite's proxy or `wrangler dev` handles the routing. Override via
-// `VITE_API_BASE_URL` only when explicitly needed.
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+import { ApiClientBase, API_BASE_URL, saveCsrfToken, setStoredRefreshToken } from './api-client';
 
-/**
- * The session JWT is in an httpOnly cookie that the browser auto-attaches.
- * We no longer read it from localStorage. (Phase 1.2 of the security
- * hardening plan — moves tokens out of XSS-reachable storage.)
- */
-const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+// Domain methods live here, grouped by resource (Auth, Dashboard, Members,
+// Plans, Payments, Attendance, Staff, Roles, Settings, Reports, PT, Admin,
+// Classes, POS, Expenses, Lockers). Transport (CSRF, refresh, request
+// pipeline) lives in ./api-client.ts as ApiClientBase.
 
-let _memoryCsrfToken: string | null = null;
-
-/**
- * Read the `gym_csrf` non-httpOnly cookie value. Used for the
- * double-submit CSRF pattern: the web app reads the cookie and echoes it
- * as the `X-CSRF-Token` header on every non-safe request.
- * Falls back to in-memory / sessionStorage token if cookie is not yet parsed.
- */
-function readCsrfCookie(): string | null {
-  if (typeof document !== 'undefined') {
-    const match = document.cookie.match(/(?:^|;\s*)gym_csrf=([^;]+)/);
-    if (match) return decodeURIComponent(match[1]);
-  }
-  if (_memoryCsrfToken) return _memoryCsrfToken;
-  if (typeof sessionStorage !== 'undefined') {
-    return sessionStorage.getItem('gymtech_csrf_token');
-  }
-  return null;
-}
-
-function saveCsrfToken(token: string | null): void {
-  _memoryCsrfToken = token;
-  if (typeof sessionStorage !== 'undefined') {
-    if (token) sessionStorage.setItem('gymtech_csrf_token', token);
-    else sessionStorage.removeItem('gymtech_csrf_token');
-  }
-}
-
-/**
- * H-16: Token refresh interceptor
- * Stores refresh token in sessionStorage (more isolated than localStorage).
- * On 401, attempts sliding-window refresh, retries original request once,
- * then redirects to login only if refresh fails.
- */
-const REFRESH_TOKEN_KEY = 'gymtech_refresh_token';
-// Shared promise dedupes concurrent refresh attempts while one is in-flight
-let _refreshPromise: Promise<string | null> | null = null;
-
-function getStoredRefreshToken(): string | null {
-  if (typeof sessionStorage === 'undefined') return null;
-  return sessionStorage.getItem(REFRESH_TOKEN_KEY);
-}
-
-function setStoredRefreshToken(token: string | null): void {
-  if (typeof sessionStorage === 'undefined') return;
-  if (token) sessionStorage.setItem(REFRESH_TOKEN_KEY, token);
-  else sessionStorage.removeItem(REFRESH_TOKEN_KEY);
-}
-
-class ApiClient {
-  private async fetchCsrfToken(): Promise<string | null> {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/csrf`, {
-        method: 'GET',
-        credentials: 'include',
-      });
-      const headerCsrf = res.headers.get('X-CSRF-Token');
-      if (headerCsrf) {
-        saveCsrfToken(headerCsrf);
-        return headerCsrf;
-      }
-      const data: any = await res.json().catch(() => ({}));
-      if (data?.csrfToken) {
-        saveCsrfToken(data.csrfToken);
-        return data.csrfToken;
-      }
-      return readCsrfCookie();
-    } catch {
-      return null;
-    }
-  }
-
-  private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      ...(options.headers as Record<string, string>),
-    };
-
-    const method = (options.method || 'GET').toUpperCase();
-    if (!SAFE_METHODS.has(method)) {
-      let csrf = readCsrfCookie();
-      if (!csrf) {
-        csrf = await this.fetchCsrfToken();
-      }
-      if (csrf) headers['X-CSRF-Token'] = csrf;
-    }
-
-    const doFetch = () =>
-      fetch(`${API_BASE_URL}${endpoint}`, {
-        ...options,
-        headers,
-        credentials: 'include',
-      });
-
-    let res = await doFetch();
-
-    // Capture CSRF token echoed by server on auth operations
-    const responseCsrf = res.headers.get('X-CSRF-Token');
-    if (responseCsrf) {
-      saveCsrfToken(responseCsrf);
-    }
-
-    // Auto-heal CSRF mismatch or missing token and retry once
-    if (res.status === 403 && !SAFE_METHODS.has(method)) {
-      const errorBody: any = await res.clone().json().catch(() => ({}));
-      if (errorBody.code === 'CSRF_MISSING' || errorBody.code === 'CSRF_MISMATCH' || errorBody.error?.includes('CSRF')) {
-        const freshCsrf = await this.fetchCsrfToken();
-        if (freshCsrf) {
-          headers['X-CSRF-Token'] = freshCsrf;
-          res = await doFetch();
-          const retryCsrf = res.headers.get('X-CSRF-Token');
-          if (retryCsrf) saveCsrfToken(retryCsrf);
-        }
-      }
-    }
-
-    // H-16: On 401, attempt token refresh then retry original request once
-    if (res.status === 401) {
-      const refreshToken = getStoredRefreshToken();
-      if (refreshToken) {
-        // Reuse in-flight refresh if another request triggered it concurrently
-        if (!_refreshPromise) {
-          _refreshPromise = this.tryRefresh(refreshToken);
-        }
-        const newToken = await _refreshPromise;
-        _refreshPromise = null;
-        if (newToken) {
-          // Retry once with updated CSRF (cookie may have changed too)
-          if (!SAFE_METHODS.has(method)) {
-            const csrf = readCsrfCookie();
-            if (csrf) headers['X-CSRF-Token'] = csrf;
-          }
-          res = await doFetch();
-        }
-      }
-
-      // If still 401 or no refresh token → handle session invalidation
-      if (res.status === 401) {
-        setStoredRefreshToken(null);
-        
-        const isAuthCheck = endpoint.startsWith('/api/auth/me') ||
-          endpoint.startsWith('/api/auth/csrf') ||
-          endpoint.startsWith('/api/auth/refresh') ||
-          endpoint.startsWith('/api/auth/login') ||
-          endpoint.startsWith('/api/auth/member-login') ||
-          endpoint.startsWith('/api/auth/forgot-password') ||
-          endpoint.startsWith('/api/auth/reset-password') ||
-          endpoint.startsWith('/api/auth/portal');
-
-        const isPublicPath = typeof window !== 'undefined' && (
-          window.location.pathname === '/' ||
-          window.location.pathname === '/login' ||
-          window.location.pathname.startsWith('/reset-password') ||
-          window.location.pathname.startsWith('/about') ||
-          window.location.pathname.startsWith('/contact') ||
-          window.location.pathname.startsWith('/terms') ||
-          window.location.pathname.startsWith('/privacy')
-        );
-
-        // Only force window redirect to /login if user was on a protected internal route
-        // and their session truly expired. <ProtectedRoute> handles standard navigation guards.
-        if (!isAuthCheck && !isPublicPath && typeof window !== 'undefined') {
-          window.location.href = '/login';
-        }
-      }
-    }
-
-    const data: any = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      const error = new Error(data.error || `HTTP ${res.status}: ${res.statusText}`);
-      Object.assign(error, data);
-      throw error;
-    }
-
-    return data as T;
-  }
-
-  // H-16: Sliding-window refresh — returns new access token or null on failure.
-  // Uses the stored refresh token from sessionStorage; on success the new refresh
-  // token is saved back to sessionStorage for the next cycle.
-  private async tryRefresh(refreshToken: string): Promise<string | null> {
-    try {
-      const storedCsrf = readCsrfCookie();
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (storedCsrf) headers['X-CSRF-Token'] = storedCsrf;
-
-      const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
-        method: 'POST',
-        headers,
-        credentials: 'include',
-        body: JSON.stringify({ refreshToken }),
-      });
-      if (!res.ok) return null;
-      const data: any = await res.json().catch(() => ({}));
-      if (!data.token) return null;
-      if (data.refreshToken) setStoredRefreshToken(data.refreshToken);
-      const csrf = res.headers.get('X-CSRF-Token');
-      if (csrf) saveCsrfToken(csrf);
-      return data.token as string;
-    } catch {
-      return null;
-    }
-  }
-
+class ApiClient extends ApiClientBase {
   // Auth
   async login(payload: LoginRequest): Promise<LoginResponse> {
     // Bypass the refresh interceptor on login — store refresh token from response.
@@ -384,6 +174,13 @@ class ApiClient {
     return this.request<{ members: any[] }>(`/api/members${qs ? `?${qs}` : ''}`);
   }
 
+  /** Exact code/phone/email → member lookup for client-side pickers (works past page 1). */
+  async lookupMember(identifier: string, gymId?: number): Promise<{ member: { id: number; memberCode: string; firstName: string; lastName: string | null } }> {
+    const q = this.gymParams(gymId);
+    q.set('identifier', identifier.trim());
+    return this.request<{ member: { id: number; memberCode: string; firstName: string; lastName: string | null } }>(`/api/members/lookup?${q.toString()}`);
+  }
+
   // L8: Single-query summary counts (avoids double-fetch)
   async getMembersSummary(): Promise<{ counts: { total: number; active: number; expiring: number; frozen: number; blocked: number; expired: number } }> {
     const q = this.gymParams();
@@ -468,12 +265,16 @@ class ApiClient {
   }
 
   // Payments
-  async getPayments(params?: { limit?: number; memberId?: string }, gymId?: number): Promise<{ payments: Payment[]; summary: any }> {
+  // The backend envelope is `{ items, total, …, summary }`; the UI reads
+  // `payments` — translate here so every caller sees one shape.
+  async getPayments(params?: { limit?: number; offset?: number; memberId?: string }, gymId?: number): Promise<{ payments: Payment[]; total: number; hasMore: boolean; summary: any }> {
     const q = this.gymParams(gymId);
     if (params?.limit) q.set('limit', String(params.limit));
+    if (params?.offset) q.set('offset', String(params.offset));
     if (params?.memberId) q.set('memberId', params.memberId);
     const qs = q.toString();
-    return this.request<{ payments: Payment[]; summary: any }>(`/api/payments${qs ? `?${qs}` : ''}`);
+    const res = await this.request<{ items: Payment[]; total: number; hasMore: boolean; summary: any }>(`/api/payments${qs ? `?${qs}` : ''}`);
+    return { payments: res.items ?? [], total: res.total, hasMore: res.hasMore, summary: res.summary };
   }
 
   async recordPayment(payload: RecordPaymentRequest, gymId?: number): Promise<RecordPaymentResponse> {
@@ -627,6 +428,8 @@ class ApiClient {
     return this.request(`/api/reports?period=${period}`);
   }
 
+  // Backend returns `{ summary: { totalRevenue, … }, byPlan, timeSeries }`;
+  // the Reports page reads `totalRevenue.{total_paise,…}` + `revenueByPlan`.
   async getRevenueReport(params: {
     startDate: number;
     endDate: number;
@@ -641,7 +444,20 @@ class ApiClient {
       endDate: String(params.endDate),
       groupBy: params.groupBy || 'day',
     });
-    return this.request(`/api/reports/revenue?${q}`);
+    const res = await this.request<any>(`/api/reports/revenue?${q}`);
+    const s = res.summary ?? {};
+    return {
+      totalRevenue: {
+        total_paise: s.totalRevenue ?? 0,
+        payment_count: s.paymentCount ?? 0,
+        cash_paise: s.cashRevenue ?? 0,
+        upi_paise: s.upiRevenue ?? 0,
+        card_paise: s.cardRevenue ?? 0,
+        bank_paise: s.bankRevenue ?? 0,
+      },
+      revenueByPlan: res.byPlan ?? [],
+      timeSeries: res.timeSeries ?? [],
+    };
   }
 
   async getMembershipReport(params: {
@@ -1082,13 +898,18 @@ class ApiClient {
     return this.request<{ sales: PosSale[] }>(`/api/pos/sales${qs ? `?${qs}` : ''}`);
   }
 
-  async createPosSale(data: CreatePosSaleRequest, gymId?: number): Promise<{ id: number; invoiceNumber: string; totalPaise: number }> {
+  // The backend returns `{ id, receiptNumber }`; the UI calls it invoiceNumber.
+  async createPosSale(data: CreatePosSaleRequest, gymId?: number): Promise<{ id: number; invoiceNumber: string; receiptNumber: string; totalPaise: number }> {
     const q = this.gymParams(gymId);
     const qs = q.toString();
-    return this.request<{ id: number; invoiceNumber: string; totalPaise: number }>(`/api/pos/sales${qs ? `?${qs}` : ''}`, {
+    const res = await this.request<{ id: number; receiptNumber: string }>(`/api/pos/sales${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
+    // The backend returns only { id, receiptNumber }; recompute the displayed
+    // total from the submitted items (same math the repo uses).
+    const totalPaise = (data.items ?? []).reduce((sum, it) => sum + it.quantity * it.unitPricePaise, 0);
+    return { id: res.id, invoiceNumber: res.receiptNumber, receiptNumber: res.receiptNumber, totalPaise };
   }
 
   // --- Expenses & P&L ---
@@ -1134,23 +955,19 @@ class ApiClient {
   }
 
   async getProfitLoss(params?: { from?: string; to?: string; gymId?: number }): Promise<{
-    revenuePaise: number;
-    expensePaise: number;
+    revenuePaise: { memberships: number; pt: number; pos: number; total: number };
+    expensesPaise: { byCategory: Array<{ category: string; amountPaise: number }>; total: number };
     netProfitPaise: number;
-    from: string;
-    to: string;
   }> {
     const q = this.gymParams(params?.gymId);
     if (params?.from) q.set('from', params.from);
     if (params?.to) q.set('to', params.to);
     const qs = q.toString();
     return this.request<{
-      revenuePaise: number;
-      expensePaise: number;
+      revenuePaise: { memberships: number; pt: number; pos: number; total: number };
+      expensesPaise: { byCategory: Array<{ category: string; amountPaise: number }>; total: number };
       netProfitPaise: number;
-      from: string;
-      to: string;
-    }>(`/api/expenses/profit-loss${qs ? `?${qs}` : ''}`);
+    }>(`/api/expenses/pnl${qs ? `?${qs}` : ''}`);
   }
 
   // --- Lockers ---
@@ -1169,17 +986,10 @@ class ApiClient {
     });
   }
 
-  async getLockerAllocations(status?: string, gymId?: number): Promise<{ allocations: LockerAllocation[] }> {
-    const q = this.gymParams(gymId);
-    if (status) q.set('status', status);
-    const qs = q.toString();
-    return this.request<{ allocations: LockerAllocation[] }>(`/api/lockers/allocations${qs ? `?${qs}` : ''}`);
-  }
-
   async allocateLocker(data: AllocateLockerRequest, gymId?: number): Promise<{ id: number }> {
     const q = this.gymParams(gymId);
     const qs = q.toString();
-    return this.request<{ id: number }>(`/api/lockers/allocations${qs ? `?${qs}` : ''}`, {
+    return this.request<{ id: number }>(`/api/lockers/allocate${qs ? `?${qs}` : ''}`, {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -1188,7 +998,7 @@ class ApiClient {
   async releaseLocker(id: number, gymId?: number): Promise<{ success: boolean }> {
     const q = this.gymParams(gymId);
     const qs = q.toString();
-    return this.request<{ success: boolean }>(`/api/lockers/allocations/${id}/release${qs ? `?${qs}` : ''}`, {
+    return this.request<{ success: boolean }>(`/api/lockers/allocations/${id}/terminate${qs ? `?${qs}` : ''}`, {
       method: 'POST',
     });
   }

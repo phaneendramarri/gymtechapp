@@ -1,4 +1,4 @@
-import { eq, and, isNull, sql } from 'drizzle-orm';
+import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Attendance, AttendanceMethod, AttendanceListItem } from '@gymtech/shared';
@@ -91,7 +91,7 @@ export class AttendanceRepository {
       .from(attendance)
       .innerJoin(members, eq(attendance.memberId, members.id))
       .where(and(eq(attendance.gymId, this.gymId), eq(attendance.attendanceDate, today), isNull(attendance.deletedAt)))
-      .orderBy(attendance.checkInTime);
+      .orderBy(desc(attendance.checkInTime));
     return rows as AttendanceListItem[];
   }
 

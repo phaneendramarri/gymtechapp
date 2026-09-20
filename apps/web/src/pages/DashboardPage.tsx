@@ -16,7 +16,7 @@ import {
   TrendingUp,
   TrendingDown,
   ShoppingBag,
-  DollarSign,
+  IndianRupee,
   Activity,
   CalendarX2,
   Download,
@@ -202,7 +202,7 @@ export const DashboardPage: React.FC = () => {
                     <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
                       Total Revenue (MTD)
                     </CardTitle>
-                    <DollarSign className="h-4 w-4 text-muted-foreground" />
+                    <IndianRupee className="h-4 w-4 text-muted-foreground" />
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
@@ -333,7 +333,7 @@ export const DashboardPage: React.FC = () => {
                     <div>
                       <CardTitle className="text-base font-semibold">Recent Sales</CardTitle>
                       <CardDescription className="text-xs">
-                        You collected {recentPayments.length} payments this month.
+                        You collected {metrics?.monthlyPayments ?? recentPayments.length} payments this month.
                       </CardDescription>
                     </div>
                     <Link to="/payments" className="text-xs text-primary font-medium hover:underline flex items-center gap-0.5">
@@ -358,7 +358,10 @@ export const DashboardPage: React.FC = () => {
                                 {p.memberName || `${p.firstName || ''} ${p.lastName || ''}`.trim() || 'Member'}
                               </p>
                               <p className="text-[11px] text-muted-foreground truncate font-mono mt-0.5">
-                                {p.paymentMode || 'UPI'} • {timeAgo(p.paymentDate)}
+                                {/* createdAt is the precise record time; paymentDate is
+                                    day-precision (accounting date), so it would read
+                                    "13h ago" for a payment made minutes ago. */}
+                                {p.paymentMode || 'UPI'} • {timeAgo(p.createdAt || p.paymentDate)}
                               </p>
                             </div>
                             <div className="font-mono font-bold text-xs text-foreground shrink-0">

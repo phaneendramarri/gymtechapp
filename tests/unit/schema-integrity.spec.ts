@@ -59,15 +59,23 @@ function parseCompositeForeignKeys(sql: string): CompositeFk[] {
   while ((tableMatch = tableRe.exec(clean))) {
     const child = tableMatch[1];
     const body = tableMatch[2];
+    if (!child || !body) continue;
     const fkRe = /FOREIGN KEY\s*\(\s*(\w+)\s*,\s*(\w+)\s*\)\s*REFERENCES\s+"?(\w+)"?\s*\(\s*(\w+)\s*,\s*(\w+)\s*\)/g;
     let fkMatch: RegExpExecArray | null;
     while ((fkMatch = fkRe.exec(body))) {
-      fks.push({
-        child,
-        childCols: [fkMatch[1], fkMatch[2]],
-        parent: fkMatch[3],
-        parentCols: [fkMatch[4], fkMatch[5]],
-      });
+      const childCol1 = fkMatch[1];
+      const childCol2 = fkMatch[2];
+      const parent = fkMatch[3];
+      const parentCol1 = fkMatch[4];
+      const parentCol2 = fkMatch[5];
+      if (childCol1 && childCol2 && parent && parentCol1 && parentCol2) {
+        fks.push({
+          child,
+          childCols: [childCol1, childCol2],
+          parent,
+          parentCols: [parentCol1, parentCol2],
+        });
+      }
     }
   }
   return fks;
@@ -91,7 +99,11 @@ function uniqueKeysByTable(sql: string): Map<string, Set<string>> {
   const idxRe = /CREATE UNIQUE INDEX\s+(?:IF NOT EXISTS\s+)?"?(\w+)"?\s+ON\s+"?(\w+)"?\s*\(([^)]*)\)/g;
   let m: RegExpExecArray | null;
   while ((m = idxRe.exec(clean))) {
-    add(m[2], m[3].split(',').map((c) => c.trim().replace(/\s+(ASC|DESC)$/i, '')));
+    const table = m[2];
+    const cols = m[3];
+    if (table && cols) {
+      add(table, cols.split(',').map((c) => c.trim().replace(/\s+(ASC|DESC)$/i, '')));
+    }
   }
 
   // Inline table constraints inside CREATE TABLE bodies.
@@ -99,13 +111,17 @@ function uniqueKeysByTable(sql: string): Map<string, Set<string>> {
   while ((m = tableRe.exec(clean))) {
     const table = m[1];
     const body = m[2];
+    if (!table || !body) continue;
     const inlineRe = /UNIQUE\s*\(([^)]*)\)/g;
     let u: RegExpExecArray | null;
     while ((u = inlineRe.exec(body))) {
-      add(table, u[1].split(',').map((c) => c.trim()));
+      const cols = u[1];
+      if (cols) {
+        add(table, cols.split(',').map((c) => c.trim()));
+      }
     }
     const pk = /PRIMARY KEY\s*\(([^)]*)\)/.exec(body);
-    if (pk) add(table, pk[1].split(',').map((c) => c.trim()));
+    if (pk && pk[1]) add(table, pk[1].split(',').map((c) => c.trim()));
   }
 
   return keys;
@@ -141,13 +157,15 @@ describe('Schema integrity — composite foreign keys', () => {
 
 describe('Schema integrity — table parity with the Drizzle schema', () => {
   const migrationTables = new Set(
-    [...stripComments(allSql()).matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?(\w+)"?\s*\(/g)].map(
-      (m) => m[1],
-    ),
+    [...stripComments(allSql()).matchAll(/CREATE TABLE\s+(?:IF NOT EXISTS\s+)?"?(\w+)"?\s*\(/g)]
+      .map((m) => m[1])
+      .filter((name): name is string => typeof name === 'string'),
   );
 
   const schemaTables = new Set(
-    [...fs.readFileSync(SCHEMA_FILE, 'utf8').matchAll(/sqliteTable\(\s*'(\w+)'/g)].map((m) => m[1]),
+    [...fs.readFileSync(SCHEMA_FILE, 'utf8').matchAll(/sqliteTable\(\s*'(\w+)'/g)]
+      .map((m) => m[1])
+      .filter((name): name is string => typeof name === 'string'),
   );
 
   it('every table in the SQL baseline is described in schema.ts', () => {
@@ -166,6 +184,7 @@ describe('Schema integrity — table parity with the Drizzle schema', () => {
       'gym_settings',
       'user_permissions',
       'saas_audit_events',
+      'member_referrals',
     ];
     for (const table of removed) {
       expect(migrationTables.has(table), `${table} should not exist`).toBe(false);
@@ -184,7 +203,9 @@ describe('Schema integrity — tenant isolation', () => {
     const violations: string[] = [];
     let m: RegExpExecArray | null;
     while ((m = tableRe.exec(sql))) {
-      const [, table, body] = m;
+      const table = m[1];
+      const body = m[2];
+      if (!table || !body) continue;
       if (globalTables.has(table)) continue;
       if (!/\bgym_id\b/.test(body)) violations.push(table);
     }

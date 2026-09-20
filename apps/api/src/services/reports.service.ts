@@ -104,67 +104,87 @@ export class ReportsService {
   }
 
   /**
-   * Membership Report - Shows new, renewed, expired, and active memberships
+   * Membership Report - active/new/renewal/expired summary, per-plan active
+   * counts with expiring badges, and the members whose memberships expire
+   * within 7 days. Shapes match the Reports page membership tab.
    */
   async getMembershipReport(params: MembershipReportParams) {
-    const { startDate, endDate, status } = params;
+    const { startDate, endDate } = params;
+    const now = Math.floor(Date.now() / 1000);
 
-    // Summary counts
+    // One definition of "renewal": a membership created in the period for a
+    // member who already had an earlier one. Both cards used to run the same
+    // expression, so "New Memberships" and "Renewals" always showed the same
+    // number.
+    const HAS_EARLIER = `EXISTS (
+        SELECT 1 FROM memberships prev
+         WHERE prev.member_id = ms.member_id AND prev.gym_id = ms.gym_id
+           AND prev.deleted_at IS NULL AND prev.id <> ms.id
+           AND prev.created_at < ms.created_at)`;
+
+    // Snapshot counts (current) + period-scoped new/renewal split.
     const summary = await this.db
       .prepare(
         `SELECT
-          COUNT(*) as total,
-          COALESCE(SUM(CASE WHEN status = 'ACTIVE' THEN 1 ELSE 0 END), 0) as active,
-          COALESCE(SUM(CASE WHEN status = 'EXPIRED' THEN 1 ELSE 0 END), 0) as expired,
-          COALESCE(SUM(CASE WHEN status = 'FROZEN' THEN 1 ELSE 0 END), 0) as frozen,
-          COALESCE(SUM(CASE WHEN status = 'CANCELLED' THEN 1 ELSE 0 END), 0) as cancelled,
-          COALESCE(SUM(CASE WHEN start_date >= ? THEN 1 ELSE 0 END), 0) as new_in_period
-         FROM memberships
-         WHERE gym_id = ? AND deleted_at IS NULL
-         AND created_at >= ? AND created_at <= ?`
+          COALESCE(SUM(CASE WHEN ms.status = 'ACTIVE' THEN 1 ELSE 0 END), 0) as total_active,
+          COALESCE(SUM(CASE WHEN ms.created_at BETWEEN ? AND ? AND NOT ${HAS_EARLIER} THEN 1 ELSE 0 END), 0) as new_memberships,
+          COALESCE(SUM(CASE WHEN ms.created_at BETWEEN ? AND ? AND ${HAS_EARLIER} THEN 1 ELSE 0 END), 0) as renewals,
+          COALESCE(SUM(CASE WHEN ms.status = 'EXPIRED' THEN 1 ELSE 0 END), 0) as expired,
+          COALESCE(SUM(CASE WHEN ms.status = 'FROZEN' THEN 1 ELSE 0 END), 0) as frozen
+         FROM memberships ms
+         WHERE ms.gym_id = ? AND ms.deleted_at IS NULL`
       )
-      .bind(startDate, this.gymId, startDate, endDate)
+      .bind(startDate, endDate, startDate, endDate, this.gymId)
       .first<any>();
 
-    // Expiring soon (next 30 days)
-    const expiringSoon = await this.db
-      .prepare(
-        `SELECT COUNT(*) as count
-         FROM memberships
-         WHERE gym_id = ? AND status = 'ACTIVE' AND deleted_at IS NULL
-         AND end_date BETWEEN ? AND ?`
-      )
-      .bind(this.gymId, Math.floor(Date.now() / 1000), Math.floor(Date.now() / 1000) + 30 * 86400)
-      .first<{ count: number }>();
-
-    // By plan
+    // Active members by plan (current ACTIVE memberships), with how many of
+    // each plan expire within the next 7 days — the plan list renders both.
+    // The window starts at `now`, matching the `expiring` list below: counting
+    // already-lapsed memberships here made the badge disagree with an empty
+    // list for exactly the members who need chasing.
     const byPlan = await this.db
       .prepare(
         `SELECT mp.name as plan_name,
-          COUNT(*) as count,
-          COALESCE(SUM(ms.final_amount_paise), 0) as revenue_paise
+          COUNT(DISTINCT ms.id) as active_count,
+          COALESCE(SUM(CASE WHEN ms.end_date BETWEEN ? AND ? + 7 * 86400 THEN 1 ELSE 0 END), 0) as expiring_soon
          FROM memberships ms
-         LEFT JOIN membership_plans mp ON ms.membership_plan_id = mp.id
-         WHERE ms.gym_id = ? AND ms.deleted_at IS NULL
-         AND ms.created_at >= ? AND ms.created_at <= ?
-         ${status ? `AND ms.status = ?` : ''}
+         JOIN membership_plans mp ON ms.membership_plan_id = mp.id
+         WHERE ms.gym_id = ? AND ms.deleted_at IS NULL AND ms.status = 'ACTIVE'
          GROUP BY mp.id, mp.name
-         ORDER BY count DESC`
+         ORDER BY active_count DESC`
       )
-      .bind(this.gymId, startDate, endDate, ...(status ? [status] : []))
+      .bind(now, now, this.gymId)
+      .all();
+
+    // Members whose ACTIVE membership expires within 7 days.
+    const expiring = await this.db
+      .prepare(
+        `SELECT m.id as member_id,
+                m.first_name || ' ' || COALESCE(m.last_name, '') as member_name,
+                m.member_code,
+                mp.name as plan_name,
+                ms.end_date
+         FROM memberships ms
+         JOIN members m ON m.id = ms.member_id AND m.deleted_at IS NULL
+         LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id
+         WHERE ms.gym_id = ? AND ms.deleted_at IS NULL AND ms.status = 'ACTIVE'
+           AND ms.end_date BETWEEN ? AND ? + 7 * 86400
+         ORDER BY ms.end_date ASC
+         LIMIT 50`
+      )
+      .bind(this.gymId, now, now)
       .all();
 
     return {
       summary: {
-        total: summary?.total || 0,
-        active: summary?.active || 0,
+        total_active: summary?.total_active || 0,
+        new_memberships: summary?.new_memberships || 0,
+        renewals: summary?.renewals || 0,
         expired: summary?.expired || 0,
         frozen: summary?.frozen || 0,
-        cancelled: summary?.cancelled || 0,
-        newInPeriod: summary?.new_in_period || 0,
-        expiringSoon: expiringSoon?.count || 0,
       },
       byPlan: byPlan.results || [],
+      expiring: expiring.results || [],
     };
   }
 

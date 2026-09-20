@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { requireGym, requirePermission } from '../middleware/auth';
+import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { jsonOk, jsonValidationErr } from './helpers';
@@ -9,7 +9,7 @@ import { CreateProductRequestSchema, UpdateProductRequestSchema, CreatePosSaleRe
 export const posRoutes = new Hono();
 
 // GET /api/pos/products — list products
-posRoutes.get('/products', requireGym, requirePermission('pos'), safeHandler(async (c) => {
+posRoutes.get('/products', requireGym, requireFeature('pos'), requirePermission('pos'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const activeOnly = c.req.query('active') === 'true';
   const repo = new PosRepository(ctx.env.DB);
@@ -18,7 +18,7 @@ posRoutes.get('/products', requireGym, requirePermission('pos'), safeHandler(asy
 }));
 
 // POST /api/pos/products — create product
-posRoutes.post('/products', requireGym, requirePermission('pos'), safeHandler(async (c) => {
+posRoutes.post('/products', requireGym, requireFeature('pos'), requirePermission('pos'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreateProductRequestSchema.safeParse(body);
@@ -30,7 +30,7 @@ posRoutes.post('/products', requireGym, requirePermission('pos'), safeHandler(as
 }));
 
 // PUT /api/pos/products/:id — update product
-posRoutes.put('/products/:id', requireGym, requirePermission('pos'), safeHandler(async (c) => {
+posRoutes.put('/products/:id', requireGym, requireFeature('pos'), requirePermission('pos'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -43,7 +43,7 @@ posRoutes.put('/products/:id', requireGym, requirePermission('pos'), safeHandler
 }));
 
 // DELETE /api/pos/products/:id — delete product
-posRoutes.delete('/products/:id', requireGym, requirePermission('pos'), safeHandler(async (c) => {
+posRoutes.delete('/products/:id', requireGym, requireFeature('pos'), requirePermission('pos'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const repo = new PosRepository(ctx.env.DB);
@@ -52,7 +52,7 @@ posRoutes.delete('/products/:id', requireGym, requirePermission('pos'), safeHand
 }));
 
 // POST /api/pos/sales — record a POS checkout sale
-posRoutes.post('/sales', requireGym, requirePermission('pos'), safeHandler(async (c) => {
+posRoutes.post('/sales', requireGym, requireFeature('pos'), requirePermission('pos'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreatePosSaleRequestSchema.safeParse(body);
@@ -64,7 +64,7 @@ posRoutes.post('/sales', requireGym, requirePermission('pos'), safeHandler(async
 }));
 
 // GET /api/pos/sales — list sales history
-posRoutes.get('/sales', requireGym, requirePermission('pos'), safeHandler(async (c) => {
+posRoutes.get('/sales', requireGym, requireFeature('pos'), requirePermission('pos'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const limitStr = c.req.query('limit');
   const limit = limitStr ? parseInt(limitStr, 10) : 50;

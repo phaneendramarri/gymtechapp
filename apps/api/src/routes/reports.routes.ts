@@ -85,6 +85,7 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
              mp.name as plan_name, ms.end_date, ms.due_amount_paise
       FROM members m
       LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.gym_id = m.gym_id AND ms.deleted_at IS NULL
+        AND ms.id = (SELECT id FROM memberships WHERE member_id = m.id AND deleted_at IS NULL ORDER BY end_date DESC LIMIT 1)
       LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id AND mp.deleted_at IS NULL
       WHERE m.gym_id = ? AND m.deleted_at IS NULL
       GROUP BY m.id ORDER BY m.first_name ASC LIMIT 2000

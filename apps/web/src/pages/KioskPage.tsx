@@ -102,23 +102,23 @@ export const KioskPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-(--bg) text-(--ink) flex flex-col justify-between p-6 sm:p-10 select-none">
       {/* Kiosk Top Bar */}
-      <div className="flex items-center justify-between border-b border-(--border) pb-6">
-        <div className="flex items-center gap-3">
-          <Logo className="h-8" />
-          <div className="border-l border-(--border) pl-3">
-            <h2 className="font-bold text-lg leading-tight">{gym?.name || 'GymTech'}</h2>
-            <span className="text-xs text-(--ink-3) flex items-center gap-1 font-medium">
-              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500" /> Self Check-In Kiosk
+      <div className="flex items-center justify-between gap-2 border-b border-(--border) pb-6">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          <Logo className="h-8 shrink-0" />
+          <div className="border-l border-(--border) pl-2 sm:pl-3 min-w-0 flex-1">
+            <h2 className="font-bold text-sm sm:text-lg leading-tight truncate">{gym?.name || 'GymTech'}</h2>
+            <span className="text-xs text-(--ink-3) flex items-center gap-1 font-medium truncate">
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> <span className="truncate">Self Check-In Kiosk</span>
             </span>
           </div>
         </div>
 
         {/* Live Clock */}
-        <div className="text-right">
-          <div className="text-2xl sm:text-3xl font-bold tracking-tight text-(--ink)">
+        <div className="text-right shrink-0">
+          <div className="text-lg sm:text-3xl font-bold tracking-tight text-(--ink) tabular-nums whitespace-nowrap">
             {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
           </div>
-          <div className="text-xs text-(--ink-3) font-medium">
+          <div className="hidden min-[480px]:block text-xs text-(--ink-3) font-medium">
             {currentTime.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric', year: 'numeric' })}
           </div>
         </div>
@@ -154,8 +154,8 @@ export const KioskPage: React.FC = () => {
 
               <div>
                 <h3 className="text-2xl font-bold text-(--ink)">
-                  {checkInResult.member?.firstName
-                    ? `Welcome, ${checkInResult.member.firstName}!`
+                  {checkInResult.member?.firstName || checkInResult.member?.name
+                    ? `Welcome, ${checkInResult.member.firstName || checkInResult.member.name}!`
                     : checkInResult.status === 'SUCCESS'
                     ? 'Welcome to the Gym!'
                     : 'Notice'}

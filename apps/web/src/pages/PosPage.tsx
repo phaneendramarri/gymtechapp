@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -65,11 +66,6 @@ export const PosPage: React.FC = () => {
   const { data: salesData, isLoading: loadingSales } = useQuery({
     queryKey: ['posSales', gym?.id],
     queryFn: () => api.getPosSales(gym?.id),
-  });
-
-  const { data: membersData } = useQuery({
-    queryKey: ['members-list-pos', gym?.id],
-    queryFn: () => api.getMembers({ limit: 100 }),
   });
 
   // Mutations
@@ -145,18 +141,17 @@ export const PosPage: React.FC = () => {
     0
   );
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
 
     let memberId: number | undefined = undefined;
     if (memberCodeInput.trim()) {
-      const found = membersData?.members?.find(
-        (m: any) =>
-          m.memberCode?.toLowerCase() === memberCodeInput.trim().toLowerCase() ||
-          String(m.id) === memberCodeInput.trim()
-      );
-      if (found) {
-        memberId = found.id;
+      try {
+        const { member } = await api.lookupMember(memberCodeInput.trim(), gym?.id);
+        memberId = member.id;
+      } catch {
+        toast('error', 'Member not found with code: ' + memberCodeInput);
+        return;
       }
     }
 
@@ -198,45 +193,43 @@ export const PosPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-(--ink)">Point of Sale & Retail</h1>
-          <p className="text-sm text-(--ink-3)">
-            Sell supplements, drinks, gear, and track inventory stock levels in real time.
-          </p>
-        </div>
+    <AppShell
+      breadcrumb={[{ label: 'Gym Console', href: '/dashboard' }, { label: 'POS & Store' }]}
+      title="Point of Sale & Retail"
+      description="Sell supplements, drinks, gear, and track inventory stock levels in real time."
+      actions={
         <div className="flex items-center gap-2">
           <Button
             variant={activeTab === 'register' ? 'default' : 'outline'}
             onClick={() => setActiveTab('register')}
             size="sm"
-            className="flex items-center gap-1.5"
+            className="h-8 gap-1.5 text-xs"
           >
-            <ShoppingCart className="w-4 h-4" />
+            <ShoppingCart className="w-3.5 h-3.5" />
             POS Register
           </Button>
           <Button
             variant={activeTab === 'inventory' ? 'default' : 'outline'}
             onClick={() => setActiveTab('inventory')}
             size="sm"
-            className="flex items-center gap-1.5"
+            className="h-8 gap-1.5 text-xs"
           >
-            <Package className="w-4 h-4" />
+            <Package className="w-3.5 h-3.5" />
             Inventory & Stock
           </Button>
           <Button
             variant={activeTab === 'history' ? 'default' : 'outline'}
             onClick={() => setActiveTab('history')}
             size="sm"
-            className="flex items-center gap-1.5"
+            className="h-8 gap-1.5 text-xs"
           >
-            <Receipt className="w-4 h-4" />
+            <Receipt className="w-3.5 h-3.5" />
             Sales Receipts
           </Button>
         </div>
-      </div>
+      }
+    >
+      <div className="space-y-6">
 
       {/* TAB 1: POS REGISTER */}
       {activeTab === 'register' && (
@@ -717,6 +710,7 @@ export const PosPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AppShell>
   );
 };

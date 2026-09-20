@@ -68,6 +68,10 @@ export const ScrollSpyNav: React.FC<ScrollSpyNavProps> = ({
     return () => observerRef.current?.disconnect();
   }, [items, offsetTop]);
 
+  // No early return before the hooks above: they must run unconditionally
+  // on every render. An empty item list renders nothing instead — toggling
+  // 0↔N items across renders with an early return would break hook order
+  // (React #310).
   if (items.length === 0) return null;
 
   return (

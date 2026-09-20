@@ -7,7 +7,7 @@ import { readCookie, COOKIE_NAMES } from '../lib/cookies';
 import type { Gym, License, GymFeatureKey, UserRole } from '@gymtech/shared';
 import { parseEnabledFeatures } from '../lib/features';
 import { getCtx, setUser, type RequestContext } from './context';
-import { jsonError, checkRole, isPlatformAdmin, hasUnrestrictedGymAccess } from '../lib/roles';
+import { jsonError, checkRole, isPlatformAdmin, isMemberSession, hasUnrestrictedGymAccess } from '../lib/roles';
 import { auditSaasFromCtx } from '../services/audit.service';
 
 export interface TenantResolution {
@@ -79,15 +79,32 @@ export const requireAuth: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthV
   }
 
   if (session.gymId !== null) {
-    const dbUser = await c.env.DB
-      .prepare(`SELECT status, deleted_at FROM users WHERE id = ? AND gym_id = ?`)
-      .bind(session.id, session.gymId)
-      .first<{ status: string; deleted_at: number | null }>();
-    if (!dbUser || dbUser.deleted_at !== null) {
-      return jsonError('User account has been archived or deleted', 401);
-    }
-    if (dbUser.status === 'DISABLED') {
-      return jsonError('User account is currently disabled by administrator', 403);
+    if (session.role === 'MEMBER') {
+      // Member-portal sessions identify rows in `members`, NOT `users`.
+      // Checking the users table here would 401 every member whose numeric
+      // id doesn't collide with a staff row (and wrongly borrow the status
+      // of one that does).
+      const dbMember = await c.env.DB
+        .prepare(`SELECT status, deleted_at FROM members WHERE id = ? AND gym_id = ?`)
+        .bind(session.id, session.gymId)
+        .first<{ status: string; deleted_at: number | null }>();
+      if (!dbMember || dbMember.deleted_at !== null) {
+        return jsonError('Member account has been archived or deleted', 401);
+      }
+      if (dbMember.status === 'BLOCKED') {
+        return jsonError('Member account is currently blocked by administrator', 403);
+      }
+    } else {
+      const dbUser = await c.env.DB
+        .prepare(`SELECT status, deleted_at FROM users WHERE id = ? AND gym_id = ?`)
+        .bind(session.id, session.gymId)
+        .first<{ status: string; deleted_at: number | null }>();
+      if (!dbUser || dbUser.deleted_at !== null) {
+        return jsonError('User account has been archived or deleted', 401);
+      }
+      if (dbUser.status === 'DISABLED') {
+        return jsonError('User account is currently disabled by administrator', 403);
+      }
     }
   }
 
@@ -314,6 +331,22 @@ export function requirePermission(...required: string[]) {
     }
 
     return next();
+  };
+}
+
+/**
+ * Allow member-portal sessions through, and require `permission` for everyone
+ * else.
+ *
+ * Endpoints the portal shares with the staff console (browse the timetable, book
+ * a class) need both audiences. The handler must then pin member-scoped ids to
+ * the session — never to the request body — so a member can only act on their
+ * own rows.
+ */
+export function requirePermissionOrMember(permission: string) {
+  return async (c: AuthContext, next: () => Promise<void>) => {
+    if (isMemberSession(getCtx(c).user)) return next();
+    return requirePermission(permission)(c, next);
   };
 }
 

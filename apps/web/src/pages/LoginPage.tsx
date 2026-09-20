@@ -30,7 +30,7 @@ type LoginMode = 'STAFF' | 'MEMBER';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { login, memberLogin } = useAuth();
 
   const [mode, setMode] = useState<LoginMode>('STAFF');
   const [email, setEmail] = useState('');
@@ -71,7 +71,7 @@ export const LoginPage: React.FC = () => {
       try {
         // Server sets the session + CSRF cookies in the response. The
         // member info is fetched on demand via the portal route.
-        await api.memberLogin({
+        await memberLogin({
           gymSlug: gymSlug.trim(),
           identifier: memberIdentifier.trim(),
           codeOrPin: memberCode.trim(),

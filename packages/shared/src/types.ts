@@ -434,6 +434,7 @@ export interface DashboardMetrics {
   todayAttendance: number
   monthlyRevenue: number
   pendingDues: number
+  monthlyPayments?: number
   expiringSoon: ExpiringMember[]
   recentPayments: Payment[]
   todayCheckIns?: AttendanceListItem[]
@@ -686,21 +687,6 @@ export interface LockerAllocation {
   depositPaise: number;
   rentPaise: number;
   status: LockerAllocationStatus;
-  createdAt: number;
-}
-
-// ============================================================
-// Member Referral Tracking
-// ============================================================
-export interface MemberReferral {
-  id: number;
-  gymId: number;
-  referrerMemberId: number;
-  referrerName?: string;
-  referredMemberId: number;
-  referredName?: string;
-  rewardStatus: 'PENDING' | 'AWARDED' | 'DISMISSED';
-  rewardNotes: string | null;
   createdAt: number;
 }
 

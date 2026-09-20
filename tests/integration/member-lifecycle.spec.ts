@@ -17,7 +17,7 @@ function phoneFromSuffix(u: string): string {
 async function enrollMember(client: Awaited<ReturnType<typeof loginAsOwner>>['client'], suffix: string): Promise<number> {
   const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
   expect(plans.status).toBe(200);
-  const plan = plans.body.plans[0];
+  const plan = plans.body.plans[0]!;
 
   const created = await client.post<{ member: { id: number } }>('/api/members', {
     firstName: 'Life',

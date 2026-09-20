@@ -123,37 +123,45 @@ export class MemberService {
       joinedDate: joinedTimestamp,
     });
 
-    // Insert membership
-    const membershipId = await this.membershipRepo.create({
-      memberId,
-      membershipPlanId: plan.id,
-      startDate: startTimestamp,
-      endDate: endTimestamp,
-      totalAmountPaise: fin.totalAmount,
-      discountPaise: fin.discountAmount,
-      finalAmountPaise: fin.finalAmount,
-      paidAmountPaise: fin.paidAmount,
-      dueAmountPaise: fin.dueAmount,
-      createdByUserId: this.userId,
-      notes: `Initial membership registration for ${plan.name}`,
-    });
-
-    // Record initial payment if paidAmount > 0
+    let membershipId: number;
     let receiptNumber: string | undefined;
-    if (fin.paidAmount > 0) {
-      receiptNumber = await this.paymentRepo.getNextReceiptNumber();
-      await this.paymentRepo.record({
+
+    try {
+      // Insert membership
+      membershipId = await this.membershipRepo.create({
         memberId,
-        membershipId,
-        paymentType: 'GYM',
-        receiptNumber,
-        amountPaise: fin.paidAmount,
-        paymentDate: startTimestamp,
-        paymentMode: data.paymentMode ?? 'CASH',
-        referenceId: data.referenceId ?? null,
-        recordedByUserId: this.userId,
-        notes: `Initial payment on registration for ${plan.name}`,
+        membershipPlanId: plan.id,
+        startDate: startTimestamp,
+        endDate: endTimestamp,
+        totalAmountPaise: fin.totalAmount,
+        discountPaise: fin.discountAmount,
+        finalAmountPaise: fin.finalAmount,
+        paidAmountPaise: fin.paidAmount,
+        dueAmountPaise: fin.dueAmount,
+        createdByUserId: this.userId,
+        notes: `Initial membership registration for ${plan.name}`,
       });
+
+      // Record initial payment if paidAmount > 0
+      if (fin.paidAmount > 0) {
+        receiptNumber = await this.paymentRepo.getNextReceiptNumber();
+        await this.paymentRepo.record({
+          memberId,
+          membershipId,
+          paymentType: 'GYM',
+          receiptNumber,
+          amountPaise: fin.paidAmount,
+          paymentDate: startTimestamp,
+          paymentMode: data.paymentMode ?? 'CASH',
+          referenceId: data.referenceId ?? null,
+          recordedByUserId: this.userId,
+          notes: `Initial payment on registration for ${plan.name}`,
+        });
+      }
+    } catch (e) {
+      // Rollback: delete the member if membership/payment creation fails
+      await this.memberRepo.softDelete(memberId);
+      throw e;
     }
 
     const notif = new NotificationService(this.gymName);

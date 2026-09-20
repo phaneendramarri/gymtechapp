@@ -9,9 +9,13 @@ export class EmailService {
     // No-op
   }
 
-  async sendPasswordResetEmail(_params: Record<string, unknown>): Promise<{ resetUrl?: string }> {
-    // No-op: returns empty object so callers can safely destructure resetUrl
-    return {};
+  async sendPasswordResetEmail(params: Record<string, unknown>): Promise<{ resetUrl?: string }> {
+    // Dev/test path: mint a relative reset URL from the opaque token so the
+    // forgot-password flow is fully testable without an SMTP provider.
+    // Production still hides this behind the APP_ENV gate in auth.routes.ts.
+    const token = typeof params?.['token'] === 'string' ? (params['token'] as string) : '';
+    if (!token) return {};
+    return { resetUrl: `/reset-password?token=${encodeURIComponent(token)}` };
   }
 
   async sendPasswordResetConfirmation(_params: Record<string, unknown>): Promise<void> {

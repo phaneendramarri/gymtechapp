@@ -48,7 +48,8 @@ import { PlatformAuditTab } from '@/components/admin/PlatformAuditTab';
 import { GymCrudTab } from '@/components/admin/GymCrudTab';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
-import type { PlatformCommunicationsConfig, SmtpSettings } from '@gymtech/shared';
+import type { PlatformCommunicationsConfig, SmtpSettings, GymFeatureKey } from '@gymtech/shared';
+import { GYM_FEATURES, GYM_FEATURE_LABELS } from '@gymtech/shared';
 
 const DEFAULT_SMTP: SmtpSettings = {
   enabled: false,
@@ -158,17 +159,14 @@ export const AdminPage: React.FC = () => {
     onError: (err: any) => toast('error', 'Top-up failed', err.message),
   });
 
-  const FEATURE_LIST = [
-    { key: 'dashboard', label: 'Dashboard & Metrics', desc: 'Main operations overview and daily footfall KPIs' },
-    { key: 'members', label: 'Members Management', desc: 'Member roster, registration, profile, face ID and history' },
-    { key: 'attendance', label: 'Attendance / Floor Desk', desc: 'Check-in scanning, manual lookup and daily logs' },
-    { key: 'payments', label: 'Billing & Payments', desc: 'Fee collections, GST receipts, invoices and dues' },
-    { key: 'pt_collections', label: 'PT Collections & Trainers', desc: 'Personal training packages, sessions and trainer commission' },
-    { key: 'plans', label: 'Membership Plans Catalog', desc: 'Configurable membership tiers, durations and admissions' },
-    { key: 'staff', label: 'Staff & Team Management', desc: 'Staff accounts, role assignments and access permissions' },
-    { key: 'reports', label: 'Financial & Business Reports', desc: 'Gross revenue analytics, trends and CSV ledger exports' },
-    { key: 'settings', label: 'Communications & Settings', desc: 'SMS/WhatsApp balance usage, notification toggles and alerts' },
-  ];
+  // Single source of truth: every key in GYM_FEATURES is toggleable.
+  // (A hardcoded 9-item subset here previously left audit_logs, classes,
+  // pos, expenses and lockers permanently on.)
+  const FEATURE_LIST: { key: GymFeatureKey; label: string; desc: string }[] = GYM_FEATURES.map((key) => ({
+    key,
+    label: GYM_FEATURE_LABELS[key].name,
+    desc: GYM_FEATURE_LABELS[key].description,
+  }));
 
   // Feature Permissions Modal State
   const [featureModal, setFeatureModal] = useState<{

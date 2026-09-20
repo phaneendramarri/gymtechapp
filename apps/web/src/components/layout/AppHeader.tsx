@@ -152,13 +152,13 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <div className="flex items-center gap-2.5 min-w-0">
           <button
             onClick={onOpenMobileMenu}
-            className="md:hidden h-8 w-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground flex items-center justify-center shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="lg:hidden h-8 w-8 rounded-md text-muted-foreground hover:bg-accent hover:text-foreground flex items-center justify-center shrink-0 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             aria-label="Open navigation menu"
           >
             <Menu className="h-4 w-4" />
           </button>
 
-          <Separator orientation="vertical" className="h-4 md:hidden" />
+          <Separator orientation="vertical" className="h-4 lg:hidden" />
 
           {/* Breadcrumb Context */}
           <Breadcrumb className="hidden sm:block truncate">
@@ -189,7 +189,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
 
         {/* Center: Command Palette Trigger Input */}
-        <div className="flex-1 max-w-sm mx-2 hidden md:block">
+        <div className="flex-1 max-w-sm mx-2 hidden lg:block">
           <button
             type="button"
             onClick={() => setCommandOpen(true)}
@@ -212,7 +212,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             variant="ghost"
             size="icon"
             onClick={() => setCommandOpen(true)}
-            className="md:hidden h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="lg:hidden h-8 w-8 text-muted-foreground hover:text-foreground"
             aria-label="Search"
           >
             <Search className="h-4 w-4" />

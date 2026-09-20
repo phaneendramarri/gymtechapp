@@ -7,25 +7,25 @@ import type { D1Database } from '../db/client';
 
 export interface PtCollectionRow {
   id: number;
-  gym_id: number;
-  member_id: number;
-  trainer_id: number;
+  gymId: number;
+  memberId: number;
+  trainerId: number;
   sessions: number;
-  amount_paise: number;
-  commission_percentage: number;
-  commission_paise: number;
-  commission_status: 'PENDING' | 'PAID';
-  payment_mode: string;
-  payment_date: number;
-  receipt_number: string | null;
+  amountPaise: number;
+  commissionPercentage: number;
+  commissionPaise: number;
+  commissionStatus: 'PENDING' | 'PAID';
+  paymentMode: string;
+  paymentDate: number;
+  receiptNumber: string | null;
   notes: string | null;
-  recorded_by_user_id: number | null;
-  created_at: number;
-  updated_at: number;
-  deleted_at: number | null;
-  member_name: string;
-  member_code: string;
-  trainer_name: string | null;
+  recordedByUserId: number | null;
+  createdAt: number;
+  updatedAt: number;
+  deletedAt: number | null;
+  memberName: string;
+  memberCode: string;
+  trainerName: string | null;
 }
 
 export interface PtCreateInput {
@@ -70,8 +70,31 @@ export class PtRepository {
     sql += ' ORDER BY pt.payment_date DESC LIMIT ?';
     binds.push(limit);
 
-    const { results } = await this.d1.prepare(sql).bind(...binds).all<PtCollectionRow>();
-    return results ?? [];
+    const { results } = await this.d1.prepare(sql).bind(...binds).all<any>();
+    // Map raw snake_case rows onto the shared camelCase PtCollectionRow contract
+    // so the portal renders real fields instead of undefined.
+    return (results ?? []).map((r: any) => ({
+      id: r.id,
+      gymId: r.gym_id,
+      memberId: r.member_id,
+      trainerId: r.trainer_id,
+      sessions: r.sessions,
+      amountPaise: r.amount_paise,
+      commissionPercentage: r.commission_percentage,
+      commissionPaise: r.commission_paise,
+      commissionStatus: r.commission_status,
+      paymentMode: r.payment_mode,
+      paymentDate: r.payment_date,
+      receiptNumber: r.receipt_number,
+      notes: r.notes,
+      recordedByUserId: r.recorded_by_user_id,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      deletedAt: r.deleted_at,
+      memberName: r.member_name,
+      memberCode: r.member_code,
+      trainerName: r.trainer_name,
+    }));
   }
 
   async summaryFor(gymId: number, trainerId: number | null): Promise<PtSummary> {
@@ -115,8 +138,16 @@ export class PtRepository {
       binds.push(trainerId);
     }
     sql += ' GROUP BY pt.trainer_id ORDER BY collected DESC';
-    const { results } = await this.d1.prepare(sql).bind(...binds).all();
-    return results ?? [];
+    const { results } = await this.d1.prepare(sql).bind(...binds).all<any>();
+    // Map to the PtSummary.byTrainer camelCase contract.
+    return (results ?? []).map((r: any) => ({
+      trainerId: r.trainer_id,
+      trainerName: r.trainer_name,
+      collections: r.collections,
+      collected: r.collected,
+      commissionPending: r.commission_pending,
+      commissionPaid: r.commission_paid,
+    }));
   }
 
   /** Insert a collection; returns the new row id. */
@@ -177,41 +208,72 @@ export class PtRepository {
   // --- PT Packages & Sessions ---
 
   async listPackages(gymId: number, memberId?: number, trainerId?: number) {
-    let sql = `
-      SELECT p.*,
+    let sqlStr = `
+      SELECT p.id,
+             p.gym_id,
+             p.member_id,
+             p.trainer_user_id,
+             p.package_name,
+             p.total_sessions,
+             p.completed_sessions,
+             p.price_paise,
+             p.start_date,
+             p.expiry_date,
+             p.status,
+             p.notes,
+             p.created_at,
+             p.updated_at,
              m.first_name || ' ' || COALESCE(m.last_name, '') AS member_name,
              m.member_code,
              u.name AS trainer_name
       FROM pt_packages p
       JOIN members m ON m.id = p.member_id
-      LEFT JOIN users u ON u.id = p.trainer_id
-      WHERE p.gym_id = ? AND p.deleted_at IS NULL`;
+      LEFT JOIN users u ON u.id = p.trainer_user_id
+      WHERE p.gym_id = ?`;
     const binds: unknown[] = [gymId];
     if (memberId) {
-      sql += ' AND p.member_id = ?';
+      sqlStr += ' AND p.member_id = ?';
       binds.push(memberId);
     }
     if (trainerId) {
-      sql += ' AND p.trainer_id = ?';
+      sqlStr += ' AND p.trainer_user_id = ?';
       binds.push(trainerId);
     }
-    sql += ' ORDER BY p.created_at DESC';
-    const { results } = await this.d1.prepare(sql).bind(...binds).all();
-    return results ?? [];
+    sqlStr += ' ORDER BY p.created_at DESC';
+    const { results } = await this.d1.prepare(sqlStr).bind(...binds).all();
+    // Map to the shared camelCase contract; snake_case never leaks to clients.
+    return (results ?? []).map((r: any) => ({
+      id: r.id,
+      gymId: r.gym_id,
+      memberId: r.member_id,
+      memberName: r.member_name,
+      memberCode: r.member_code,
+      trainerUserId: r.trainer_user_id,
+      trainerName: r.trainer_name,
+      packageName: r.package_name,
+      totalSessions: r.total_sessions,
+      completedSessions: r.completed_sessions,
+      usedSessions: r.completed_sessions,
+      pricePaise: r.price_paise,
+      startDate: r.start_date,
+      expiryDate: r.expiry_date,
+      status: r.status,
+      notes: r.notes,
+    }));
   }
 
   async findPackageById(packageId: number, gymId: number) {
     return await this.d1
-      .prepare(`SELECT * FROM pt_packages WHERE id = ? AND gym_id = ? AND deleted_at IS NULL`)
+      .prepare(`SELECT id, gym_id, member_id, trainer_user_id, total_sessions, completed_sessions, status
+                FROM pt_packages WHERE id = ? AND gym_id = ?`)
       .bind(packageId, gymId)
       .first<{
         id: number;
         gym_id: number;
         member_id: number;
-        trainer_id: number;
-        package_name: string;
+        trainer_user_id: number;
         total_sessions: number;
-        used_sessions: number;
+        completed_sessions: number;
         status: string;
       }>();
   }
@@ -231,16 +293,16 @@ export class PtRepository {
     const result = await this.d1
       .prepare(
         `INSERT INTO pt_packages (
-           gym_id, member_id, trainer_id, package_name, total_sessions, used_sessions,
-           amount_paise, status, start_date, expiry_date, notes, created_at, updated_at
-         ) VALUES (?, ?, ?, ?, ?, 0, ?, 'ACTIVE', ?, ?, ?, unixepoch(), unixepoch())
+           gym_id, member_id, trainer_user_id, package_name, total_sessions,
+           price_paise, start_date, expiry_date, status, notes, created_at, updated_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, unixepoch(), unixepoch())
          RETURNING id`
       )
       .bind(
         input.gymId,
         input.memberId,
         input.trainerId,
-        input.packageName,
+        input.packageName || 'Personal Training',
         input.totalSessions,
         input.amountPaise,
         input.startDate ?? today,
@@ -252,28 +314,44 @@ export class PtRepository {
   }
 
   async listSessions(gymId: number, packageId?: number, memberId?: number) {
-    let sql = `
-      SELECT s.*,
-             m.first_name || ' ' || COALESCE(m.last_name, '') AS member_name,
-             u.name AS trainer_name,
-             p.package_name
+    let sqlStr = `
+      SELECT s.id,
+             s.gym_id,
+             s.package_id,
+             s.session_number,
+             s.session_date,
+             s.notes,
+             s.trainer_user_id,
+             s.signed_off_by_member,
+             s.created_at,
+             u.name AS trainer_name
       FROM pt_sessions s
       JOIN pt_packages p ON p.id = s.package_id
-      JOIN members m ON m.id = s.member_id
-      LEFT JOIN users u ON u.id = s.trainer_id
+      LEFT JOIN users u ON u.id = s.trainer_user_id
       WHERE s.gym_id = ?`;
     const binds: unknown[] = [gymId];
     if (packageId) {
-      sql += ' AND s.package_id = ?';
+      sqlStr += ' AND s.package_id = ?';
       binds.push(packageId);
     }
     if (memberId) {
-      sql += ' AND s.member_id = ?';
+      sqlStr += ' AND p.member_id = ?';
       binds.push(memberId);
     }
-    sql += ' ORDER BY s.created_at DESC LIMIT 200';
-    const { results } = await this.d1.prepare(sql).bind(...binds).all();
-    return results ?? [];
+    sqlStr += ' ORDER BY s.created_at DESC LIMIT 200';
+    const { results } = await this.d1.prepare(sqlStr).bind(...binds).all();
+    return (results ?? []).map((r: any) => ({
+      id: r.id,
+      gymId: r.gym_id,
+      packageId: r.package_id,
+      sessionNumber: r.session_number,
+      sessionDate: r.session_date,
+      notes: r.notes,
+      trainerUserId: r.trainer_user_id,
+      trainerName: r.trainer_name,
+      signedOffByMember: Boolean(r.signed_off_by_member),
+      createdAt: r.created_at,
+    }));
   }
 
   async logSession(input: {
@@ -287,32 +365,38 @@ export class PtRepository {
     recordedByUserId: number;
   }): Promise<number> {
     const today = new Date().toISOString().slice(0, 10);
+
+    // next session number = current completed count + 1
+    const pkgRow = await this.d1
+      .prepare(`SELECT completed_sessions FROM pt_packages WHERE id = ? AND gym_id = ?`)
+      .bind(input.packageId, input.gymId)
+      .first<{ completed_sessions: number }>();
+    const sessionNumber = (pkgRow?.completed_sessions ?? 0) + 1;
+
     const sessionRes = await this.d1
       .prepare(
         `INSERT INTO pt_sessions (
-           gym_id, package_id, member_id, trainer_id, session_date,
-           session_notes, feedback, recorded_by_user_id, created_at
-         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
+           gym_id, package_id, session_number, session_date,
+           notes, trainer_user_id, signed_off_by_member, created_at
+         ) VALUES (?, ?, ?, ?, ?, ?, 1, unixepoch())
          RETURNING id`
       )
       .bind(
         input.gymId,
         input.packageId,
-        input.memberId,
-        input.trainerId,
+        sessionNumber,
         input.sessionDate ?? today,
-        input.sessionNotes ?? null,
-        input.feedback ?? null,
-        input.recordedByUserId
+        input.sessionNotes ?? input.feedback ?? null,
+        input.trainerId
       )
       .first<{ id: number }>();
 
-    // Increment used sessions on the package and auto-complete if reached
+    // Increment completed sessions on the package and auto-complete at the cap.
     await this.d1
       .prepare(
         `UPDATE pt_packages
-         SET used_sessions = used_sessions + 1,
-             status = CASE WHEN used_sessions + 1 >= total_sessions THEN 'COMPLETED' ELSE status END,
+         SET completed_sessions = completed_sessions + 1,
+             status = CASE WHEN completed_sessions + 1 >= total_sessions THEN 'COMPLETED' ELSE status END,
              updated_at = unixepoch()
          WHERE id = ? AND gym_id = ?`
       )

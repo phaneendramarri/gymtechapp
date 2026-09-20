@@ -89,7 +89,18 @@ adminRoutes.post('/gyms', safeHandler(async (c) => {
     });
     await auditSaas(ctx, 'gym.create', result.gymId, 'gym', result.gymId, { after: { slug: parsed.data.slug, ownerEmail: parsed.data.ownerEmail } });
     return jsonOk(result, 201);
-  } catch (e: any) { return jsonErr(e.message, 400); }
+  } catch (e: any) {
+    // Never leak raw SQL/driver internals to the browser (they previously
+    // exposed full INSERT statements + params on constraint failures).
+    const raw = String(e?.message || e);
+    const cause = String((e as any)?.cause?.message || (e as any)?.cause || '');
+    const blob = `${raw} ${cause}`;
+    if (/UNIQUE constraint failed|unique|already exists/i.test(blob)) {
+      return jsonErr('Provisioning failed: a gym, email, slug, or license code in this request is already in use.', 409);
+    }
+    console.error('Gym provisioning failed:', raw.slice(0, 500));
+    return jsonErr('Could not provision the gym. Please verify the details and try again.', 400);
+  }
 }));
 
 adminRoutes.post('/gyms/:id/status', safeHandler(async (c) => {
@@ -174,7 +185,9 @@ adminRoutes.get('/audit-logs', safeHandler(async (c) => {
   const affectedGymId = c.req.query('affectedGymId') ? parseInt(c.req.query('affectedGymId')!, 10) : undefined;
   const auditService = new AuditService(ctx.env.DB);
   const result = await auditService.listSaasEvents({ limit, offset, action, affectedGymId });
-  return jsonPaginated(result.events, result.total, limit, offset);
+  // The admin console reads `events` (see api.getAdminAuditLogs) — the
+  // generic {items} envelope would leave the audit tab permanently empty.
+  return jsonOk({ events: result.events, total: result.total, limit, offset });
 }));
 
 adminRoutes.get('/communications', safeHandler(async (c) => {

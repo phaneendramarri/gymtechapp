@@ -6,6 +6,7 @@
  * in PtRepository; receipt numbers come from PaymentRepository.
  */
 import { Hono } from 'hono';
+import type { SessionUser } from '@gymtech/shared';
 import {
   RecordPtCollectionRequestSchema,
   SettlePtCommissionRequestSchema,
@@ -14,6 +15,7 @@ import {
 } from '@gymtech/shared';
 import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
+import { isMemberSession, isPtTrainer } from '../lib/roles';
 import { safeHandler, paramId } from '../middleware/params';
 import { calculatePtCommission } from '../lib/calculations';
 import { MemberRepository } from '../repositories/member.repository';
@@ -24,12 +26,20 @@ import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 
 export const ptRoutes = new Hono();
 
-ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
+/**
+ * `trainerId` filter for the PT ledger: a trainer only ever sees their own
+ * collections, any other staff account may filter via `?trainerId=`.
+ * (Members cannot reach the ledger routes at all — they require the
+ * `pt_collections` permission, which no member holds.)
+ */
+function ledgerTrainerId(user: SessionUser, query?: string): number | null {
+  if (isPtTrainer(user)) return user.id;
+  return query ? parseInt(query, 10) : null;
+}
+
+ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const isTrainer = !ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff');
-  const trainerId = isTrainer
-    ? ctx.user!.id
-    : (c.req.query('trainerId') ? parseInt(c.req.query('trainerId')!, 10) : null);
+  const trainerId = ledgerTrainerId(ctx.user!, c.req.query('trainerId'));
   const limit = Math.min(parseInt(c.req.query('limit') || '100', 10), 500);
 
   const ptRepo = new PtRepository(ctx.env.DB);
@@ -37,13 +47,14 @@ ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), safeH
   return jsonOk({ collections });
 }));
 
-ptRoutes.get('/summary', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
+ptRoutes.get('/summary', requireGym, requireFeature('pt_collections'), requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
+  const isTrainer = isPtTrainer(ctx.user);
   const canSeeAll = ctx.user!.permissions?.includes('*') || ctx.user!.permissions?.includes('reports');
-  if (!canSeeAll) {
+  if (!canSeeAll && !isTrainer) {
     return jsonOk({ totalCollected: 0, totalCommissionPending: 0, totalCommissionPaid: 0, byTrainer: [] });
   }
-  const isTrainer = !ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff');
+  // A trainer's summary always covers their own collections only.
   const trainerId = isTrainer ? ctx.user!.id : null;
 
   const ptRepo = new PtRepository(ctx.env.DB);
@@ -109,7 +120,7 @@ ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safe
   return jsonOk({ id, receiptNumber, commissionPaise }, 201);
 }));
 
-ptRoutes.post('/collections/:id/settle', requireGym, requirePermission('pt_collections'), safeHandler(async (c) => {
+ptRoutes.post('/collections/:id/settle', requireGym, requireFeature('pt_collections'), requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -137,24 +148,40 @@ ptRoutes.post('/collections/:id/settle', requireGym, requirePermission('pt_colle
 
 ptRoutes.get('/packages', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const memberId = c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined;
-  const isTrainer = !ctx.user!.isOwner && !ctx.user!.permissions?.includes('staff');
-  const trainerId = isTrainer
-    ? ctx.user!.id
-    : (c.req.query('trainerId') ? parseInt(c.req.query('trainerId')!, 10) : undefined);
 
-  const ptRepo = new PtRepository(ctx.env.DB);
-  const packages = await ptRepo.listPackages(ctx.gymId!, memberId, trainerId);
+  // Member portal: the session's own id IS the member id, so the query is
+  // pinned to it and `?memberId=`/`?trainerId=` are ignored. Without this the
+  // member was treated as a trainer ("not an owner, no staff permission") and
+  // their package list was filtered by trainer_user_id — always empty.
+  const packages = isMemberSession(ctx.user)
+    ? await new PtRepository(ctx.env.DB).listPackages(ctx.gymId!, ctx.user!.id, undefined)
+    : await new PtRepository(ctx.env.DB).listPackages(
+        ctx.gymId!,
+        c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined,
+        isPtTrainer(ctx.user)
+          ? ctx.user!.id
+          : (c.req.query('trainerId') ? parseInt(c.req.query('trainerId')!, 10) : undefined)
+      );
+
   return jsonOk({ packages });
 }));
 
-ptRoutes.post('/packages', requireGym, requirePermission('pt_collections'), safeHandler(async (c) => {
+ptRoutes.post('/packages', requireGym, requireFeature('pt_collections'), requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreatePtPackageRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid PT package payload');
 
+  // Tenant isolation: both member and trainer must belong to this gym (the
+  // table FKs are single-column, so they cannot enforce this themselves).
+  const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
+  const member = await memberRepo.findById(parsed.data.memberId);
+  if (!member) return jsonErr('Member not found in this gym', 404);
+
   const ptRepo = new PtRepository(ctx.env.DB);
+  const trainer = await ptRepo.findUserInGym(parsed.data.trainerId, ctx.gymId!);
+  if (!trainer) return jsonErr('Trainer not found in this gym', 404);
+
   const id = await ptRepo.createPackage({
     gymId: ctx.gymId!,
     memberId: parsed.data.memberId,
@@ -174,14 +201,18 @@ ptRoutes.post('/packages', requireGym, requirePermission('pt_collections'), safe
 ptRoutes.get('/sessions', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const packageId = c.req.query('packageId') ? parseInt(c.req.query('packageId')!, 10) : undefined;
-  const memberId = c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined;
+  // Member portal sessions read only their own log — the session id is the
+  // member id, and `?memberId=` cannot widen it to another member's history.
+  const memberId = isMemberSession(ctx.user)
+    ? ctx.user!.id
+    : (c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined);
 
   const ptRepo = new PtRepository(ctx.env.DB);
   const sessions = await ptRepo.listSessions(ctx.gymId!, packageId, memberId);
   return jsonOk({ sessions });
 }));
 
-ptRoutes.post('/sessions', requireGym, requirePermission('pt_collections'), safeHandler(async (c) => {
+ptRoutes.post('/sessions', requireGym, requireFeature('pt_collections'), requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = LogPtSessionRequestSchema.safeParse(body);
@@ -190,7 +221,7 @@ ptRoutes.post('/sessions', requireGym, requirePermission('pt_collections'), safe
   const ptRepo = new PtRepository(ctx.env.DB);
   const pkg = await ptRepo.findPackageById(parsed.data.packageId, ctx.gymId!);
   if (!pkg) return jsonErr('PT package not found', 404);
-  if (pkg.used_sessions >= pkg.total_sessions) {
+  if (pkg.completed_sessions >= pkg.total_sessions) {
     return jsonErr('This PT package has no remaining sessions', 400);
   }
 
@@ -198,7 +229,7 @@ ptRoutes.post('/sessions', requireGym, requirePermission('pt_collections'), safe
     gymId: ctx.gymId!,
     packageId: pkg.id,
     memberId: pkg.member_id,
-    trainerId: pkg.trainer_id,
+    trainerId: pkg.trainer_user_id,
     sessionDate: parsed.data.sessionDate,
     sessionNotes: parsed.data.sessionNotes,
     feedback: parsed.data.feedback,
@@ -206,5 +237,5 @@ ptRoutes.post('/sessions', requireGym, requirePermission('pt_collections'), safe
   });
 
   await auditGymFromCtx(c, 'pt_session.log', 'pt_session', id, { after: parsed.data });
-  return jsonOk({ id, remainingSessions: pkg.total_sessions - (pkg.used_sessions + 1) }, 201);
+  return jsonOk({ id, remainingSessions: pkg.total_sessions - (pkg.completed_sessions + 1) }, 201);
 }));

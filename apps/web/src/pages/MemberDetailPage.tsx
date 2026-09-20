@@ -47,6 +47,12 @@ export const MemberDetailPage: React.FC = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [invoicePaymentId, setInvoicePaymentId] = useState<number | null>(null);
+  // All hooks must run on every render, including the loading/error states
+  // below — calling useState/useEffect after an early return changes the
+  // hook order between renders (React error #310) and crashes the page.
+  const [isSendingWa, setIsSendingWa] = useState(false);
+  const [isSendingSms, setIsSendingSms] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -71,6 +77,36 @@ export const MemberDetailPage: React.FC = () => {
       toast('error', 'Freeze action failed', err.message);
     },
   });
+
+  // QR payload effect — declared with every other hook, above the early
+  // returns. No-ops until the member query resolves.
+  useEffect(() => {
+    const m = data?.member;
+    if (!m) return;
+
+    // Standard GymTech check-in QR payload
+    const payload = `gymtech://checkin/${user?.gymId || 1}/${m.id}/${m.memberCode}`;
+
+    let isMounted = true;
+    QRCode.toDataURL(payload, {
+      width: 320,
+      margin: 2,
+      color: {
+        dark: '#0f172a',
+        light: '#ffffff',
+      },
+    })
+      .then((dataUrl) => {
+        if (isMounted) setQrCodeUrl(dataUrl);
+      })
+      .catch((err) => {
+        console.error('Failed to generate QR code locally:', err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [data?.member, user?.gymId]);
 
   if (isLoading) {
     return (
@@ -108,10 +144,6 @@ export const MemberDetailPage: React.FC = () => {
   const daysToEnd = endDate ? Math.ceil((endDate.getTime() - Date.now()) / 86400000) : null;
   const isExpired = member.status === 'EXPIRED' || (daysToEnd !== null && daysToEnd <= 0);
   const isExpiringSoon = !isExpired && daysToEnd !== null && daysToEnd <= 7;
-
-  const [isSendingWa, setIsSendingWa] = useState(false);
-  const [isSendingSms, setIsSendingSms] = useState(false);
-  const [qrCodeUrl, setQrCodeUrl] = useState<string>('');
 
   const handleSendWhatsApp = async () => {
     if (!member) return;
@@ -156,34 +188,6 @@ export const MemberDetailPage: React.FC = () => {
       setIsSendingSms(false);
     }
   };
-
-  // Generate QR code for member locally using qrcode package
-  useEffect(() => {
-    if (!member) return;
-
-    // Standard GymTech check-in QR payload
-    const payload = `gymtech://checkin/${user?.gymId || 1}/${member.id}/${member.memberCode}`;
-
-    let isMounted = true;
-    QRCode.toDataURL(payload, {
-      width: 320,
-      margin: 2,
-      color: {
-        dark: '#0f172a',
-        light: '#ffffff',
-      },
-    })
-      .then((dataUrl) => {
-        if (isMounted) setQrCodeUrl(dataUrl);
-      })
-      .catch((err) => {
-        console.error('Failed to generate QR code locally:', err);
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [member, user?.gymId]);
 
   const handleDownloadQR = () => {
     if (!qrCodeUrl) return;
@@ -282,7 +286,10 @@ export const MemberDetailPage: React.FC = () => {
 
               {canManage && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  {activeMembership && (
+                  {/* The toggle must stay mounted while frozen: after a freeze
+                      there is no ACTIVE membership, so gating on
+                      `activeMembership` alone would hide Resume forever. */}
+                  {(activeMembership || isFrozen) && (
                     isFrozen ? (
                       <Button
                         variant="outline"

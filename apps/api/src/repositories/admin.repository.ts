@@ -103,88 +103,126 @@ export class AdminRepository {
     const now = Math.floor(Date.now() / 1000);
     const expiry = now + data.durationDays * 86400;
 
-    // 1. Gym
-    const gymRow = await this.db.insert(gyms).values({
-      name: data.gymName.trim(),
-      slug: data.slug.trim(),
-      phone: data.gymPhone.trim(),
-      city: data.city?.trim() ?? null,
-      status: 'ACTIVE',
-      createdAt: now,
-      updatedAt: now,
-    }).returning({ id: gyms.id });
-    const gymId = gymRow[0]!.id;
+    // Provisioning touches gyms + roles + users + licenses + plans. D1 has
+    // no multi-statement transaction here, so track what was created and
+    // roll it back on failure — otherwise a late failure (e.g. a duplicate
+    // license code) leaves an orphan gym with no license that can never
+    // sign in (requireGym rejects gyms without a license).
+    let gymId: number | null = null;
+    let userId: number | null = null;
+    let ownerRoleId: number | null = null;
+    try {
+      // 1. Gym
+      const gymRow = await this.db.insert(gyms).values({
+        name: data.gymName.trim(),
+        slug: data.slug.trim(),
+        phone: data.gymPhone.trim(),
+        city: data.city?.trim() ?? null,
+        status: 'ACTIVE',
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: gyms.id });
+      gymId = gymRow[0]!.id;
 
-    // 2. Owner role
-    const ownerRoleRow = await this.db.insert(roles).values({
-      gymId,
-      name: 'OWNER',
-      permissions: '[]',
-      isOwner: true,
-      isDefault: false,
-      createdAt: now,
-      updatedAt: now,
-    }).returning({ id: roles.id });
-    const ownerRoleId = ownerRoleRow[0]!.id;
-
-    // 3. Owner user (references the OWNER role)
-    const userRow = await this.db.insert(users).values({
-      gymId,
-      name: data.ownerName.trim(),
-      email: data.ownerEmail.toLowerCase().trim(),
-      phone: data.ownerPhone.trim(),
-      passwordHash,
-      roleId: ownerRoleId,
-      status: 'ACTIVE',
-      isOwner: true,
-      createdAt: now,
-      updatedAt: now,
-    }).returning({ id: users.id });
-    const userId = userRow[0]!.id;
-
-    // 4. License
-    await this.db.insert(licenses).values({
-      gymId,
-      name: data.licenseName,
-      code: data.licenseCode,
-      pricePaise: data.pricePaise,
-      billingPeriod: data.billingPeriod,
-      maxMembers: data.maxMembers,
-      maxOwners: data.maxOwners,
-      maxManagers: data.maxManagers,
-      maxStaffTotal: data.maxStaffTotal,
-      maxSms: 0,
-      maxWhatsapp: 0,
-      maxEmail: 0,
-      features: data.features,
-      startedAt: now,
-      expiresAt: expiry,
-      status: 'ACTIVE',
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    // 5. Seed starter membership plans
-    const starterPlans = [
-      { name: 'Monthly General', durationMonths: 1, pricePaise: 150000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
-      { name: 'Quarterly Fitness', durationMonths: 3, pricePaise: 400000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
-      { name: 'Annual VIP Pass', durationMonths: 12, pricePaise: 1200000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
-    ];
-    for (const p of starterPlans) {
-      await this.db.insert(membershipPlans).values({
+      // 2. Owner role
+      const ownerRoleRow = await this.db.insert(roles).values({
         gymId,
-        name: p.name,
-        durationMonths: p.durationMonths,
-        pricePaise: p.pricePaise,
-        admissionFeePaise: p.admissionFeePaise,
-        taxPercentage: p.taxPercentage,
-        isActive: p.isActive,
+        name: 'OWNER',
+        permissions: '[]',
+        isOwner: true,
+        isDefault: false,
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: roles.id });
+      ownerRoleId = ownerRoleRow[0]!.id;
+
+      // 3. Owner user (references the OWNER role)
+      const userRow = await this.db.insert(users).values({
+        gymId,
+        name: data.ownerName.trim(),
+        email: data.ownerEmail.toLowerCase().trim(),
+        phone: data.ownerPhone.trim(),
+        passwordHash,
+        roleId: ownerRoleId,
+        status: 'ACTIVE',
+        isOwner: true,
+        createdAt: now,
+        updatedAt: now,
+      }).returning({ id: users.id });
+      userId = userRow[0]!.id;
+
+      // 4. License — `code` is globally unique, and the admin console
+      // reuses short codes like "PRO" for every gym. Suffix with the gym id
+      // on collision so the second provisioning never 400s.
+      let code = (data.licenseCode || `PLAN-${gymId}`).trim().toUpperCase() || `PLAN-${gymId}`;
+      const codeTaken = await this.db
+        .select({ id: licenses.id })
+        .from(licenses)
+        .where(eq(licenses.code, code))
+        .limit(1);
+      if (codeTaken.length > 0) code = `${code}-${gymId}`;
+      await this.db.insert(licenses).values({
+        gymId,
+        name: data.licenseName,
+        code,
+        pricePaise: data.pricePaise,
+        billingPeriod: data.billingPeriod,
+        maxMembers: data.maxMembers,
+        maxOwners: data.maxOwners,
+        maxManagers: data.maxManagers,
+        maxStaffTotal: data.maxStaffTotal,
+        maxSms: 0,
+        maxWhatsapp: 0,
+        maxEmail: 0,
+        features: data.features,
+        startedAt: now,
+        expiresAt: expiry,
+        status: 'ACTIVE',
         createdAt: now,
         updatedAt: now,
       });
-    }
 
-    return { gymId, userId };
+      // 5. Seed starter membership plans
+      const starterPlans = [
+        { name: 'Monthly General', durationMonths: 1, pricePaise: 150000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
+        { name: 'Quarterly Fitness', durationMonths: 3, pricePaise: 400000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
+        { name: 'Annual VIP Pass', durationMonths: 12, pricePaise: 1200000, admissionFeePaise: 0, taxPercentage: 0, isActive: 1 },
+      ];
+      for (const p of starterPlans) {
+        await this.db.insert(membershipPlans).values({
+          gymId,
+          name: p.name,
+          durationMonths: p.durationMonths,
+          pricePaise: p.pricePaise,
+          admissionFeePaise: p.admissionFeePaise,
+          taxPercentage: p.taxPercentage,
+          isActive: p.isActive,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      return { gymId, userId };
+    } catch (e) {
+      // Compensating rollback, reverse creation order. Best-effort: the
+      // original error is what the caller reports.
+      try {
+        if (userId !== null) {
+          await this.db.delete(users).where(eq(users.id, userId));
+        }
+        if (ownerRoleId !== null) {
+          await this.db.delete(roles).where(eq(roles.id, ownerRoleId));
+        }
+        if (gymId !== null) {
+          await this.db.delete(membershipPlans).where(eq(membershipPlans.gymId, gymId));
+          await this.db.delete(licenses).where(eq(licenses.gymId, gymId));
+          await this.db.delete(gyms).where(eq(gyms.id, gymId));
+        }
+      } catch {
+        // Rollback must never mask the provisioning error.
+      }
+      throw e;
+    }
   }
 
   async toggleGymStatus(gymId: number, status: 'ACTIVE' | 'SUSPENDED' | 'CANCELLED'): Promise<void> {

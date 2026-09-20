@@ -95,6 +95,32 @@ export function isPlatformAdmin(user: { role?: string | null } | null | undefine
   return user?.role === USER_ROLES.PLATFORM_ADMIN;
 }
 
+/**
+ * Member-portal session.
+ *
+ * The distinguishing fact is that a member session's `id` identifies a row in
+ * `members`, not in `users` — so any handler that scopes by user id must branch
+ * on this before comparing ids, and any query it runs must be pinned to the
+ * member's own rows rather than the gym-wide ledger.
+ */
+export function isMemberSession(user: { role?: string | null } | null | undefined): boolean {
+  return user?.role === USER_ROLES.MEMBER;
+}
+
+/**
+ * A trainer: staff whose PT view is limited to their own collections.
+ * Either the role says TRAINER, or it is a non-owner staff account that has no
+ * gym-wide `staff` permission.
+ */
+export function isPtTrainer(
+  user: { role?: string | null; isOwner?: boolean; permissions?: string[] } | null | undefined
+): boolean {
+  if (!user || isMemberSession(user)) return false;
+  if (isGymOwner(user)) return false;
+  if (user.role === USER_ROLES.TRAINER) return true;
+  return !user.permissions?.includes('staff');
+}
+
 /** The gym's primary owner account. */
 function isGymOwner(user: { isOwner?: boolean } | null | undefined): boolean {
   return Boolean(user?.isOwner);

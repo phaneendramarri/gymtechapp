@@ -106,8 +106,8 @@ app.use('/api/*', csrfMiddleware as unknown as MiddlewareHandler<{ Bindings: App
 // Rate limiting — KV-backed sliding window; falls back to in-memory when
 // RATELIMIT_KV is not bound. Applied before auth so attackers can be blocked
 // before consuming CPU on password hashing.
-// Tier derivation: auth routes use tier 'auth' (5 req/min), other safe methods
-// 'read' (100 req/min) and other writes 'write' (20 req/min). Each tier keeps a
+// Tier derivation: auth routes use tier 'auth' (10 req/min), other safe methods
+// 'read' (600 req/min) and other writes 'write' (120 req/min). Each tier keeps a
 // separate per-IP bucket.
 app.use('/api/*', (c, next) => {
   const kv = c.env?.RATELIMIT_KV;
@@ -126,7 +126,7 @@ app.use('/api/*', (c, next) => {
     }
     // Safe methods are reads; everything else is a write. Each tier keeps its
     // own bucket (see middleware/ratelimit.ts), so this is what the TIERS
-    // table documents: auth 5/min, write 20/min, read 100/min.
+    // table documents: auth 10/min, write 120/min, read 600/min.
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return 'read';
     return 'write';
   };

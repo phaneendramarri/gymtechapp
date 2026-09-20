@@ -28,7 +28,7 @@ describe('E2E — member → membership → payment flow', () => {
     const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
     expect(plans.status).toBe(200);
     expect(plans.body.plans.length).toBeGreaterThan(0);
-    const plan = plans.body.plans[0];
+    const plan = plans.body.plans[0]!;
 
     // 2. Create member with that plan — exercises the composite-FK path that
     //    used to throw `foreign key mismatch` on insert.

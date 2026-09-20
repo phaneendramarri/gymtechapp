@@ -1,10 +1,11 @@
 import React, { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { AnimatePresence } from 'framer-motion';
 import { PageTransition } from '@/components/motion/PageTransition';
 import { ThemeProvider } from './lib/theme';
 import { AuthProvider } from './lib/auth';
+import { GymFeatureKey } from '@gymtech/shared';
+import { RouteSplash } from './components/layout/RouteSplash';
 import { ToastProvider } from './components/ui/toast';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
 import { LoginPage } from './pages/LoginPage';
@@ -35,13 +36,11 @@ const AuditLogsPage       = lazy(() => import('./pages/AuditLogsPage').then(m =>
 const RolesManagementPage = lazy(() => import('./pages/platform/RolesManagementPage').then(m => ({ default: m.RolesManagementPage })));
 const PlatformUsersPage   = lazy(() => import('./pages/platform/PlatformUsersPage').then(m => ({ default: m.PlatformUsersPage })));
 
-// Route-loading skeleton
+// Branded route-loading state — shown while a lazy page chunk loads so
+// navigation never flashes a blank page.
 const RouteSkeleton: React.FC = () => (
-  <div className="flex items-center justify-center min-h-screen bg-(--bg)">
-    <div className="flex flex-col items-center gap-3">
-      <div className="w-8 h-8 border-2 border-(--iron) border-t-transparent rounded-full animate-spin" />
-      <span className="text-sm text-(--ink-3)">Loading...</span>
-    </div>
+  <div className="min-h-screen">
+    <RouteSplash message="Loading…" className="min-h-screen" />
   </div>
 );
 
@@ -59,17 +58,20 @@ const queryClient = new QueryClient({
 function Guarded({
   children,
   permissions,
+  feature,
   superAdmin,
   member,
 }: {
   children: React.ReactNode;
   permissions?: string[];
+  feature?: GymFeatureKey;
   superAdmin?: boolean;
   member?: boolean;
 }) {
   return (
     <ProtectedRoute
       requiredPermissions={permissions}
+      feature={feature}
       requireSuperAdmin={superAdmin}
       allowMember={member}
     >
@@ -83,8 +85,13 @@ const AppRoutes: React.FC = () => {
 
   return (
     <Suspense fallback={<RouteSkeleton />}>
-      <AnimatePresence mode="wait" initial={false}>
-        <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
+      {/*
+        No outer AnimatePresence here on purpose: PageTransition already
+        animates each page enter, and mode="wait" on two nested presences
+        left a blank gap on every navigation (exit must finish before the
+        next page even starts mounting). Single enter animation = no blank.
+      */}
+      <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
 
           <Route path="/" element={<Navigate to="/login" replace />} />
 
@@ -100,16 +107,16 @@ const AppRoutes: React.FC = () => {
           <Route path="/pt-collections"         element={<PageTransition><Guarded permissions={['pt_collections']}><PtCollectionsPage /></Guarded></PageTransition>} />
           <Route path="/attendance"             element={<PageTransition><Guarded permissions={['attendance']}><AttendancePage /></Guarded></PageTransition>} />
           <Route path="/kiosk"                  element={<PageTransition><Guarded permissions={['attendance']}><KioskPage /></Guarded></PageTransition>} />
-          <Route path="/classes"                element={<PageTransition><Guarded permissions={['classes']}><ClassesPage /></Guarded></PageTransition>} />
-          <Route path="/pos"                    element={<PageTransition><Guarded permissions={['pos']}><PosPage /></Guarded></PageTransition>} />
-          <Route path="/expenses"               element={<PageTransition><Guarded permissions={['expenses']}><ExpensesPage /></Guarded></PageTransition>} />
-          <Route path="/lockers"                element={<PageTransition><Guarded permissions={['lockers']}><LockersPage /></Guarded></PageTransition>} />
+          <Route path="/classes"                element={<PageTransition><Guarded permissions={['classes']} feature="classes"><ClassesPage /></Guarded></PageTransition>} />
+          <Route path="/pos"                    element={<PageTransition><Guarded permissions={['pos']} feature="pos"><PosPage /></Guarded></PageTransition>} />
+          <Route path="/expenses"               element={<PageTransition><Guarded permissions={['expenses']} feature="expenses"><ExpensesPage /></Guarded></PageTransition>} />
+          <Route path="/lockers"                element={<PageTransition><Guarded permissions={['lockers']} feature="lockers"><LockersPage /></Guarded></PageTransition>} />
           <Route path="/plans"                  element={<PageTransition><Guarded permissions={['plans']}><PlansPage /></Guarded></PageTransition>} />
           <Route path="/staff"                  element={<PageTransition><Guarded permissions={['staff']}><StaffPage /></Guarded></PageTransition>} />
           <Route path="/reports"                element={<PageTransition><Guarded permissions={['reports']}><ReportsPage /></Guarded></PageTransition>} />
           <Route path="/settings"               element={<PageTransition><Guarded permissions={['settings']}><SettingsPage /></Guarded></PageTransition>} />
           <Route path="/settings/notifications" element={<PageTransition><Guarded permissions={['settings']}><SettingsPage defaultTab="notifications" /></Guarded></PageTransition>} />
-          <Route path="/audit-logs"             element={<PageTransition><Guarded permissions={['audit_logs']}><AuditLogsPage /></Guarded></PageTransition>} />
+          <Route path="/audit-logs"             element={<PageTransition><Guarded permissions={['audit_logs']} feature="audit_logs"><AuditLogsPage /></Guarded></PageTransition>} />
 
           <Route path="/portal" element={<PageTransition><Guarded member><MemberPortalPage /></Guarded></PageTransition>} />
 
@@ -120,7 +127,6 @@ const AppRoutes: React.FC = () => {
           <Route path="*" element={<Navigate to="/login" replace />} />
 
         </Routes>
-      </AnimatePresence>
     </Suspense>
   );
 };

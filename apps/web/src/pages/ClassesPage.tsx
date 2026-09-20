@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -61,11 +62,6 @@ export const ClassesPage: React.FC = () => {
   const { data: schedulesData, isLoading: loadingSchedules } = useQuery({
     queryKey: ['classSchedules', gym?.id, selectedDay],
     queryFn: () => api.getClassSchedules({ dayOfWeek: selectedDay, gymId: gym?.id }),
-  });
-
-  const { data: membersData } = useQuery({
-    queryKey: ['members-list-quick', gym?.id],
-    queryFn: () => api.getMembers({ limit: 100 }),
   });
 
   const { data: scheduleBookingsData, refetch: refetchBookings } = useQuery({
@@ -115,7 +111,7 @@ export const ClassesPage: React.FC = () => {
       refetchBookings();
       qc.invalidateQueries({ queryKey: ['classSchedules'] });
       setBookingMemberCode('');
-      toast('success', res.bookingStatus === 'CONFIRMED' ? 'Member booked!' : 'Added to waitlist');
+      toast('success', res.bookingStatus === 'WAITLIST' ? 'Added to waitlist' : 'Member booked!');
     },
     onError: (err: any) => toast('error', err.message || 'Booking failed'),
   });
@@ -154,27 +150,20 @@ export const ClassesPage: React.FC = () => {
     });
   };
 
-  const handleBookMember = (e: React.FormEvent) => {
+  const handleBookMember = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedScheduleForBooking || !bookingMemberCode.trim()) return;
 
-    // Find member by code or id
-    const foundMember = membersData?.members?.find(
-      (m: any) =>
-        m.memberCode?.toLowerCase() === bookingMemberCode.trim().toLowerCase() ||
-        String(m.id) === bookingMemberCode.trim()
-    );
-
-    if (!foundMember) {
+    try {
+      const { member: foundMember } = await api.lookupMember(bookingMemberCode.trim(), gym?.id);
+      bookMemberMutation.mutate({
+        scheduleId: selectedScheduleForBooking.id,
+        memberId: foundMember.id,
+        bookingDate,
+      });
+    } catch {
       toast('error', 'Member not found with code: ' + bookingMemberCode);
-      return;
     }
-
-    bookMemberMutation.mutate({
-      scheduleId: selectedScheduleForBooking.id,
-      memberId: foundMember.id,
-      bookingDate,
-    });
   };
 
   const classes = classesData?.classes || [];
@@ -182,36 +171,36 @@ export const ClassesPage: React.FC = () => {
   const bookings = scheduleBookingsData?.bookings || [];
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Page Title & Actions */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-(--ink)">Class Schedules & Timetable</h1>
-          <p className="text-sm text-(--ink-3)">
-            Manage group classes, weekly timetable slots, member bookings, and waitlists.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+    <AppShell
+      breadcrumb={[{ label: 'Gym Console', href: '/dashboard' }, { label: 'Classes' }]}
+      title="Class Schedules & Timetable"
+      description="Manage group classes, weekly timetable slots, member bookings, and waitlists."
+      actions={
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
+            size="sm"
             onClick={() => setIsNewClassModalOpen(true)}
-            className="flex items-center gap-2"
+            className="h-8 gap-1.5 text-xs"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             Add Class Type
           </Button>
           <Button
+            size="sm"
             onClick={() => {
               setScheduleDay(selectedDay);
               setIsNewScheduleModalOpen(true);
             }}
-            className="bg-(--iron) text-(--white) hover:bg-(--iron-hover) flex items-center gap-2"
+            className="h-8 gap-1.5 text-xs font-semibold"
           >
-            <Calendar className="w-4 h-4" />
+            <Calendar className="w-3.5 h-3.5" />
             Add Timetable Slot
           </Button>
         </div>
-      </div>
+      }
+    >
+      <div className="space-y-6">
 
       {/* Weekday Switcher Tabs */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 border-b border-(--border)">
@@ -640,10 +629,10 @@ export const ClassesPage: React.FC = () => {
                     </div>
                     <div className="flex items-center gap-2">
                       <Badge
-                        variant={b.bookingStatus === 'CONFIRMED' ? 'default' : 'outline'}
+                        variant={b.status === 'BOOKED' ? 'default' : 'outline'}
                         className="text-[10px]"
                       >
-                        {b.bookingStatus}
+                        {b.status}
                       </Badge>
                       <button
                         onClick={() => cancelBookingMutation.mutate(b.id)}
@@ -660,6 +649,7 @@ export const ClassesPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AppShell>
   );
 };

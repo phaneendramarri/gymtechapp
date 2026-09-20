@@ -46,10 +46,10 @@
 	// (`wrangler deploy --env staging`) and override `CORS_ORIGINS` /
 	// `APP_URL` per env. Local dev defaults stay permissive.
 	"vars": {
-		"APP_ENV": "production",
-		"CORS_ORIGINS": "https://gymtech.app,https://www.gymtech.app,https://gymtech.phaneendra73.workers.dev",
+		"APP_ENV": "development",
+		"CORS_ORIGINS": "http://localhost:5173,http://127.0.0.1:8787,http://localhost:8787",
 		"EMAIL_FROM": "GymTech <notifications@gymtech.app>",
-		"APP_URL": "https://gymtech.app",
+		"APP_URL": "http://127.0.0.1:8787",
 		"FILEBASE_ENDPOINT": "https://s3.filebase.com",
 		"FILEBASE_REGION": "us-east-1",
 		"FILEBASE_BUCKET": "gymtech-media"
@@ -71,8 +71,7 @@
 		},
 		{
 			"binding": "DENYLIST_KV",
-			"id": "fda88bd39f88438e8b18f7444731031d",
-			"remote": true
+			"id": "fda88bd39f88438e8b18f7444731031d"
 		}
 	],
 	// ─────────────────────────────────────────────────────────────────

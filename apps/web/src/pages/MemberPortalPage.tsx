@@ -447,7 +447,7 @@ export const MemberPortalPage: React.FC = () => {
                     {memberPtSessions.sessions.map((s: any) => (
                       <div key={s.id} className="py-2.5 flex items-center justify-between text-xs">
                         <div>
-                          <p className="font-medium text-foreground">{s.sessionNotes || 'PT Workout Session'}</p>
+                          <p className="font-medium text-foreground">{s.notes || 'PT Workout Session'}</p>
                           <p className="text-[11px] text-muted-foreground">Trainer: {s.trainerName} • {s.sessionDate}</p>
                         </div>
                         <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />

@@ -1,0 +1,35 @@
+{
+  "cookies": [
+    {
+      "name": "gym_token",
+      "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwiZW1haWwiOiJvd25lckBneW10ZWNoLmFwcCIsIm5hbWUiOiJHeW0gT3duZXIiLCJyb2xlIjoiT1dORVIiLCJneW1JZCI6MSwiaXNPd25lciI6dHJ1ZSwicGVybWlzc2lvbnMiOlsiZGFzaGJvYXJkIiwibWVtYmVycyIsImF0dGVuZGFuY2UiLCJwYXltZW50cyIsInB0X2NvbGxlY3Rpb25zIiwicGxhbnMiLCJzdGFmZiIsInJlcG9ydHMiLCJzZXR0aW5ncyIsImF1ZGl0X2xvZ3MiLCJjbGFzc2VzIiwicG9zIiwiZXhwZW5zZXMiLCJsb2NrZXJzIl0sInJvbGVJZCI6MSwiZXhwIjoxNzg5OTE2ODU3LCJpc3MiOiJodHRwOi8vMTI3LjAuMC4xOjg3ODciLCJhdWQiOiJneW10ZWNoLWFwaSIsImp0aSI6IjNjOGUyYmM0ZTA3YzY5YWFjMTk0OWYxMWI0OTQyZTAzIn0.9Q_wpa_VY7v8p0TsuRVMmohtFRnKSSew80tLETXFgJ4",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1790520757.091365,
+      "httpOnly": true,
+      "secure": false,
+      "sameSite": "Lax"
+    },
+    {
+      "name": "gym_csrf",
+      "value": "64tpKlI1m1iDIN1K3_lFPeqFjW-iExiIWI14A4OPMVA",
+      "domain": "127.0.0.1",
+      "path": "/",
+      "expires": 1790520757.092201,
+      "httpOnly": false,
+      "secure": false,
+      "sameSite": "Lax"
+    }
+  ],
+  "origins": [
+    {
+      "origin": "http://127.0.0.1:8787",
+      "localStorage": [
+        {
+          "name": "gymtech_theme",
+          "value": "light"
+        }
+      ]
+    }
+  ]
+}

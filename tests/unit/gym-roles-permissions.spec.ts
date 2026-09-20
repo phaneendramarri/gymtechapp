@@ -110,7 +110,7 @@ describe('Gym Roles & Granular Permission Middleware Invariants', () => {
       const res = (await middleware(c, next)) as Response;
       expect(nextCalled).toBe(false);
       expect(res.status).toBe(403);
-      const data = await res.json();
+      const data = (await res.json()) as { error: string };
       expect(data.error).toContain('permissions');
     });
 
@@ -147,7 +147,7 @@ describe('Gym Roles & Granular Permission Middleware Invariants', () => {
         { id: 2, gymId: 1, name: 'Front Desk', isOwner: false, permissions: ['members', 'attendance'] },
       ];
 
-      const canDeleteRole = (role: typeof roles[0]) => !role.isOwner;
+      const canDeleteRole = (role?: (typeof roles)[0]) => !role?.isOwner;
 
       expect(canDeleteRole(roles[0])).toBe(false);
       expect(canDeleteRole(roles[1])).toBe(true);
@@ -165,9 +165,9 @@ describe('Gym Roles & Granular Permission Middleware Invariants', () => {
       const gym2Roles = filterByGym(2);
 
       expect(gym1Roles).toHaveLength(1);
-      expect(gym1Roles[0].name).toBe('Gym 1 Staff');
+      expect(gym1Roles[0]?.name).toBe('Gym 1 Staff');
       expect(gym2Roles).toHaveLength(1);
-      expect(gym2Roles[0].name).toBe('Gym 2 Staff');
+      expect(gym2Roles[0]?.name).toBe('Gym 2 Staff');
     });
   });
 });

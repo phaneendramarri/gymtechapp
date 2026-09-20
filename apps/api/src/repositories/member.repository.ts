@@ -39,32 +39,6 @@ export class MemberRepository {
     limit?: number;
     offset?: number;
   }): Promise<MemberListItem[]> {
-    const conditions: (ReturnType<typeof sql> | ReturnType<typeof isNull>)[] = [
-      sql`${members.gymId} = ${this.gymId}`,
-      isNull(members.deletedAt),
-    ];
-
-    if (params.status && params.status !== 'ALL') {
-      if (params.status === 'EXPIRED') {
-        conditions.push(sql`(${members.status} = 'EXPIRED' OR EXISTS (
-          SELECT 1 FROM memberships ms2
-          WHERE ms2.member_id = ${members.id} AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL
-        ))`);
-      } else if (params.status === 'ACTIVE') {
-        conditions.push(sql`${members.status} = 'ACTIVE'`);
-        conditions.push(sql`(ms.end_date IS NULL OR ms.end_date >= unixepoch())`);
-      } else {
-        conditions.push(sql`${members.status} = ${params.status}`);
-      }
-    }
-
-    if (params.search) {
-      const term = `%${params.search}%`;
-      conditions.push(
-        sql`(${members.firstName} LIKE ${term} OR ${members.lastName} LIKE ${term} OR ${members.phone} LIKE ${term} OR ${members.memberCode} LIKE ${term} OR ${members.email} LIKE ${term})`
-      );
-    }
-
     // Build WHERE clause with parameterized bindings
     const whereParts: string[] = [`m.gym_id = ?`, `m.deleted_at IS NULL`];
     const bindings: any[] = [this.gymId];
@@ -73,7 +47,11 @@ export class MemberRepository {
       if (params.status === 'EXPIRED') {
         whereParts.push(`(m.status = 'EXPIRED' OR EXISTS (
           SELECT 1 FROM memberships ms2
-          WHERE ms2.member_id = m.id AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL
+          WHERE ms2.member_id = m.id
+            AND ms2.gym_id = m.gym_id
+            AND ms2.status = 'ACTIVE'
+            AND ms2.end_date < unixepoch()
+            AND ms2.deleted_at IS NULL
         ))`);
       } else if (params.status === 'ACTIVE') {
         whereParts.push(`m.status = 'ACTIVE'`);
@@ -113,15 +91,44 @@ export class MemberRepository {
     `;
 
     const { results } = await this.d1.prepare(query).bind(...bindings).all() as { results: MemberListItem[] };
+    // Map raw snake_case columns onto the shared camelCase contract so client-side
+    // field access (memberCode, firstName, ...) matches MemberListItem.
     return (results || []).map((r: any) => ({
-      ...r,
-      firstName: r.first_name ?? r.firstName,
-      lastName: r.last_name ?? r.lastName,
-      memberCode: r.member_code ?? r.memberCode,
-      planName: r.plan_name ?? r.planName,
-      dueAmountPaise: r.membership_due_amount_paise ?? r.due_amount_paise ?? r.dueAmountPaise,
-      startDate: r.membership_start_date ?? r.start_date ?? r.startDate,
-      endDate: r.membership_end_date ?? r.end_date ?? r.endDate,
+      id: r.id,
+      gymId: r.gym_id,
+      memberCode: r.member_code,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      email: r.email,
+      phone: r.phone,
+      gender: r.gender,
+      dateOfBirth: r.date_of_birth,
+      photoUrl: r.photo_url,
+      faceEmbedding: r.face_embedding,
+      biometricConsentGiven: r.biometric_consent_given,
+      biometricConsentAt: r.biometric_consent_at,
+      biometricConsentVersion: r.biometric_consent_version,
+      address: r.address,
+      city: r.city,
+      pincode: r.pincode,
+      emergencyContactName: r.emergency_contact_name,
+      emergencyContactPhone: r.emergency_contact_phone,
+      healthNotes: r.health_notes,
+      status: r.status,
+      joinedDate: r.joined_date ?? 0,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+      deletedAt: r.deleted_at,
+      planName: r.plan_name,
+      plan_name: r.plan_name,
+      active_membership_id: r.active_membership_id,
+      membership_status: r.membership_status,
+      membership_start_date: r.membership_start_date,
+      membership_end_date: r.membership_end_date,
+      membership_due_amount_paise: r.membership_due_amount_paise,
+      dueAmountPaise: r.membership_due_amount_paise ?? r.dueAmountPaise,
+      startDate: r.membership_start_date ?? r.startDate,
+      endDate: r.membership_end_date ?? r.endDate,
     }));
   }
 
@@ -147,7 +154,11 @@ export class MemberRepository {
       if (params.status === 'EXPIRED') {
         whereParts.push(`(status = 'EXPIRED' OR EXISTS (
           SELECT 1 FROM memberships ms2
-          WHERE ms2.member_id = members.id AND ms2.end_date < unixepoch() AND ms2.deleted_at IS NULL
+          WHERE ms2.member_id = members.id
+            AND ms2.gym_id = members.gym_id
+            AND ms2.status = 'ACTIVE'
+            AND ms2.end_date < unixepoch()
+            AND ms2.deleted_at IS NULL
         ))`);
       } else if (params.status === 'ACTIVE') {
         whereParts.push(`status = 'ACTIVE'`);
@@ -171,7 +182,8 @@ export class MemberRepository {
   async countSummary(params: { now: number; sevenDays: number }): Promise<{
     total: number; active: number; expiring: number; frozen: number; blocked: number; expired: number;
   }> {
-    // L8: Single-query summary counts using current membership status
+    // L8: Single-query summary counts using current membership status.
+    // gymId is bound, not interpolated.
     const base = `FROM members m
       LEFT JOIN memberships ms ON ms.member_id = m.id AND ms.deleted_at IS NULL
       AND ms.id = (
@@ -179,15 +191,15 @@ export class MemberRepository {
         WHERE ms2.member_id = m.id AND ms2.deleted_at IS NULL
         ORDER BY ms2.created_at DESC LIMIT 1
       )
-      WHERE m.gym_id = ${this.gymId} AND m.deleted_at IS NULL`;
+      WHERE m.gym_id = ? AND m.deleted_at IS NULL`;
 
     const [total, active, frozen, blocked, expiring, expired] = await Promise.all([
-      this.d1.prepare(`SELECT COUNT(*) as c ${base}`).first() as Promise<{ c: number } | undefined>,
-      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE'`).first() as Promise<{ c: number } | undefined>,
-      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'FROZEN'`).first() as Promise<{ c: number } | undefined>,
-      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'BLOCKED'`).first() as Promise<{ c: number } | undefined>,
-      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE' AND ms.end_date BETWEEN ? AND ?`).bind(params.now, params.sevenDays).first() as Promise<{ c: number } | undefined>,
-      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND (m.status = 'EXPIRED' OR ms.status = 'EXPIRED' OR (ms.end_date IS NOT NULL AND ms.end_date < ?))`).bind(params.now).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base}`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'FROZEN'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'BLOCKED'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE' AND ms.end_date BETWEEN ? AND ?`).bind(this.gymId, params.now, params.sevenDays).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND (m.status = 'EXPIRED' OR (ms.status = 'ACTIVE' AND ms.end_date IS NOT NULL AND ms.end_date < ?))`).bind(this.gymId, params.now).first() as Promise<{ c: number } | undefined>,
     ]);
 
     return {
@@ -345,11 +357,8 @@ export class MemberRepository {
       };
     }
 
-    const [{ total }] = await this.db
-      .select({ total: sql<number>`count(*)` })
-      .from(members)
-      .where(eq(members.gymId, this.gymId));
-    let memberCodeCounter = (total || 0) + 1;
+    // Member codes come from the shared atomic counter — COUNT(*) would mint
+    // codes that collide after members are deleted (the counter never rewinds).
 
     const license = await this.d1
       .prepare(`SELECT max_members FROM licenses WHERE gym_id = ?`)
@@ -383,7 +392,8 @@ export class MemberRepository {
         continue;
       }
 
-      const memberCode = `MEM-${1000 + memberCodeCounter++}`;
+      const nextCode = await new CounterRepository(this.d1).nextValue(this.gymId, 'member_code');
+      const memberCode = `MEM-${1000 + nextCode}`;
       const joinedTimestamp = row.startDate
         ? Math.floor(new Date(row.startDate).getTime() / 1000)
         : Math.floor(Date.now() / 1000);
@@ -494,6 +504,58 @@ export class MemberRepository {
     return row ?? null;
   }
 
+  /**
+   * Member-login lookup: exact identifier match (code / phone / email) with
+   * the gym columns the route needs for the session + response. Gym-scoped
+   * via this.gymId — callers resolve the gym from its slug first.
+   */
+  async findLoginRow(identifier: string): Promise<any | null> {
+    const row = await this.d1
+      .prepare(`
+        SELECT m.*, g.name as gym_name, g.slug as gym_slug
+        FROM members m JOIN gyms g ON g.id = m.gym_id
+        WHERE m.gym_id = ? AND (m.member_code = ? OR m.phone = ? OR m.email = ?) AND m.deleted_at IS NULL
+        LIMIT 1
+      `)
+      .bind(this.gymId, identifier, identifier, identifier)
+      .first();
+    return row ?? null;
+  }
+
+  /**
+   * Member-portal aggregate: header row plus recent memberships, payments
+   * and attendance. Returns raw rows; the route maps them onto the
+   * camelCase portal contract.
+   */
+  async getPortalRows(memberId: number): Promise<{
+    member: any | null;
+    memberships: any[];
+    payments: any[];
+    attendance: any[];
+  }> {
+    const member = await this.d1
+      .prepare(`
+        SELECT m.*, g.name as gym_name, g.address as gym_address, g.phone as gym_phone
+        FROM members m JOIN gyms g ON g.id = m.gym_id
+        WHERE m.id = ? AND m.deleted_at IS NULL
+      `)
+      .bind(memberId)
+      .first();
+    if (!member) return { member: null, memberships: [], payments: [], attendance: [] };
+    const gymId = (member as any).gym_id;
+    const [memberships, payments, attendance] = await Promise.all([
+      this.d1.prepare(`SELECT ms.*, mp.name as plan_name, mp.duration_months FROM memberships ms LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id WHERE ms.member_id = ? AND ms.gym_id = ? ORDER BY ms.end_date DESC`).bind(memberId, gymId).all(),
+      this.d1.prepare(`SELECT * FROM payments WHERE member_id = ? AND gym_id = ? ORDER BY payment_date DESC LIMIT 20`).bind(memberId, gymId).all(),
+      this.d1.prepare(`SELECT * FROM attendance WHERE member_id = ? AND gym_id = ? ORDER BY check_in_time DESC LIMIT 30`).bind(memberId, gymId).all(),
+    ]);
+    return {
+      member,
+      memberships: (memberships.results || []) as any[],
+      payments: (payments.results || []) as any[],
+      attendance: (attendance.results || []) as any[],
+    };
+  }
+
   async softDelete(id: number): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     await this.db
@@ -504,11 +566,12 @@ export class MemberRepository {
 
   async restore(id: number): Promise<boolean> {
     const now = Math.floor(Date.now() / 1000);
-    const result = await this.db
+    const row = await this.db
       .update(members)
       .set({ deletedAt: null, status: 'ACTIVE' as any, updatedAt: now })
-      .where(and(eq(members.id, id), eq(members.gymId, this.gymId))) as any;
-    return (result.changes ?? 0) > 0;
+      .where(and(eq(members.id, id), eq(members.gymId, this.gymId)))
+      .returning({ id: members.id });
+    return row.length > 0;
   }
 
   async erasePersonalData(id: number): Promise<void> {

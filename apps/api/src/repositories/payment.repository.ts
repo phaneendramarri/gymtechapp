@@ -173,14 +173,17 @@ export class PaymentRepository {
     return row!.id;
   }
 
-  async getSummaryMetrics(): Promise<{ monthlyRevenue: number; todayRevenue: number; pendingDues: number }> {
+  async getSummaryMetrics(): Promise<{ monthlyRevenue: number; todayRevenue: number; pendingDues: number; monthlyCount: number }> {
     const startOfMonth = Math.floor(
       new Date(new Date().getFullYear(), new Date().getMonth(), 1).getTime() / 1000
     );
     const startOfToday = Math.floor(new Date(new Date().setHours(0, 0, 0, 0)).getTime() / 1000);
 
     const [monthRes] = await this.db
-      .select({ revenue: sql<number>`coalesce(sum(${payments.amountPaise}), 0)` })
+      .select({
+        revenue: sql<number>`coalesce(sum(${payments.amountPaise}), 0)`,
+        count: sql<number>`count(*)`,
+      })
       .from(payments)
       .where(
         and(
@@ -219,6 +222,7 @@ export class PaymentRepository {
       monthlyRevenue: monthRes?.revenue ?? 0,
       todayRevenue: todayRes?.revenue ?? 0,
       pendingDues: duesRes?.total_dues ?? 0,
+      monthlyCount: monthRes?.count ?? 0,
     };
   }
 }

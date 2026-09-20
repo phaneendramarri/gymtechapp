@@ -7,6 +7,7 @@ import { safeHandler, paramId } from '../middleware/params';
 import { splitGstInclusiveAmount } from '../lib/calculations';
 import { PaymentRepository } from '../repositories/payment.repository';
 import { MemberRepository } from '../repositories/member.repository';
+import { MembershipRepository } from '../repositories/membership.repository';
 import { NotificationService } from '../lib/notifications';
 import { auditGymFromCtx } from '../services/audit.service';
 import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
@@ -48,10 +49,16 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), requirePermissio
 
   // Single atomic path: payment insert + membership dues update are batched
   // inside the repository. No orphaned payment or stale dues on failure.
-  const paymentId = parsed.data.membershipId
+  // When the caller doesn't name a membership (dues desk flow), settle the
+  // member's outstanding dues-bearing membership automatically; otherwise
+  // the payment would silently leave Pending Dues unchanged.
+  const membershipId =
+    parsed.data.membershipId ??
+    (await new MembershipRepository(ctx.env.DB, ctx.gymId!).findDueMembershipId(member.id));
+  const paymentId = membershipId
     ? await paymentRepo.recordAndApplyToMembership({
         memberId: parsed.data.memberId,
-        membershipId: parsed.data.membershipId,
+        membershipId,
         receiptNumber,
         amountPaise: parsed.data.amountPaise,
         paymentDate,
@@ -90,8 +97,10 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), requirePermissio
   return jsonOk({ paymentId, receiptNumber, whatsappUrl }, 201);
 }));
 
-// Invoice details
-paymentRoutes.get('/:id/invoice', requireGym, safeHandler(async (c) => {
+// Invoice details. Gated on the `payments` permission — an invoice carries the
+// member's name, phone and payment history, so a member-portal session must
+// not be able to read another member's by id.
+paymentRoutes.get('/:id/invoice', requireGym, requirePermission('payments'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: any };
   const id = paramId(c.req.param() as Record<string, string>);
@@ -126,7 +135,7 @@ paymentRoutes.get('/:id/invoice', requireGym, safeHandler(async (c) => {
 }));
 
 // Add receipt endpoint at end of file before export
-paymentRoutes.get('/:id/receipt', requireGym, safeHandler(async (c) => {
+paymentRoutes.get('/:id/receipt', requireGym, requirePermission('payments'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: any };
   const id = paramId(c.req.param() as Record<string, string>);

@@ -1,3 +1,21 @@
+declare global {
+  interface D1Database {
+    prepare(query: string): any;
+    batch(statements: any[]): Promise<any[]>;
+    exec(query: string): Promise<any>;
+    dump(): Promise<ArrayBuffer>;
+  }
+  interface ExecutionContext {
+    waitUntil(promise: Promise<any>): void;
+    passThroughOnException(): void;
+  }
+  interface KVNamespace {
+    get(key: string, options?: any): Promise<any>;
+    put(key: string, value: any, options?: any): Promise<void>;
+    delete(key: string): Promise<void>;
+  }
+}
+
 /**
  * In-process API test harness.
  *
@@ -71,7 +89,7 @@ export interface TestEnv {
 }
 
 let cached: TestEnv | null = null;
-let proxy: { dispose?: () => Promise<void> } | null = null;
+let proxy: { env: Record<string, unknown>; dispose?: () => Promise<void> } | null = null;
 
 /**
  * Boot the platform proxy once per test file and return a Worker-style env
@@ -84,9 +102,9 @@ export async function getTestEnv(): Promise<TestEnv> {
   const entry = requireFromApi.resolve('wrangler');
   const mod = (await import(pathToFileURL(entry).href)) as Record<string, unknown>;
   const getPlatformProxy =
-    (mod.getPlatformProxy as ((o: unknown) => Promise<{ env: unknown }>) | undefined) ??
+    (mod.getPlatformProxy as ((o: unknown) => Promise<{ env: Record<string, unknown>; dispose?: () => Promise<void> }>) | undefined) ??
     ((mod.default as Record<string, unknown> | undefined)?.getPlatformProxy as
-      | ((o: unknown) => Promise<{ env: unknown }>)
+      | ((o: unknown) => Promise<{ env: Record<string, unknown>; dispose?: () => Promise<void> }>)
       | undefined);
 
   if (typeof getPlatformProxy !== 'function') {
@@ -101,10 +119,10 @@ export async function getTestEnv(): Promise<TestEnv> {
 
   // .dev.vars wins over wrangler.jsonc vars, exactly as `wrangler dev` behaves.
   cached = {
-    ...(proxyRef.env as Record<string, unknown>),
+    ...(proxyRef ? (proxyRef.env as Record<string, unknown>) : {}),
     ...loadDevVars(),
     APP_ENV: 'development',
-  } as TestEnv;
+  } as unknown as TestEnv;
 
   if (!cached.JWT_SECRET) {
     throw new Error(
@@ -160,11 +178,16 @@ export interface ApiResponse<T = unknown> {
 /**
  * Rate limiting is per IP, so every client gets its own address by default;
  * tests that exercise the limits pass an explicit IP to the constructor.
+ *
+ * The first two octets are randomised per run: limiter state lives in KV and
+ * outlives the process, so a fixed address sequence would collide with the
+ * buckets left behind by the previous run and fail with inherited 429s.
  */
+const RUN_PREFIX = Math.floor(Math.random() * 0xffff);
 let ipCounter = 0;
 function nextIp(): string {
   ipCounter += 1;
-  return `10.${Math.floor(ipCounter / 65536) % 256}.${Math.floor(ipCounter / 256) % 256}.${ipCounter % 256}`;
+  return `10.${(RUN_PREFIX >> 8) & 0xff}.${RUN_PREFIX & 0xff}.${ipCounter & 0xff}`;
 }
 
 /**
@@ -216,7 +239,9 @@ export class ApiClient {
         : (res.headers.get('set-cookie') ? [res.headers.get('set-cookie') as string] : []);
 
     for (const raw of setCookies) {
-      const [pair] = raw.split(';');
+      const parts = raw.split(';');
+      const pair = parts[0];
+      if (!pair) continue;
       const idx = pair.indexOf('=');
       if (idx < 0) continue;
       const name = pair.slice(0, idx).trim();

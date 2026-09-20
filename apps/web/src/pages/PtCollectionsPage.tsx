@@ -123,32 +123,27 @@ export const PtCollectionsPage: React.FC = () => {
   const formValid = form.memberId && form.trainerId && parseFloat(form.amount || '0') > 0;
 
   return (
-    <AppShell title="PT Collections" breadcrumb="Billing">
-      <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h2 className="font-display text-2xl font-bold tracking-tight text-foreground">
-            Personal Training Collections
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Track PT package sales and trainer commission payouts
-          </p>
-        </div>
-        {canManage && (
+    <AppShell
+      title="PT Collections"
+      breadcrumb="Billing"
+      description="Track PT package sales and trainer commission payouts."
+      actions={
+        canManage ? (
           <Button
             size="sm"
-            className="bg-primary text-primary-foreground font-bold text-xs h-9"
+            className="font-bold text-xs h-8 gap-1.5"
             onClick={() => setIsRecordOpen(true)}
           >
-            <Plus className="mr-1.5 size-4" /> Record PT Collection
+            <Plus className="size-3.5" /> Record PT Collection
           </Button>
-        )}
-      </section>
-
+        ) : undefined
+      }
+    >
       {/* Summary cards */}
       {summaryLoading ? (
         <div className="grid grid-cols-2 lg:grid-cols-3 gap-3.5">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-28 rounded-sm" />
+            <Skeleton key={i} className="h-28 rounded-lg" />
           ))}
         </div>
       ) : (
@@ -221,7 +216,7 @@ export const PtCollectionsPage: React.FC = () => {
           {collectionsLoading ? (
             <div className="p-6 flex flex-col gap-3">
               {[1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-10 rounded-sm" />
+                <Skeleton key={i} className="h-10 rounded-lg" />
               ))}
             </div>
           ) : collections.length === 0 ? (

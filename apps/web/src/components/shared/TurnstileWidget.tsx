@@ -17,8 +17,11 @@ interface TurnstileWidgetProps {
 export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetProps>(
   ({ siteKey, action = 'login', onVerify, onError, onExpire, className }, ref) => {
     const turnstileRef = useRef<TurnstileInstance>(null);
-    const activeSiteKey =
-      siteKey || (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined) || '0x4AAAAAAEmPXeBClO_3_EVH';
+    // No fallback key: a hardcoded production site key silently rendered the
+    // real widget in every environment, so local builds shipped a challenge the
+    // local secret could not verify. The key must come from the environment
+    // (`VITE_TURNSTILE_SITE_KEY` in .env.production / .env.development.local).
+    const activeSiteKey = siteKey || (import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined);
 
     useImperativeHandle(ref, () => ({
       reset: () => {
@@ -27,6 +30,11 @@ export const TurnstileWidget = forwardRef<TurnstileWidgetRef, TurnstileWidgetPro
     }));
 
     if (!activeSiteKey) {
+      if (import.meta.env.DEV) {
+        console.warn(
+          '[turnstile] VITE_TURNSTILE_SITE_KEY is not set — the bot check is disabled in this build.'
+        );
+      }
       return null;
     }
 

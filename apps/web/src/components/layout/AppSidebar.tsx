@@ -46,26 +46,28 @@ interface NavItem {
   icon: LucideIcon;
   badge?: string;
   requiredPermission?: string;
+  /** License feature key — hidden when the gym's license disables it. */
+  featureKey?: string;
 }
 
 const MAIN_NAV: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
-  { key: 'members', label: 'Members', href: '/members', icon: Users, requiredPermission: 'members' },
-  { key: 'floor', label: 'Floor & Attendance', href: '/attendance', icon: CalendarCheck, requiredPermission: 'attendance' },
-  { key: 'classes', label: 'Classes & Timetable', href: '/classes', icon: Calendar, requiredPermission: 'classes' },
-  { key: 'payments', label: 'Payments', href: '/payments', icon: CreditCard, requiredPermission: 'payments' },
-  { key: 'pos', label: 'POS & Store', href: '/pos', icon: ShoppingBag, requiredPermission: 'pos' },
-  { key: 'expenses', label: 'Expenses & P&L', href: '/expenses', icon: Receipt, requiredPermission: 'expenses' },
-  { key: 'lockers', label: 'Lockers', href: '/lockers', icon: Lock, requiredPermission: 'lockers' },
-  { key: 'pt', label: 'PT Sessions', href: '/pt-collections', icon: Trophy, requiredPermission: 'pt_collections' },
-  { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, requiredPermission: 'plans' },
-  { key: 'reports', label: 'Reports', href: '/reports', icon: BarChart3, requiredPermission: 'reports' },
+  { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, featureKey: 'dashboard' },
+  { key: 'members', label: 'Members', href: '/members', icon: Users, requiredPermission: 'members', featureKey: 'members' },
+  { key: 'floor', label: 'Floor & Attendance', href: '/attendance', icon: CalendarCheck, requiredPermission: 'attendance', featureKey: 'attendance' },
+  { key: 'classes', label: 'Classes & Timetable', href: '/classes', icon: Calendar, requiredPermission: 'classes', featureKey: 'classes' },
+  { key: 'payments', label: 'Payments', href: '/payments', icon: CreditCard, requiredPermission: 'payments', featureKey: 'payments' },
+  { key: 'pos', label: 'POS & Store', href: '/pos', icon: ShoppingBag, requiredPermission: 'pos', featureKey: 'pos' },
+  { key: 'expenses', label: 'Expenses & P&L', href: '/expenses', icon: Receipt, requiredPermission: 'expenses', featureKey: 'expenses' },
+  { key: 'lockers', label: 'Lockers', href: '/lockers', icon: Lock, requiredPermission: 'lockers', featureKey: 'lockers' },
+  { key: 'pt', label: 'PT Sessions', href: '/pt-collections', icon: Trophy, requiredPermission: 'pt_collections', featureKey: 'pt_collections' },
+  { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, requiredPermission: 'plans', featureKey: 'plans' },
+  { key: 'reports', label: 'Reports', href: '/reports', icon: BarChart3, requiredPermission: 'reports', featureKey: 'reports' },
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { key: 'staff', label: 'Staff Management', href: '/staff', icon: UserCog, requiredPermission: 'staff' },
-  { key: 'audit_logs', label: 'Audit Logs', href: '/audit-logs', icon: Sliders, requiredPermission: 'audit_logs' },
-  { key: 'settings', label: 'Settings', href: '/settings', icon: Settings, requiredPermission: 'settings' },
+  { key: 'staff', label: 'Staff Management', href: '/staff', icon: UserCog, requiredPermission: 'staff', featureKey: 'staff' },
+  { key: 'audit_logs', label: 'Audit Logs', href: '/audit-logs', icon: Sliders, requiredPermission: 'audit_logs', featureKey: 'audit_logs' },
+  { key: 'settings', label: 'Settings', href: '/settings', icon: Settings, requiredPermission: 'settings', featureKey: 'settings' },
 ];
 
 const PLATFORM_ADMIN_NAV: NavItem[] = [
@@ -88,7 +90,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   onCloseMobile,
 }) => {
   const location = useLocation();
-  const { gym, user, logout } = useAuth();
+  const { gym, user, hasFeature, logout } = useAuth();
 
   const isSuperAdmin = user?.role === 'PLATFORM_ADMIN' || user?.permissions?.includes('superadmin');
   const isOwner = user?.role === 'OWNER' || Boolean(user?.isOwner);
@@ -101,7 +103,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   };
 
   const hasAccess = (item: NavItem) => {
-    if (isSuperAdmin || isOwner) return true;
+    if (isSuperAdmin) return true;
+    // License feature gate applies to owners too — a disabled module is
+    // hidden regardless of role. Unloaded flags mean "all enabled".
+    if (item.featureKey && !hasFeature(item.featureKey as any)) return false;
+    if (isOwner) return true;
     if (!item.requiredPermission) return true;
     return user?.permissions?.includes(item.requiredPermission) ?? false;
   };
@@ -167,7 +173,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       {/* Mobile Drawer Header */}
       <div className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0">
         <div className="flex items-center gap-2.5 min-w-0">
-          <Logo size="sm" className="shrink-0" />
+          <Logo size="sm" showText={false} className="shrink-0" />
           <div className="flex flex-col min-w-0">
             <span className="font-bold text-sm text-foreground truncate">
               {gym?.name || 'GymTech'}
@@ -250,7 +256,11 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
     <TooltipProvider>
       {/* Mobile drawer (Sheet) */}
       <Sheet open={mobileOpen} onOpenChange={(open) => !open && onCloseMobile()}>
-        <SheetContent side="left" className="w-72 p-0 border-r border-border bg-sidebar flex flex-col">
+        <SheetContent
+          side="left"
+          showCloseButton={false}
+          className="w-72 p-0 border-r border-border bg-sidebar flex flex-col"
+        >
           <SheetTitle className="sr-only">Navigation Menu</SheetTitle>
           <MobileDrawerContent />
         </SheetContent>
@@ -259,7 +269,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       {/* Desktop sidebar rail */}
       <aside
         className={cn(
-          'hidden md:flex flex-col h-screen sticky top-0 border-r border-border bg-sidebar transition-all duration-200 ease-in-out z-20 shrink-0 select-none',
+          'hidden lg:flex flex-col h-screen sticky top-0 border-r border-border bg-sidebar transition-all duration-200 ease-in-out z-20 shrink-0 select-none',
           collapsed ? 'w-16' : 'w-60'
         )}
         aria-label="Main Navigation"
@@ -278,7 +288,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               collapsed ? 'justify-center' : ''
             )}
           >
-            <Logo size="sm" className="shrink-0 transition-transform duration-200 group-hover:scale-105" />
+            <Logo size="sm" showText={false} className="shrink-0 transition-transform duration-200 group-hover:scale-105" />
             {!collapsed && (
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5">

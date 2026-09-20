@@ -53,9 +53,10 @@ const PERIODS: { key: 'month' | 'quarter' | 'year'; label: string }[] = [
   { key: 'year', label: 'This Year' },
 ];
 
-// ─── Stat Card ────────────────────────────────────────────────────────────────
+// ─── Report stat tile (local to this page; the shared StatCard has a
+// different prop API) ────────────────────────────────────────────────────
 
-const StatCard: React.FC<{
+const ReportStat: React.FC<{
   label: string;
   value: string;
   sub?: string;
@@ -92,27 +93,27 @@ const OverviewTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ perio
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
+        <ReportStat
           label="Period Revenue"
           value={formatCurrency(data?.periodRevenue || 0)}
           sub={`Across ${data?.periodPaymentCount || 0} settlements`}
           icon={<IndianRupee className="h-3.5 w-3.5" />}
         />
-        <StatCard
+        <ReportStat
           label="Active Members"
           value={String(metrics?.activeMembers ?? 0)}
           sub="Enrolled & in good standing"
           icon={<Users className="h-3.5 w-3.5" />}
           iconBg="bg-emerald-500/10 text-emerald-500"
         />
-        <StatCard
+        <ReportStat
           label="Check-ins Today"
           value={String(metrics?.todayAttendance ?? 0)}
           sub="Floor visits recorded"
           icon={<CalendarCheck className="h-3.5 w-3.5" />}
           iconBg="bg-blue-500/10 text-blue-500"
         />
-        <StatCard
+        <ReportStat
           label="Pending Dues"
           value={formatCurrency(metrics?.pendingDues || 0)}
           sub="Uncollected balances"
@@ -247,25 +248,25 @@ const RevenueTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ period
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
+        <ReportStat
           label="Total Revenue"
           value={formatCurrency(total?.total_paise || 0)}
           sub={`${total?.payment_count || 0} payments`}
           icon={<IndianRupee className="h-3.5 w-3.5" />}
         />
-        <StatCard
+        <ReportStat
           label="Cash"
           value={formatCurrency(total?.cash_paise || 0)}
           icon={<IndianRupee className="h-3.5 w-3.5" />}
           iconBg="bg-amber-500/10 text-amber-600"
         />
-        <StatCard
+        <ReportStat
           label="UPI / Card"
           value={formatCurrency((total?.upi_paise || 0) + (total?.card_paise || 0))}
           icon={<IndianRupee className="h-3.5 w-3.5" />}
           iconBg="bg-blue-500/10 text-blue-600"
         />
-        <StatCard
+        <ReportStat
           label="Bank Transfer"
           value={formatCurrency(total?.bank_paise || 0)}
           icon={<IndianRupee className="h-3.5 w-3.5" />}
@@ -371,33 +372,33 @@ const MembershipTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ per
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <StatCard
+        <ReportStat
           label="Total Active"
           value={String(summary?.total_active ?? 0)}
           icon={<Users className="h-3.5 w-3.5" />}
           iconBg="bg-emerald-500/10 text-emerald-500"
         />
-        <StatCard
+        <ReportStat
           label="New Members"
           value={String(summary?.new_memberships ?? 0)}
           sub="Joined this period"
           icon={<UserPlus className="h-3.5 w-3.5" />}
           iconBg="bg-blue-500/10 text-blue-500"
         />
-        <StatCard
+        <ReportStat
           label="Renewals"
           value={String(summary?.renewals ?? 0)}
           icon={<Activity className="h-3.5 w-3.5" />}
           iconBg="bg-primary/10 text-primary"
         />
-        <StatCard
+        <ReportStat
           label="Expired"
           value={String(summary?.expired ?? 0)}
           icon={<CalendarCheck className="h-3.5 w-3.5" />}
           iconBg="bg-amber-500/10 text-amber-600"
           valueClass="text-amber-600"
         />
-        <StatCard
+        <ReportStat
           label="Frozen"
           value={String(summary?.frozen ?? 0)}
           icon={<Clock className="h-3.5 w-3.5" />}
@@ -490,39 +491,42 @@ const AttendanceTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ per
     queryFn: () => api.getAttendanceReport({ startDate, endDate }),
   });
 
+  // useMemo must run on every render — it cannot sit behind the early
+  // return below (hook-order crash, React #310). It reads empty arrays
+  // while loading, which is harmless.
+  const peakHoursPre = data?.peakHours || [];
+  const peakHoursFormatted = useMemo(
+    () =>
+      peakHoursPre.map((h) => ({
+        ...h,
+        label: `${h.hour}:00`,
+      })),
+    [peakHoursPre]
+  );
+
   if (isLoading) return <TabSkeleton />;
 
   const summary = data?.summary;
   const byDay = data?.byDay || [];
-  const peakHours = data?.peakHours || [];
   const topMembers = data?.topMembers || [];
-
-  const peakHoursFormatted = useMemo(
-    () =>
-      peakHours.map((h) => ({
-        ...h,
-        label: `${h.hour}:00`,
-      })),
-    [peakHours]
-  );
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
-        <StatCard
+        <ReportStat
           label="Total Check-ins"
           value={String(summary?.total_checkins ?? 0)}
           icon={<CalendarCheck className="h-3.5 w-3.5" />}
           iconBg="bg-blue-500/10 text-blue-500"
         />
-        <StatCard
+        <ReportStat
           label="Unique Members"
           value={String(summary?.unique_members ?? 0)}
           sub="Distinct visitors"
           icon={<Users className="h-3.5 w-3.5" />}
           iconBg="bg-emerald-500/10 text-emerald-500"
         />
-        <StatCard
+        <ReportStat
           label="Daily Average"
           value={String(Math.round(summary?.avg_daily ?? 0))}
           sub="Check-ins per day"
@@ -646,14 +650,14 @@ const GrowthTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ period 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-3 gap-4">
-        <StatCard
+        <ReportStat
           label="New Joins"
           value={String(summary?.total_joins ?? 0)}
           sub="Members enrolled"
           icon={<UserPlus className="h-3.5 w-3.5" />}
           iconBg="bg-emerald-500/10 text-emerald-500"
         />
-        <StatCard
+        <ReportStat
           label="Churned"
           value={String(summary?.total_churned ?? 0)}
           sub="Memberships lapsed"
@@ -661,7 +665,7 @@ const GrowthTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ period 
           iconBg="bg-destructive/10 text-destructive"
           valueClass="text-destructive"
         />
-        <StatCard
+        <ReportStat
           label="Net Growth"
           value={`${(summary?.net_growth ?? 0) >= 0 ? '+' : ''}${summary?.net_growth ?? 0}`}
           sub="Joins minus churn"

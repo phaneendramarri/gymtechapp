@@ -10,6 +10,7 @@ import {
   DashboardMetrics,
   GymFeature,
 } from './types';
+import type { GymFeatureKey } from './constants';
 
 /**
  * Typed RPC client type is now derived in the web app directly:
@@ -58,6 +59,7 @@ export interface MemberLoginResponse {
 export interface MeResponse {
   user: SessionUser;
   gym?: Gym | null;
+  enabledFeatures: GymFeatureKey[];
 }
 
 // ==========================================

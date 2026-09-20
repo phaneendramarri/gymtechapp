@@ -153,7 +153,7 @@ export class ClassRepository {
     await this.db.delete(classSchedules).where(and(eq(classSchedules.gymId, gymId), eq(classSchedules.id, id)));
   }
 
-  async listBookings(gymId: number, scheduleId: number): Promise<ClassBooking[]> {
+  async listBookings(gymId: number, scheduleId: number, bookingDate?: string): Promise<ClassBooking[]> {
     const rows = await this.db
       .select({
         id: classBookings.id,
@@ -168,7 +168,15 @@ export class ClassRepository {
       })
       .from(classBookings)
       .innerJoin(members, eq(classBookings.memberId, members.id))
-      .where(and(eq(classBookings.gymId, gymId), eq(classBookings.scheduleId, scheduleId)))
+      .where(
+        and(
+          eq(classBookings.gymId, gymId),
+          eq(classBookings.scheduleId, scheduleId),
+          bookingDate !== undefined
+            ? sql`date(${classBookings.bookedAt}, 'unixepoch') = ${bookingDate}`
+            : sql`1=1`
+        )
+      )
       .orderBy(classBookings.bookedAt);
 
     return rows.map((r) => ({
@@ -184,8 +192,12 @@ export class ClassRepository {
     }));
   }
 
-  async bookClass(gymId: number, scheduleId: number, memberId: number): Promise<{ id: number; status: 'BOOKED' | 'WAITLIST' }> {
-    // Check current capacity
+  async bookClass(
+    gymId: number,
+    scheduleId: number,
+    memberId: number,
+    bookingDate?: string
+  ): Promise<{ id: number; bookingStatus: 'BOOKED' | 'WAITLIST' }> {
     const schedule = await this.db
       .select()
       .from(classSchedules)
@@ -194,38 +206,75 @@ export class ClassRepository {
 
     if (!schedule) throw new Error('Schedule not found');
 
+    // Tenant isolation: the booking FK references members.id only, so a
+    // cross-gym member id would otherwise be accepted silently.
+    const member = await this.db
+      .select({ id: members.id })
+      .from(members)
+      .where(and(eq(members.gymId, gymId), eq(members.id, memberId), sql`members.deleted_at IS NULL`))
+      .get();
+    if (!member) throw new Error('Member not found in this gym');
+
+    // Capacity is per occurrence: count confirmed bookings for this schedule on the same day.
+    const bookingDay = bookingDate ?? new Date().toISOString().slice(0, 10);
     const existingCount = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(classBookings)
-      .where(and(eq(classBookings.gymId, gymId), eq(classBookings.scheduleId, scheduleId), eq(classBookings.status, 'BOOKED')))
+      .where(
+        and(
+          eq(classBookings.gymId, gymId),
+          eq(classBookings.scheduleId, scheduleId),
+          eq(classBookings.status, 'BOOKED'),
+          sql`date(${classBookings.bookedAt}, 'unixepoch') = ${bookingDay}`
+        )
+      )
       .get();
 
     const bookedCount = existingCount?.count ?? 0;
-    const status = bookedCount >= schedule.maxCapacity ? 'WAITLIST' : 'BOOKED';
+    const bookingStatus = bookedCount >= schedule.maxCapacity ? 'WAITLIST' : 'BOOKED';
 
-    const now = Math.floor(Date.now() / 1000);
+    const bookedAt = Math.floor(new Date(`${bookingDay}T00:00:00Z`).getTime() / 1000);
+
+    // One active booking per member per schedule occurrence.
+    const duplicate = await this.db
+      .select({ id: classBookings.id })
+      .from(classBookings)
+      .where(
+        and(
+          eq(classBookings.gymId, gymId),
+          eq(classBookings.scheduleId, scheduleId),
+          eq(classBookings.memberId, memberId),
+          sql`${classBookings.status} IN ('BOOKED', 'WAITLIST')`,
+          sql`date(${classBookings.bookedAt}, 'unixepoch') = ${bookingDay}`
+        )
+      )
+      .get();
+    if (duplicate) throw new Error('Member is already booked for this class occurrence');
+
     const [inserted] = await this.db
       .insert(classBookings)
       .values({
         gymId,
         scheduleId,
         memberId,
-        status,
-        bookedAt: now,
+        status: bookingStatus,
+        bookedAt,
       })
       .returning({ id: classBookings.id });
 
-    return { id: inserted.id, status };
+    return { id: inserted.id, bookingStatus };
   }
 
   async updateBookingStatus(gymId: number, bookingId: number, status: 'ATTENDED' | 'CANCELLED' | 'NO_SHOW'): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
-    await this.db
+    const result = await this.db
       .update(classBookings)
       .set({
         status,
         ...(status === 'ATTENDED' && { attendedAt: now }),
       })
-      .where(and(eq(classBookings.gymId, gymId), eq(classBookings.id, bookingId)));
+      .where(and(eq(classBookings.gymId, gymId), eq(classBookings.id, bookingId)))
+      .returning({ id: classBookings.id });
+    if (result.length === 0) throw new Error('Booking not found');
   }
 }

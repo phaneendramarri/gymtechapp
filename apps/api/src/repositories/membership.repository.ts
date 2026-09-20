@@ -1,4 +1,4 @@
-import { eq, and, desc, isNull, lt } from 'drizzle-orm';
+import { eq, and, desc, gt, isNull, lt } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Membership } from '@gymtech/shared';
@@ -74,6 +74,30 @@ export class MembershipRepository {
     return rows[0] ?? null;
   }
 
+  /**
+   * The membership a walk-in dues payment should settle: the member's
+   * ACTIVE membership with outstanding dues (latest-ending first).
+   * Returns null when nothing is owed — the payment is then recorded
+   * standalone (advance / walk-in) without touching dues.
+   */
+  async findDueMembershipId(memberId: number): Promise<number | null> {
+    const rows = await this.db
+      .select({ id: memberships.id })
+      .from(memberships)
+      .where(
+        and(
+          eq(memberships.memberId, memberId),
+          eq(memberships.gymId, this.gymId),
+          eq(memberships.status, 'ACTIVE' as any),
+          isNull(memberships.deletedAt),
+          gt(memberships.dueAmountPaise, 0)
+        )
+      )
+      .orderBy(desc(memberships.endDate))
+      .limit(1);
+    return rows[0]?.id ?? null;
+  }
+
   async findById(id: number): Promise<Membership | null> {
     const rows = await this.db
       .select()
@@ -134,7 +158,10 @@ export class MembershipRepository {
     const target = now + days * 86400;
     const rows = await this.db
       .select({
-        id: memberships.id,
+        // `id` is consumed as the MEMBER id by DashboardService (ExpiringMember.id);
+        // the membership row id is exposed separately.
+        id: memberships.memberId,
+        membershipId: memberships.id,
         gymId: memberships.gymId,
         memberId: memberships.memberId,
         membershipPlanId: memberships.membershipPlanId,

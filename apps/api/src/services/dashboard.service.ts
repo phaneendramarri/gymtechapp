@@ -38,7 +38,7 @@ export class DashboardService {
     ] = await Promise.all([
       this.memberRepo.countActive(),
       this.attendanceRepo.countToday(),
-      isManager ? Promise.resolve({ monthlyRevenue: 0, pendingDues: 0 }) : this.paymentRepo.getSummaryMetrics(),
+      isManager ? Promise.resolve({ monthlyRevenue: 0, pendingDues: 0, monthlyCount: 0 }) : this.paymentRepo.getSummaryMetrics(),
       this.membershipRepo.getExpiringSoon(7),
       isManager ? Promise.resolve([]) : this.paymentRepo.list({ limit: 10 }),
       this.attendanceRepo.listToday(),
@@ -117,6 +117,7 @@ export class DashboardService {
       todayAttendance,
       monthlyRevenue: isManager ? 0 : paymentMetrics.monthlyRevenue,
       pendingDues: isManager ? 0 : paymentMetrics.pendingDues,
+      monthlyPayments: isManager ? 0 : (paymentMetrics as any).monthlyCount ?? 0,
       expiringSoon,
       recentPayments: isManager ? [] : (recentWithWhatsApp as any),
       todayCheckIns,

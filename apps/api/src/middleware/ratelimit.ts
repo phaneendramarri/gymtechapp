@@ -8,9 +8,18 @@
  * - In unit tests / non-KV environments: falls back to an in-memory Map.
  *
  * Route tiers:
- *   auth   – 5 attempts / 60 s   (login, forgot-password, reset-password)
- *   write  – 20 attempts / 60 s  (POST/PUT/PATCH on any endpoint)
- *   read   – 100 attempts / 60 s (GET / DELETE)
+ *   auth   – 10 attempts / 60 s  (login, forgot-password, reset-password)
+ *   write  – 120 attempts / 60 s (POST/PUT/PATCH on any endpoint)
+ *   read   – 600 attempts / 60 s (GET / HEAD / OPTIONS)
+ *
+ * The budgets are per IP, and a gym is a NAT'd workplace: front-desk staff,
+ * trainers on tablets and members on the guest Wi-Fi all leave through one
+ * public address. Tighter tiers (5/20/100) 429'd ordinary daily use — the
+ * dashboard alone fires a dozen reads per navigation, so two users clicking
+ * around exhausted the read budget inside a minute. These numbers still stop
+ * credential stuffing and scraping while leaving a shared gym IP usable.
+ * Brute-force protection for a single account is the progressive lockout in
+ * `lib/lockout.ts`, which is per account rather than per address.
  */
 
 import type { Context, MiddlewareHandler } from 'hono';
@@ -29,9 +38,9 @@ interface TierConfig {
 }
 
 const TIERS: Record<RateLimitTier, TierConfig> = {
-  auth:  { limit: 5,  windowSecs: 60  },
-  write: { limit: 20, windowSecs: 60  },
-  read:  { limit: 100, windowSecs: 60 },
+  auth:  { limit: 10,  windowSecs: 60 },
+  write: { limit: 120, windowSecs: 60 },
+  read:  { limit: 600, windowSecs: 60 },
 };
 
 export const RATELIMIT_KV = '__ratelimit_kv__' as const;

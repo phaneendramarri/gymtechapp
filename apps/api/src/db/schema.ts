@@ -1,10 +1,9 @@
 // filepath: apps/api/src/db/schema.ts
 /**
- * Drizzle schema — TypeScript mirror of the SQL baseline in `apps/api/migrations`.
+ * Drizzle schema — TypeScript mirror of the canonical SQL baseline in `apps/api/migrations/0000_init.sql`.
  *
- * This file describes the 17 tables that the application actually uses.
- * Tables with no routes/services/repositories behind them were removed as
- * part of the schema consolidation (see `0000_init.sql`).
+ * This file describes the 31 tables that the application uses across 7 cohesive domains.
+ * Tables with no routes/services/repositories behind them were removed.
  *
  * Conventions (kept invariant across the whole schema):
  *   - All money columns end in `_paise` (INTEGER paise; ₹1 = 100 paise).
@@ -507,6 +506,7 @@ export const classSchedules = sqliteTable('class_schedules', {
   gymIdUq: uniqueIndex('class_schedules_gym_id_unique').on(t.gymId, t.id),
   gymClassIdx: index('idx_class_schedules_gym_class').on(t.gymId, t.classId),
   gymDayIdx: index('idx_class_schedules_gym_day').on(t.gymId, t.dayOfWeek),
+  gymTrainerIdx: index('idx_class_schedules_gym_trainer').on(t.gymId, t.trainerUserId),
 }));
 
 // ============================================================
@@ -534,6 +534,8 @@ export const ptPackages = sqliteTable('pt_packages', {
   gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   memberId: integer('member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
   trainerUserId: integer('trainer_user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  /** Display name shown in the member portal; defaults keep pre-0003 rows valid. */
+  packageName: text('package_name').notNull().default('Personal Training'),
   totalSessions: integer('total_sessions').notNull(),
   completedSessions: integer('completed_sessions').notNull().default(0),
   pricePaise: integer('price_paise').notNull(),
@@ -694,23 +696,6 @@ export const lockerAllocations = sqliteTable('locker_allocations', {
   gymMemberIdx: index('idx_locker_allocations_gym_member').on(t.gymId, t.memberId),
 }));
 
-// ============================================================
-// 32. member_referrals (referral attribution)
-// ============================================================
-export const memberReferrals = sqliteTable('member_referrals', {
-  id: integer('id').primaryKey({ autoIncrement: true }),
-  gymId: integer('gym_id').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
-  referrerMemberId: integer('referrer_member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
-  referredMemberId: integer('referred_member_id').notNull().references(() => members.id, { onDelete: 'cascade' }),
-  rewardStatus: text('reward_status', { enum: ['PENDING', 'AWARDED', 'DISMISSED'] }).notNull().default('PENDING'),
-  rewardNotes: text('reward_notes'),
-  createdAt: integer('created_at').notNull(),
-}, (t) => ({
-  gymIdUq: uniqueIndex('member_referrals_gym_id_unique').on(t.gymId, t.id),
-  gymReferrerIdx: index('idx_member_referrals_gym_referrer').on(t.gymId, t.referrerMemberId),
-}));
-
-// ============================================================
 // Inferred row types
 // ============================================================
 export type PlatformAdmin = typeof platformAdmins.$inferSelect;
@@ -744,5 +729,4 @@ export type ExpenseCategoryRow = typeof expenseCategories.$inferSelect;
 export type ExpenseRow = typeof expenses.$inferSelect;
 export type LockerRow = typeof lockers.$inferSelect;
 export type LockerAllocationRow = typeof lockerAllocations.$inferSelect;
-export type MemberReferralRow = typeof memberReferrals.$inferSelect;
 

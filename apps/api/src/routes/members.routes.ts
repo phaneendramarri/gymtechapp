@@ -79,12 +79,14 @@ memberRoutes.post('/', requireGym, requireFeature('members'), requirePermission(
 
     if (parsed.data.email) {
       try {
+        const planRepo = new PlanRepository(ctx.env.DB, ctx.gymId!);
+        const plan = parsed.data.planId ? await planRepo.findById(parsed.data.planId) : null;
         const emailService = new EmailService(ctx.env);
         await emailService.sendWelcomeEmail({
           to: parsed.data.email,
           name: `${result.member.firstName} ${result.member.lastName || ''}`.trim(),
           gymName: tenant.gym.name, memberCode: result.member.memberCode,
-          planName: result.membership?.membershipPlanId ? String(result.membership.membershipPlanId) : 'Active Membership',
+          planName: plan?.name ?? 'Active Membership',
         });
       } catch (e: any) { console.warn('Welcome email failed:', e.message); }
     }
@@ -109,6 +111,23 @@ memberRoutes.post('/bulk-import', requireGym, requireFeature('members'), require
 }));
 
 // ----- Get by id -----
+// GET /api/members/lookup?identifier=MEM-1001 — code/phone/email → id for client-side pickers.
+// Exact-match over the whole table (not a capped list page), so lookups work regardless
+// of member count. Case-insensitive on member_code.
+memberRoutes.get('/lookup', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const identifier = (c.req.query('identifier') || '').trim();
+  if (!identifier) return jsonErr('identifier is required', 400);
+
+  const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
+  let member = await memberRepo.findByIdentifier(identifier);
+  if (!member && !/^\d+$/.test(identifier)) {
+    member = await memberRepo.findByIdentifier(identifier.toUpperCase());
+  }
+  if (!member) return jsonErr('Member not found', 404);
+  return jsonOk({ member: { id: member.id, memberCode: member.memberCode, firstName: member.firstName, lastName: member.lastName } });
+}));
+
 memberRoutes.get('/:id', requireGym, requireFeature('members'), requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: { name: string } };

@@ -17,7 +17,9 @@ import {
   isAccountLocked,
   nextLockoutSeconds,
 } from '../lib/lockout';
-import type { SessionUser, Gym, UserRole } from '@gymtech/shared';
+import type { SessionUser, Gym, GymFeatureKey, UserRole } from '@gymtech/shared';
+import { GYM_FEATURES } from '@gymtech/shared';
+import { parseEnabledFeatures } from '../lib/features';
 
 export class AuthService {
   private userRepo: UserRepository;
@@ -221,12 +223,15 @@ export class AuthService {
     }
   }
 
-  async getCurrentUser(user: SessionUser): Promise<{ user: SessionUser; gym?: Gym | null }> {
+  async getCurrentUser(user: SessionUser): Promise<{ user: SessionUser; gym?: Gym | null; enabledFeatures: GymFeatureKey[] }> {
     let gym: Gym | null = null;
+    let enabledFeatures: GymFeatureKey[] = [...GYM_FEATURES];
     if (user.gymId) {
       gym = await this.db.prepare(`SELECT * FROM gyms WHERE id = ? AND deleted_at IS NULL`).bind(user.gymId).first<Gym>();
+      const license = await this.db.prepare(`SELECT features FROM licenses WHERE gym_id = ? LIMIT 1`).bind(user.gymId).first<{ features: string | null }>();
+      enabledFeatures = parseEnabledFeatures(license?.features);
     }
-    return { user, gym };
+    return { user, gym, enabledFeatures };
   }
 
   async signMemberToken(member: { id: number; gymId: number; memberCode: string; phone: string; name: string }): Promise<{ token: string; jti: string }> {

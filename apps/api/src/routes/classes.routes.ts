@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
-import { requireGym, requirePermission } from '../middleware/auth';
+import { requireGym, requireFeature, requirePermission, requirePermissionOrMember } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
+import { isMemberSession } from '../lib/roles';
 import { safeHandler, paramId } from '../middleware/params';
 import { jsonOk, jsonErr, jsonValidationErr } from './helpers';
 import { ClassRepository } from '../repositories/class.repository';
@@ -9,7 +10,7 @@ import { CreateClassRequestSchema, UpdateClassRequestSchema, CreateScheduleReque
 export const classesRoutes = new Hono();
 
 // GET /api/classes — list group fitness classes
-classesRoutes.get('/', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+classesRoutes.get('/', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const repo = new ClassRepository(ctx.env.DB);
   const items = await repo.listClasses(ctx.gymId!);
@@ -17,7 +18,7 @@ classesRoutes.get('/', requireGym, requirePermission('classes'), safeHandler(asy
 }));
 
 // POST /api/classes — create a new class
-classesRoutes.post('/', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+classesRoutes.post('/', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreateClassRequestSchema.safeParse(body);
@@ -29,7 +30,7 @@ classesRoutes.post('/', requireGym, requirePermission('classes'), safeHandler(as
 }));
 
 // PUT /api/classes/:id — update class
-classesRoutes.put('/:id', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+classesRoutes.put('/:id', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -42,7 +43,7 @@ classesRoutes.put('/:id', requireGym, requirePermission('classes'), safeHandler(
 }));
 
 // DELETE /api/classes/:id — delete class
-classesRoutes.delete('/:id', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+classesRoutes.delete('/:id', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const repo = new ClassRepository(ctx.env.DB);
@@ -50,8 +51,10 @@ classesRoutes.delete('/:id', requireGym, requirePermission('classes'), safeHandl
   return jsonOk({ success: true });
 }));
 
-// GET /api/classes/schedules — list timetable schedules
-classesRoutes.get('/schedules', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+// GET /api/classes/schedules — list timetable schedules.
+// Readable by the member portal too (it is the gym's timetable, which the
+// portal's Classes tab displays); staff still need the `classes` permission.
+classesRoutes.get('/schedules', requireGym, requireFeature('classes'), requirePermissionOrMember('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const dayStr = c.req.query('dayOfWeek');
   const dayOfWeek = dayStr !== undefined ? parseInt(dayStr, 10) : undefined;
@@ -61,7 +64,7 @@ classesRoutes.get('/schedules', requireGym, requirePermission('classes'), safeHa
 }));
 
 // POST /api/classes/schedules — add class schedule slot
-classesRoutes.post('/schedules', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+classesRoutes.post('/schedules', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreateScheduleRequestSchema.safeParse(body);
@@ -73,7 +76,7 @@ classesRoutes.post('/schedules', requireGym, requirePermission('classes'), safeH
 }));
 
 // DELETE /api/classes/schedules/:id — delete class schedule slot
-classesRoutes.delete('/schedules/:id', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+classesRoutes.delete('/schedules/:id', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const repo = new ClassRepository(ctx.env.DB);
@@ -81,30 +84,59 @@ classesRoutes.delete('/schedules/:id', requireGym, requirePermission('classes'),
   return jsonOk({ success: true });
 }));
 
-// GET /api/classes/schedules/:id/bookings — get roster for a schedule
-classesRoutes.get('/schedules/:id/bookings', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+// GET /api/classes/bookings?scheduleId=&bookingDate= — roster for a schedule, optionally scoped to a day
+classesRoutes.get('/bookings', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const scheduleId = paramId(c.req.param() as Record<string, string>);
+  const scheduleIdStr = c.req.query('scheduleId');
+  const scheduleId = scheduleIdStr !== undefined ? parseInt(scheduleIdStr, 10) : NaN;
+  if (!Number.isInteger(scheduleId) || scheduleId <= 0) return jsonErr('scheduleId is required', 400);
+  const bookingDate = c.req.query('bookingDate') || undefined;
+
   const repo = new ClassRepository(ctx.env.DB);
-  const bookings = await repo.listBookings(ctx.gymId!, scheduleId);
+  const bookings = await repo.listBookings(ctx.gymId!, scheduleId, bookingDate);
   return jsonOk({ bookings });
 }));
 
-// POST /api/classes/schedules/:id/book — book member into class
-classesRoutes.post('/schedules/:id/book', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+// POST /api/classes/bookings — book a member into a class occurrence.
+// Two callers: the staff roster (any member, needs `classes`) and the member
+// portal (self only). A member session's `id` IS a `members.id`, so it is forced
+// into the payload — a member can never book or impersonate anyone else.
+classesRoutes.post('/bookings', requireGym, requireFeature('classes'), requirePermissionOrMember('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const scheduleId = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
-  const memberId = body.memberId ? parseInt(body.memberId, 10) : null;
-  if (!memberId) return jsonErr('Member ID is required', 400);
+  const payload = isMemberSession(ctx.user) ? { ...body, memberId: ctx.user!.id } : body;
+  const parsed = BookClassRequestSchema.safeParse(payload);
+  if (!parsed.success) return jsonValidationErr(parsed, 'Invalid booking payload');
 
   const repo = new ClassRepository(ctx.env.DB);
-  const result = await repo.bookClass(ctx.gymId!, scheduleId, memberId);
+  let result;
+  try {
+    result = await repo.bookClass(ctx.gymId!, parsed.data.scheduleId, parsed.data.memberId, parsed.data.bookingDate);
+  } catch (e: any) {
+    if (e.message === 'Schedule not found') return jsonErr('Class schedule not found', 404);
+    if (e.message === 'Member not found in this gym') return jsonErr('Member not found in this gym', 404);
+    if (e.message === 'Member is already booked for this class occurrence') return jsonErr('Member is already booked for this class occurrence', 409);
+    throw e;
+  }
   return jsonOk(result, 201);
 }));
 
-// PATCH /api/classes/bookings/:id — update booking attendance
-classesRoutes.patch('/bookings/:id', requireGym, requirePermission('classes'), safeHandler(async (c) => {
+// POST /api/classes/bookings/:id/cancel — cancel a booking
+classesRoutes.post('/bookings/:id/cancel', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
+  const ctx = getCtx(c);
+  const bookingId = paramId(c.req.param() as Record<string, string>);
+  const repo = new ClassRepository(ctx.env.DB);
+  try {
+    await repo.updateBookingStatus(ctx.gymId!, bookingId, 'CANCELLED');
+  } catch (e: any) {
+    if (e.message === 'Booking not found') return jsonErr('Booking not found', 404);
+    throw e;
+  }
+  return jsonOk({ success: true });
+}));
+
+// PATCH /api/classes/bookings/:id — mark attendance (ATTENDED / NO_SHOW)
+classesRoutes.patch('/bookings/:id', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const bookingId = paramId(c.req.param() as Record<string, string>);
   const body = await c.req.json().catch(() => ({}));
@@ -114,6 +146,11 @@ classesRoutes.patch('/bookings/:id', requireGym, requirePermission('classes'), s
   }
 
   const repo = new ClassRepository(ctx.env.DB);
-  await repo.updateBookingStatus(ctx.gymId!, bookingId, status);
+  try {
+    await repo.updateBookingStatus(ctx.gymId!, bookingId, status);
+  } catch (e: any) {
+    if (e.message === 'Booking not found') return jsonErr('Booking not found', 404);
+    throw e;
+  }
   return jsonOk({ success: true });
 }));

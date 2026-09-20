@@ -58,7 +58,7 @@ describe('auth — seeded credentials', () => {
     // Folding both cookies into one header (join(', ')) makes browsers keep only
     // the first one, which silently breaks the CSRF double-submit cookie.
     expect(raw).toHaveLength(2);
-    const names = raw.map((c) => c.split('=')[0].trim());
+    const names = raw.map((c) => c.split('=')[0]?.trim());
     expect(names).toContain('gym_token');
     expect(names).toContain('gym_csrf');
     expect(raw.some((c) => c.includes('gym_token') && c.includes('gym_csrf'))).toBe(false);
@@ -215,7 +215,7 @@ describe('auth — rate limit tiers are independent', () => {
     // Unknown email so the progressive account lockout is not triggered —
     // this test is about the limiter, not the lockout.
     const statuses: number[] = [];
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 11; i++) {
       const res = await client.post('/api/auth/login', {
         email: `nobody-${i}@example.com`,
         password: 'wrong-password',
@@ -223,8 +223,8 @@ describe('auth — rate limit tiers are independent', () => {
       statuses.push(res.status);
     }
 
-    expect(statuses.slice(0, 5)).toEqual([401, 401, 401, 401, 401]);
-    expect(statuses[5]).toBe(429);
+    expect(statuses.slice(0, 10)).toEqual(Array(10).fill(401));
+    expect(statuses[10]).toBe(429);
   });
 
   it('reports rate-limit headers', async () => {
@@ -234,7 +234,7 @@ describe('auth — rate limit tiers are independent', () => {
     const client = new ApiClient(env, ip);
     const res = await client.get('/api/auth/csrf');
 
-    expect(res.headers.get('X-RateLimit-Limit')).toBe('100');
+    expect(res.headers.get('X-RateLimit-Limit')).toBe('600');
     expect(res.headers.get('X-RateLimit-Remaining')).toBeTruthy();
   });
 });

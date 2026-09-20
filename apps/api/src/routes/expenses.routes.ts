@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { requireGym, requirePermission } from '../middleware/auth';
+import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { jsonOk, jsonValidationErr } from './helpers';
@@ -9,7 +9,7 @@ import { CreateExpenseCategoryRequestSchema, CreateExpenseRequestSchema } from '
 export const expensesRoutes = new Hono();
 
 // GET /api/expenses/categories — list expense categories
-expensesRoutes.get('/categories', requireGym, requirePermission('expenses'), safeHandler(async (c) => {
+expensesRoutes.get('/categories', requireGym, requireFeature('expenses'), requirePermission('expenses'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const repo = new ExpenseRepository(ctx.env.DB);
   const categories = await repo.listCategories(ctx.gymId!);
@@ -17,7 +17,7 @@ expensesRoutes.get('/categories', requireGym, requirePermission('expenses'), saf
 }));
 
 // POST /api/expenses/categories — create category
-expensesRoutes.post('/categories', requireGym, requirePermission('expenses'), safeHandler(async (c) => {
+expensesRoutes.post('/categories', requireGym, requireFeature('expenses'), requirePermission('expenses'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreateExpenseCategoryRequestSchema.safeParse(body);
@@ -29,7 +29,7 @@ expensesRoutes.post('/categories', requireGym, requirePermission('expenses'), sa
 }));
 
 // GET /api/expenses — list logged expenses
-expensesRoutes.get('/', requireGym, requirePermission('expenses'), safeHandler(async (c) => {
+expensesRoutes.get('/', requireGym, requireFeature('expenses'), requirePermission('expenses'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const fromDate = c.req.query('from');
   const toDate = c.req.query('to');
@@ -42,7 +42,7 @@ expensesRoutes.get('/', requireGym, requirePermission('expenses'), safeHandler(a
 }));
 
 // POST /api/expenses — record a new expense
-expensesRoutes.post('/', requireGym, requirePermission('expenses'), safeHandler(async (c) => {
+expensesRoutes.post('/', requireGym, requireFeature('expenses'), requirePermission('expenses'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CreateExpenseRequestSchema.safeParse(body);
@@ -57,7 +57,7 @@ expensesRoutes.post('/', requireGym, requirePermission('expenses'), safeHandler(
 }));
 
 // DELETE /api/expenses/:id — delete expense
-expensesRoutes.delete('/:id', requireGym, requirePermission('expenses'), safeHandler(async (c) => {
+expensesRoutes.delete('/:id', requireGym, requireFeature('expenses'), requirePermission('expenses'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const repo = new ExpenseRepository(ctx.env.DB);
@@ -65,14 +65,13 @@ expensesRoutes.delete('/:id', requireGym, requirePermission('expenses'), safeHan
   return jsonOk({ success: true });
 }));
 
-// GET /api/expenses/pnl — get Net Profit & Loss statement
-expensesRoutes.get('/pnl', requireGym, requirePermission('expenses'), safeHandler(async (c) => {
+// GET /api/expenses/pnl — Net Profit & Loss statement over an optional period
+expensesRoutes.get('/pnl', requireGym, requireFeature('expenses'), requirePermission('expenses'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const year = parseInt(c.req.query('year') || String(new Date().getFullYear()), 10);
-  const monthStr = c.req.query('month');
-  const month = monthStr ? parseInt(monthStr, 10) : undefined;
+  const fromDate = c.req.query('from') || undefined;
+  const toDate = c.req.query('to') || undefined;
 
   const repo = new ExpenseRepository(ctx.env.DB);
-  const pnl = await repo.getProfitAndLoss(ctx.gymId!, year, month);
+  const pnl = await repo.getProfitAndLoss(ctx.gymId!, fromDate, toDate);
   return jsonOk(pnl);
 }));

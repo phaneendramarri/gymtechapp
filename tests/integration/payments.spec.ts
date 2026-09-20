@@ -19,7 +19,7 @@ async function enroll(
   suffix: string
 ): Promise<{ memberId: number; planId: number; pricePaise: number }> {
   const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
-  const plan = plans.body.plans[0];
+  const plan = plans.body.plans[0]!;
   const created = await client.post<{ member: { id: number } }>('/api/members', {
     firstName: 'Pay',
     lastName: `Flow${suffix}`,

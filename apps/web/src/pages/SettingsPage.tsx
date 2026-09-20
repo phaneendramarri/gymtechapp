@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Building2,
@@ -51,8 +51,14 @@ export const SettingsPage: React.FC<{ defaultTab?: string }> = ({ defaultTab = '
   const [gymGst, setGymGst] = useState('');
   const [gymLogoUrl, setGymLogoUrl] = useState('');
 
+  // Populate the form exactly once, when the profile first arrives. Re-running
+  // on every refetch would wipe out in-progress user edits (the fetch that
+  // resolves after the user starts typing would clobber their input, and the
+  // subsequent save would persist stale values).
+  const profileSeededRef = useRef(false);
   useEffect(() => {
-    if (gymProfile) {
+    if (gymProfile && !profileSeededRef.current) {
+      profileSeededRef.current = true;
       setGymName(gymProfile.name || '');
       setGymPhone(gymProfile.phone || '');
       setGymEmail(gymProfile.email || '');
@@ -99,8 +105,12 @@ export const SettingsPage: React.FC<{ defaultTab?: string }> = ({ defaultTab = '
   const [receiptEnabled, setReceiptEnabled] = useState(true);
   const [expiryEnabled, setExpiryEnabled] = useState(true);
 
+  // Same once-only seeding as the profile form above: never overwrite
+  // in-progress edits when the query refetches after a save.
+  const notifSeededRef = useRef(false);
   useEffect(() => {
-    if (notifData) {
+    if (notifData && !notifSeededRef.current) {
+      notifSeededRef.current = true;
       setReminderDays(notifData.reminderDays ?? 7);
       setWelcomeEnabled(notifData.welcomeEnabled ?? true);
       setReceiptEnabled(notifData.receiptEnabled ?? true);

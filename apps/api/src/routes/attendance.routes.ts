@@ -18,8 +18,11 @@ attendanceRoutes.get('/', requireGym, requirePermission('attendance'), safeHandl
   return jsonOk({ logs: await attendanceRepo.listToday() });
 }));
 
-// Desk / Face ID Check-in
-attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), safeHandler(async (c) => {
+// Desk / Face ID Check-in.
+// Requires the `attendance` permission: the kiosk and desk terminals are staff
+// surfaces (the SPA guards /kiosk the same way), and without this any member
+// session could record its own attendance from anywhere.
+attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), requirePermission('attendance'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = CheckInRequestSchema.safeParse(body);

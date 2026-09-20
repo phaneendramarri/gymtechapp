@@ -492,10 +492,11 @@ export const NewMemberPage: React.FC = () => {
               </Button>
               <Button
                 type="submit"
-                disabled={isSubmitting}
+                disabled={isSubmitting || plansLoading || planId === undefined}
+                title={plansLoading ? 'Loading membership plans…' : undefined}
                 className="bg-ink text-(--ink-inverse) hover:bg-ink-2 font-bold text-sm h-11 px-8 shadow-sm"
               >
-                {isSubmitting ? 'Registering Member...' : 'Complete Member Registration'}
+                {isSubmitting ? 'Registering Member…' : plansLoading ? 'Loading plans…' : 'Complete Member Registration'}
               </Button>
             </div>
           </form>

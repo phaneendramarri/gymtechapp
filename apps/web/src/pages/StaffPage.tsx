@@ -173,10 +173,11 @@ export const StaffPage: React.FC = () => {
   const handleOpenCreateRole = () => {
     setEditingRole(null);
     setRoleName('');
-    const defaultItems = dbMenus.filter((m) => ['members', 'attendance', 'payments'].includes(m.key));
-    const initialItems = defaultItems.length > 0 ? defaultItems : dbMenus.slice(0, 3);
-    setRoleMenuItemIds(initialItems.map((m) => m.id));
-    setRolePerms(initialItems.map((m) => m.key));
+    // Start with no menus checked — the owner explicitly opts into each
+    // menu so new roles follow least-privilege (a members-only desk role
+    // must not silently gain attendance/payments access).
+    setRoleMenuItemIds([]);
+    setRolePerms([]);
     setError(null);
     setRoleDialogOpen(true);
   };

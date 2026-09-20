@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -128,40 +129,39 @@ export const ExpensesPage: React.FC = () => {
   const categories = categoriesData?.categories || [];
   const expenses = expensesData?.expenses || [];
 
-  const revenuePaise = plData?.revenuePaise || 0;
-  const expensePaise = plData?.expensePaise || 0;
-  const netProfitPaise = plData?.netProfitPaise || revenuePaise - expensePaise;
+  const revenue = plData?.revenuePaise ?? { memberships: 0, pt: 0, pos: 0, total: 0 };
+  const expensesPaise = plData?.expensesPaise ?? { byCategory: [], total: 0 };
+  const netProfitPaise = plData?.netProfitPaise ?? 0;
   const isProfitable = netProfitPaise >= 0;
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-(--ink)">Gym Expenses & P&L</h1>
-          <p className="text-sm text-(--ink-3)">
-            Track facility rent, trainer payouts, equipment maintenance, and view net operating profit.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
+    <AppShell
+      breadcrumb={[{ label: 'Gym Console', href: '/dashboard' }, { label: 'Expenses' }]}
+      title="Gym Expenses & P&L"
+      description="Track facility rent, trainer payouts, equipment maintenance, and view net operating profit."
+      actions={
+        <div className="flex items-center gap-2">
           <Button
             variant="outline"
             onClick={() => setIsCategoryModalOpen(true)}
             size="sm"
-            className="flex items-center gap-1.5"
+            className="h-8 gap-1.5 text-xs"
           >
-            <Tag className="w-4 h-4" />
+            <Tag className="w-3.5 h-3.5" />
             + Category
           </Button>
           <Button
             onClick={() => setIsExpenseModalOpen(true)}
-            className="bg-(--iron) text-(--white) hover:bg-(--iron-hover) flex items-center gap-2"
+            size="sm"
+            className="h-8 gap-1.5 text-xs font-semibold"
           >
-            <Plus className="w-4 h-4" />
+            <Plus className="w-3.5 h-3.5" />
             Log Expense
           </Button>
         </div>
-      </div>
+      }
+    >
+      <div className="space-y-6">
 
       {/* Date Filters Bar */}
       <div className="flex flex-wrap items-center gap-3 p-3 bg-(--surface) border border-(--border) rounded-xl">
@@ -212,7 +212,7 @@ export const ExpensesPage: React.FC = () => {
           <div>
             <span className="text-xs font-medium text-(--ink-3)">Total Collected Revenue</span>
             <h3 className="text-2xl font-bold text-(--ink) mt-1">
-              {formatCurrency(revenuePaise)}
+              {formatCurrency(revenue.total)}
             </h3>
             <span className="text-[11px] text-emerald-500 flex items-center gap-1 mt-1">
               <TrendingUp className="w-3.5 h-3.5" /> Memberships + POS
@@ -227,7 +227,7 @@ export const ExpensesPage: React.FC = () => {
           <div>
             <span className="text-xs font-medium text-(--ink-3)">Operating Expenses</span>
             <h3 className="text-2xl font-bold text-red-500 mt-1">
-              {formatCurrency(expensePaise)}
+              {formatCurrency(expensesPaise.total)}
             </h3>
             <span className="text-[11px] text-(--ink-3) flex items-center gap-1 mt-1">
               <TrendingDown className="w-3.5 h-3.5" /> Total Outflow
@@ -249,8 +249,8 @@ export const ExpensesPage: React.FC = () => {
               {formatCurrency(netProfitPaise)}
             </h3>
             <span className="text-[11px] text-(--ink-3) mt-1">
-              {revenuePaise > 0
-                ? `${Math.round((netProfitPaise / revenuePaise) * 100)}% Net Margin`
+              {revenue.total > 0
+                ? `${Math.round((netProfitPaise / revenue.total) * 100)}% Net Margin`
                 : 'P&L Statement'}
             </span>
           </div>
@@ -454,6 +454,7 @@ export const ExpensesPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AppShell>
   );
 };

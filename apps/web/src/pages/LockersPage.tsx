@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -54,16 +55,6 @@ export const LockersPage: React.FC = () => {
     queryFn: () => api.getLockers(gym?.id),
   });
 
-  const { data: allocationsData, refetch: refetchAllocations } = useQuery({
-    queryKey: ['lockerAllocations', gym?.id],
-    queryFn: () => api.getLockerAllocations('ACTIVE', gym?.id),
-  });
-
-  const { data: membersData } = useQuery({
-    queryKey: ['members-list-lockers', gym?.id],
-    queryFn: () => api.getMembers({ limit: 100 }),
-  });
-
   // Mutations
   const createLockerMutation = useMutation({
     mutationFn: (data: any) => api.createLocker(data, gym?.id),
@@ -80,7 +71,6 @@ export const LockersPage: React.FC = () => {
     mutationFn: (data: any) => api.allocateLocker(data, gym?.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lockers'] });
-      qc.invalidateQueries({ queryKey: ['lockerAllocations'] });
       setAllocatingLocker(null);
       setMemberCodeInput('');
       toast('success', 'Locker allocated to member!');
@@ -92,7 +82,6 @@ export const LockersPage: React.FC = () => {
     mutationFn: (allocationId: number) => api.releaseLocker(allocationId, gym?.id),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['lockers'] });
-      qc.invalidateQueries({ queryKey: ['lockerAllocations'] });
       toast('success', 'Locker released successfully');
     },
     onError: (err: any) => toast('error', err.message || 'Failed to release locker'),
@@ -107,33 +96,26 @@ export const LockersPage: React.FC = () => {
     });
   };
 
-  const handleAllocate = (e: React.FormEvent) => {
+  const handleAllocate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!allocatingLocker || !memberCodeInput.trim()) return;
 
-    const foundMember = membersData?.members?.find(
-      (m: any) =>
-        m.memberCode?.toLowerCase() === memberCodeInput.trim().toLowerCase() ||
-        String(m.id) === memberCodeInput.trim()
-    );
-
-    if (!foundMember) {
+    try {
+      const { member: foundMember } = await api.lookupMember(memberCodeInput.trim(), gym?.id);
+      allocateMutation.mutate({
+        lockerId: allocatingLocker.id,
+        memberId: foundMember.id,
+        startDate: allocStartDate,
+        endDate: allocEndDate,
+        depositPaise: Math.round(Number(allocDepositRupees || 0) * 100),
+        rentPaise: Math.round(Number(allocRentRupees || 0) * 100),
+      });
+    } catch {
       toast('error', 'Member not found with code: ' + memberCodeInput);
-      return;
     }
-
-    allocateMutation.mutate({
-      lockerId: allocatingLocker.id,
-      memberId: foundMember.id,
-      startDate: allocStartDate,
-      endDate: allocEndDate,
-      depositPaise: Math.round(Number(allocDepositRupees || 0) * 100),
-      rentPaise: Math.round(Number(allocRentRupees || 0) * 100),
-    });
   };
 
   const lockers = lockersData?.lockers || [];
-  const allocations = allocationsData?.allocations || [];
 
   // Derived stats
   const totalCount = lockers.length;
@@ -151,23 +133,22 @@ export const LockersPage: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6 pb-12">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-(--ink)">Locker Management</h1>
-          <p className="text-sm text-(--ink-3)">
-            Assign visual locker units to members, track security deposits, rental terms, and key handovers.
-          </p>
-        </div>
+    <AppShell
+      breadcrumb={[{ label: 'Gym Console', href: '/dashboard' }, { label: 'Lockers' }]}
+      title="Locker Management"
+      description="Assign visual locker units to members, track security deposits, rental terms, and key handovers."
+      actions={
         <Button
           onClick={() => setIsAddLockerOpen(true)}
-          className="bg-(--iron) text-(--white) hover:bg-(--iron-hover) flex items-center gap-2"
+          size="sm"
+          className="h-8 gap-1.5 text-xs font-semibold"
         >
-          <Plus className="w-4 h-4" />
+          <Plus className="w-3.5 h-3.5" />
           Add Locker Unit
         </Button>
-      </div>
+      }
+    >
+      <div className="space-y-6">
 
       {/* Stats Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -252,7 +233,7 @@ export const LockersPage: React.FC = () => {
           {filteredLockers.map((locker) => {
             const isAvailable = locker.status === 'AVAILABLE';
             const isOccupied = locker.status === 'OCCUPIED';
-            const currentAlloc = allocations.find((a) => a.lockerId === locker.id);
+            const currentAlloc = locker.currentAllocation;
 
             return (
               <div
@@ -454,6 +435,7 @@ export const LockersPage: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </AppShell>
   );
 };

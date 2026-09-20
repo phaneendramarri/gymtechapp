@@ -78,6 +78,22 @@ export class LockerRepository {
     data: { lockerId: number; memberId: number; startDate: string; endDate: string; depositPaise: number; rentPaise: number }
   ): Promise<number> {
     const now = Math.floor(Date.now() / 1000);
+
+    // Guard: refuse to double-book an already-occupied locker (the two-step
+    // insert-then-mark-occupied below is not atomic, so check explicitly).
+    const locker = await this.db
+      .select({ id: lockers.id, status: lockers.status })
+      .from(lockers)
+      .where(and(eq(lockers.gymId, gymId), eq(lockers.id, data.lockerId)))
+      .get();
+    if (!locker) throw new Error('Locker not found');
+    const active = await this.db
+      .select({ id: lockerAllocations.id })
+      .from(lockerAllocations)
+      .where(and(eq(lockerAllocations.gymId, gymId), eq(lockerAllocations.lockerId, data.lockerId), eq(lockerAllocations.status, 'ACTIVE')))
+      .get();
+    if (active) throw new Error('Locker is already occupied');
+
     const [alloc] = await this.db
       .insert(lockerAllocations)
       .values({

@@ -7,10 +7,12 @@ import {
   MemberLoginRequestSchema,
 } from '@gymtech/shared';
 import { MemberRepository } from '../repositories/member.repository';
+import { GymRepository } from '../repositories/gym.repository';
 import { AuthService } from '../services/auth.service';
 import { EmailService } from '../services/email.service';
 import { AuditService, extractClientInfo } from '../services/audit.service';
 import { verifyTurnstileToken, type TurnstileAppEnv } from '../lib/turnstile';
+import type { AppEnv } from '../app';
 import { hashPassword, hashOpaqueToken, verifyOpaqueToken } from '../lib/session';
 import {
   buildSessionCookie,
@@ -28,28 +30,51 @@ import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 
 export const authRoutes = new Hono();
 
+/**
+ * Run the Turnstile check for a password login and return the rejection
+ * `Response`, or `null` to continue.
+ *
+ * Development is exempt on purpose. The SPA is built in production mode — even
+ * for `pnpm dev` on the single Worker — so its widget carries the real site key,
+ * which a developer's local secret cannot verify. A strict check therefore
+ * rejected every local sign-in with "Bot verification failed", which reads as a
+ * wrong password and is impossible to diagnose from the UI. Staging and
+ * production always verify (and `verifyTurnstileToken` fails closed there).
+ */
+async function rejectFailedBotCheck(
+  env: AppEnv,
+  token: string | undefined,
+  ip: string | undefined,
+  action: string
+): Promise<Response | null> {
+  if (!token || !env.TURNSTILE_SECRET_KEY) return null;
+
+  const appEnv = (env.APP_ENV ?? 'production') as TurnstileAppEnv;
+  if (appEnv === 'development') {
+    console.warn('[turnstile] development environment — skipping bot verification');
+    return null;
+  }
+
+  const result = await verifyTurnstileToken(token, env.TURNSTILE_SECRET_KEY, ip, appEnv, {
+    expectedAction: action,
+    expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
+  });
+  return result.success ? null : jsonErr('Bot verification failed. Please try again.', 403);
+}
+
 authRoutes.post('/login', safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = LoginRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid credentials payload');
 
-  if (parsed.data.turnstileToken && ctx.env.TURNSTILE_SECRET_KEY) {
-    const ip = c.req.header('cf-connecting-ip') || undefined;
-    const result = await verifyTurnstileToken(
-      parsed.data.turnstileToken,
-      ctx.env.TURNSTILE_SECRET_KEY,
-      ip,
-      (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv,
-      {
-        expectedAction: 'login',
-        expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
-      }
-    );
-    if (!result.success) {
-      return jsonErr('Bot verification failed. Please try again.', 403);
-    }
-  }
+  const botCheck = await rejectFailedBotCheck(
+    ctx.env,
+    parsed.data.turnstileToken,
+    c.req.header('cf-connecting-ip'),
+    'login'
+  );
+  if (botCheck) return botCheck;
 
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const client = extractClientInfo(c.req.raw);
@@ -279,45 +304,29 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
   const parsed = MemberLoginRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid login details');
 
-  if (parsed.data.turnstileToken && ctx.env.TURNSTILE_SECRET_KEY) {
-    const ip = c.req.header('cf-connecting-ip') || undefined;
-    const result = await verifyTurnstileToken(
-      parsed.data.turnstileToken,
-      ctx.env.TURNSTILE_SECRET_KEY,
-      ip,
-      (ctx.env.APP_ENV ?? 'production') as TurnstileAppEnv,
-      {
-        expectedAction: 'member_login',
-        expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
-      }
-    );
-    if (!result.success) {
-      return jsonErr('Bot verification failed. Please try again.', 403);
-    }
-  }
+  const botCheck = await rejectFailedBotCheck(
+    ctx.env,
+    parsed.data.turnstileToken,
+    c.req.header('cf-connecting-ip'),
+    'member_login'
+  );
+  if (botCheck) return botCheck;
 
   const { gymSlug, identifier: ident, codeOrPin: code } = parsed.data;
   const trimIdent = ident.trim();
   const trimCode = code.trim();
 
   // Resolve gymId from gymSlug first so the member query is tenant-scoped.
-  const gymRow = await ctx.env.DB
-    .prepare(`SELECT id, name, slug FROM gyms WHERE slug = ? AND deleted_at IS NULL LIMIT 1`)
-    .bind(gymSlug)
-    .first<{ id: number; name: string; slug: string }>();
+  const gymRow = await new GymRepository(ctx.env.DB).findBySlug(gymSlug);
   if (!gymRow) return jsonErr('Invalid gym identifier', 400);
 
-  const member: any = await ctx.env.DB.prepare(`
-    SELECT m.*, g.name as gym_name, g.slug as gym_slug
-    FROM members m JOIN gyms g ON g.id = m.gym_id
-    WHERE m.gym_id = ? AND (m.member_code = ? OR m.phone = ? OR m.email = ?) AND m.deleted_at IS NULL
-    LIMIT 1
-  `).bind(gymRow.id, trimIdent, trimIdent, trimIdent).first();
+  const member: any = await new MemberRepository(ctx.env.DB, gymRow.id).findLoginRow(trimIdent);
 
   if (!member) return jsonErr('No member account found with this phone number or member code', 404);
 
   const memberCodeMatches = member.member_code.toUpperCase() === trimCode.toUpperCase();
-  const phoneMatches = member.phone.endsWith(trimCode) || member.phone === trimCode;
+  // phone can be NULL for portal-only imports; guard the endsWith probe.
+  const phoneMatches = (member.phone && (member.phone.endsWith(trimCode) || member.phone === trimCode)) || false;
   const identMatchesCode = member.member_code.toUpperCase() === trimIdent.toUpperCase();
 
   if (!memberCodeMatches && !phoneMatches && !identMatchesCode) {
@@ -338,7 +347,12 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
   return jsonOk(
     {
       token,
-      member,
+      member: {
+        id: member.id, gymId: member.gym_id, memberCode: member.member_code,
+        firstName: member.first_name, lastName: member.last_name,
+        email: member.email, phone: member.phone, photoUrl: member.photo_url,
+        status: member.status, joinedDate: member.joined_date,
+      },
       activeMembership: activeMembership || null,
       gym: { id: member.gym_id, name: member.gym_name, slug: member.gym_slug },
     },
@@ -365,26 +379,40 @@ authRoutes.get('/portal', safeHandler(async (c) => {
     return jsonErr('Invalid or expired member session', 401);
   }
 
-  const member: any = await ctx.env.DB.prepare(`
-    SELECT m.*, g.name as gym_name, g.address as gym_address, g.phone as gym_phone
-    FROM members m JOIN gyms g ON g.id = m.gym_id
-    WHERE m.id = ? AND m.deleted_at IS NULL
-  `).bind(session.userId).first();
+  const { member, memberships, payments, attendance } = await new MemberRepository(
+    ctx.env.DB,
+    session.gymId as number
+  ).getPortalRows(session.userId as number);
   if (!member) return jsonErr('Member record not found', 404);
 
-  const [memberships, payments, attendance] = await Promise.all([
-    ctx.env.DB.prepare(`SELECT ms.*, mp.name as plan_name, mp.duration_months FROM memberships ms LEFT JOIN membership_plans mp ON mp.id = ms.membership_plan_id WHERE ms.member_id = ? AND ms.gym_id = ? ORDER BY ms.end_date DESC`).bind(member.id, member.gym_id).all(),
-    ctx.env.DB.prepare(`SELECT * FROM payments WHERE member_id = ? AND gym_id = ? ORDER BY payment_date DESC LIMIT 20`).bind(member.id, member.gym_id).all(),
-    ctx.env.DB.prepare(`SELECT * FROM attendance WHERE member_id = ? AND gym_id = ? ORDER BY check_in_time DESC LIMIT 30`).bind(member.id, member.gym_id).all(),
-  ]);
-
-  const ms = (memberships.results || []) as any[];
+  // Map raw rows onto the camelCase contracts the portal renders — raw
+  // snake_case here meant every field on the portal page rendered blank.
+  const ms = (memberships as any[]).map((m: any) => ({
+    id: m.id, gymId: m.gym_id, memberId: m.member_id, membershipPlanId: m.membership_plan_id,
+    startDate: m.start_date, endDate: m.end_date,
+    totalAmountPaise: m.total_amount_paise, discountPaise: m.discount_paise,
+    finalAmountPaise: m.final_amount_paise, paidAmountPaise: m.paid_amount_paise,
+    dueAmountPaise: m.due_amount_paise, status: m.status, frozenAt: m.frozen_at,
+    notes: m.notes, planName: m.plan_name, durationMonths: m.duration_months,
+  }));
   const activeMembership = ms.find((m) => m.status === 'ACTIVE') || ms[0] || null;
 
   return jsonOk({
-    member, activeMembership, memberships: ms,
-    payments: payments.results || [],
-    attendance: attendance.results || [],
+    member: {
+      id: member.id, gymId: member.gym_id, memberCode: member.member_code,
+      firstName: member.first_name, lastName: member.last_name,
+      email: member.email, phone: member.phone, gender: member.gender,
+      photoUrl: member.photo_url, status: member.status, joinedDate: member.joined_date,
+    },
+    activeMembership,
+    memberships: ms,
+    payments: (payments as any[]).map((p: any) => ({
+      id: p.id, receiptNumber: p.receipt_number, amountPaise: p.amount_paise,
+      paymentDate: p.payment_date, paymentMode: p.payment_mode, status: p.status, notes: p.notes,
+    })),
+    attendance: (attendance as any[]).map((a: any) => ({
+      id: a.id, checkInTime: a.check_in_time, attendanceDate: a.attendance_date, method: a.method,
+    })),
     gym: { name: member.gym_name, address: member.gym_address, phone: member.gym_phone },
   });
 }));
