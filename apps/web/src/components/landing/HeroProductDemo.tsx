@@ -24,20 +24,7 @@ const STEPS = [
 
 const STEP_DURATION = 4500;
 
-/* ─── Ambient floating animation ─── */
-const floatVariant: Variants = {
-  initial: { y: 0, rotateX: 0 },
-  animate: {
-    y: [-8, 8, -8],
-    rotateX: [-0.5, 0.5, -0.5],
-    transition: { duration: 8, repeat: Infinity, ease: 'easeInOut' },
-  },
-};
-
-const platformVariant: Variants = {
-  initial: { opacity: 0, scale: 0.94, y: 20 },
-  animate: { opacity: 1, scale: 1, y: 0, transition: { duration: 0.7, ease: [0.16, 1, 0.3, 1] } },
-};
+/* (floatVariant / platformVariant removed — were defined but never applied) */
 
 /* ─── Content transition ─── */
 const contentVariants: Variants = {
@@ -295,20 +282,27 @@ export const HeroProductDemo: React.FC = () => {
           {/* URL pill */}
           <div className="flex-1 flex justify-center">
             <div
-              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-[11px] font-mono font-medium border"
+              className="flex items-center gap-2 px-4 py-1.5 rounded-xl text-[11px] font-mono font-medium border shadow-2xs"
               style={{
                 backgroundColor: 'var(--surface)',
                 borderColor: 'var(--line)',
                 color: 'var(--ink-2)',
               }}
             >
-              <span className="size-1.5 rounded-full" style={{ backgroundColor: '#22c55e', boxShadow: '0 0 0 3px rgba(34,197,94,0.15)' }} />
-              gymtech.app/admin
+              <span className="relative flex size-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-positive opacity-75" />
+                <span className="relative inline-flex size-2 rounded-full bg-positive shadow-[0_0_0_2px_var(--positive-soft)]" />
+              </span>
+              gymtech.app/owner
             </div>
           </div>
 
           {/* Synced badge */}
           <div className="flex items-center gap-1.5 shrink-0">
+            <span className="relative flex size-1.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-iron opacity-70" />
+              <span className="relative inline-flex size-1.5 rounded-full bg-iron" />
+            </span>
             <Activity size={11} style={{ color: 'var(--iron)' }} />
             <span className="text-[10px] font-mono font-semibold hidden sm:flex" style={{ color: 'var(--iron)' }}>Synced</span>
           </div>
@@ -317,7 +311,7 @@ export const HeroProductDemo: React.FC = () => {
         {/* Body */}
         <div className="relative flex" style={{ minHeight: 300 }}>
           {/* Left sidebar nav */}
-          <nav className="w-[136px] shrink-0 border-r border-line py-4 flex flex-col gap-1 px-2.5" style={{ backgroundColor: 'var(--surface-2)' }}>
+          <nav className="w-[136px] shrink-0 border-r border-line py-3 flex flex-col gap-1 px-2.5 relative" style={{ backgroundColor: 'var(--surface-2)' }}>
             {STEPS.map((step, idx) => {
               const Icon = step.icon;
               const isActive = activeStep === idx;
@@ -326,7 +320,9 @@ export const HeroProductDemo: React.FC = () => {
                   key={step.id}
                   type="button"
                   onClick={() => handleStepClick(idx)}
-                  className="group flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-left transition-all duration-200"
+                  className={`group relative flex items-center gap-2.5 w-full px-2.5 py-2 rounded-xl text-left transition-all duration-200 ${
+                    isActive ? 'bg-surface shadow-2xs font-semibold' : 'hover:bg-surface/50'
+                  }`}
                 >
                   <div
                     className="size-7 rounded-lg flex items-center justify-center shrink-0 transition-all duration-200"
@@ -338,24 +334,22 @@ export const HeroProductDemo: React.FC = () => {
                     <Icon size={12} strokeWidth={2} />
                   </div>
                   <span
-                    className="text-[11px] font-medium transition-colors duration-200"
-                    style={{ color: isActive ? 'var(--iron)' : 'var(--ink-3)' }}
+                    className="text-[11px] font-medium transition-colors duration-200 truncate flex-1"
+                    style={{ color: isActive ? 'var(--iron-text)' : 'var(--ink-3)' }}
                   >
                     {step.label}
                   </span>
+                  {isActive && (
+                    <motion.div
+                      layoutId="hero-active-step-bar"
+                      className="absolute -right-2.5 top-1.5 bottom-1.5 w-0.5 rounded-full"
+                      style={{ backgroundColor: 'var(--iron)' }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 35 }}
+                    />
+                  )}
                 </button>
               );
             })}
-
-            {/* Active indicator */}
-            <div className="relative flex-1">
-              <motion.div
-                className="absolute right-0 w-0.5 rounded-full"
-                style={{ backgroundColor: 'var(--iron)' }}
-                animate={{ top: `${activeStep * 52 + 14}px`, height: 24 }}
-                transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-              />
-            </div>
           </nav>
 
           {/* Content panel */}
@@ -372,20 +366,34 @@ export const HeroProductDemo: React.FC = () => {
               </motion.div>
             </AnimatePresence>
 
-            {/* Step dots */}
-            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {STEPS.map((_, idx) => (
-                <button
-                  key={idx}
-                  type="button"
-                  onClick={() => handleStepClick(idx)}
-                  className="h-1 rounded-full transition-all duration-300"
-                  style={{
-                    width: activeStep === idx ? 24 : 6,
-                    backgroundColor: activeStep === idx ? 'var(--iron)' : 'var(--line)',
-                  }}
-                />
-              ))}
+            {/* Step dots with smooth progress fill */}
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5">
+              {STEPS.map((_, idx) => {
+                const isActive = activeStep === idx;
+                return (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => handleStepClick(idx)}
+                    className="relative h-1.5 rounded-full overflow-hidden transition-all duration-300"
+                    style={{
+                      width: isActive ? 28 : 6,
+                      backgroundColor: isActive ? 'var(--iron-soft)' : 'var(--line)',
+                    }}
+                    aria-label={`Go to slide ${idx + 1}`}
+                  >
+                    {isActive && (
+                      <motion.div
+                        className="h-full rounded-full"
+                        style={{
+                          backgroundColor: 'var(--iron)',
+                          width: `${progress}%`,
+                        }}
+                      />
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

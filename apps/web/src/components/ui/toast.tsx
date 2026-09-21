@@ -61,15 +61,15 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   }, []);
 
   const icons: Record<ToastVariant, React.ReactNode> = {
-    success: <CheckCircle2 className="size-4 text-ok shrink-0" />,
-    error: <AlertCircle className="size-4 text-destructive shrink-0" />,
-    info: <Info className="size-4 text-primary shrink-0" />,
+    success: <CheckCircle2 className="size-4 text-positive shrink-0" />,
+    error: <AlertCircle className="size-4 text-danger shrink-0" />,
+    info: <Info className="size-4 text-info shrink-0" />,
   };
 
   const accent: Record<ToastVariant, string> = {
-    success: 'border-l-ok',
-    error: 'border-l-destructive',
-    info: 'border-l-primary',
+    success: 'border-l-positive',
+    error: 'border-l-danger',
+    info: 'border-l-info',
   };
 
   return (

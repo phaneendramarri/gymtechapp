@@ -193,7 +193,7 @@ export const DashboardPage: React.FC = () => {
               </h2>
               <p className="text-xs text-muted-foreground mt-1">
                 <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
-                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  <span className="size-1.5 rounded-full bg-positive animate-pulse" />
                   {todayCount} on the floor
                 </span>
                 {attentionItems.length > 0 ? (
@@ -261,7 +261,7 @@ export const DashboardPage: React.FC = () => {
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
                       {momGrowth !== null ? (
                         <>
-                          <span className={cn('font-semibold', momGrowth >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
+                          <span className={cn('font-semibold', momGrowth >= 0 ? 'text-positive' : 'text-warning')}>
                             {momGrowth >= 0 ? `+${momGrowth}%` : `${momGrowth}%`}
                           </span> vs last month
                         </>
@@ -289,7 +289,7 @@ export const DashboardPage: React.FC = () => {
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
                       {expiring.length > 0 ? (
                         <>
-                          <span className="text-amber-600 dark:text-amber-400 font-semibold">{expiring.length}</span> renewing in 7 days
+                          <span className="text-warning font-semibold">{expiring.length}</span> renewing in 7 days
                         </>
                       ) : (
                         <span className="text-muted-foreground">All memberships active</span>
@@ -313,7 +313,7 @@ export const DashboardPage: React.FC = () => {
                       +{todayCount}
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1 font-mono">
-                      <span className={cn('font-semibold', attendanceGrowth >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400')}>
+                      <span className={cn('font-semibold', attendanceGrowth >= 0 ? 'text-positive' : 'text-warning')}>
                         {attendanceGrowth >= 0 ? `+${attendanceGrowth}%` : `${attendanceGrowth}%`}
                       </span> vs 7-day average ({avgAttendance}/day)
                     </p>
@@ -475,9 +475,9 @@ export const DashboardPage: React.FC = () => {
 
                 <Link
                   to="/attendance"
-                  className="p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 transition-colors group flex items-start gap-3"
+                  className="p-4 rounded-xl border border-positive-border bg-positive-soft/40 hover:bg-positive-soft/70 transition-colors group flex items-start gap-3"
                 >
-                  <div className="p-2 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 shrink-0">
+                  <div className="p-2 rounded-lg bg-positive-soft text-positive shrink-0">
                     <Flame className="size-4" />
                   </div>
                   <div className="flex-1 min-w-0">
@@ -559,7 +559,7 @@ export const DashboardPage: React.FC = () => {
               <CardContent className="p-0 divide-y divide-border/60">
                 {expiring.length === 0 ? (
                   <div className="py-16 text-center text-xs text-muted-foreground">
-                    <CheckCircle2 className="size-8 text-emerald-500 mx-auto mb-2" />
+                    <CheckCircle2 className="size-8 text-positive mx-auto mb-2" />
                     All memberships are current. No renewals due this week.
                   </div>
                 ) : (
@@ -567,7 +567,7 @@ export const DashboardPage: React.FC = () => {
                     const due = (m.dueAmountPaise || 0) / 100;
                     return (
                       <div key={m.id} className="flex items-center gap-3.5 px-6 py-3.5 hover:bg-muted/30 transition-colors">
-                        <div className="size-9 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400 flex items-center justify-center text-xs font-bold shrink-0 border border-amber-500/20 font-mono">
+                        <div className="size-9 rounded-full bg-warning-soft text-warning flex items-center justify-center text-xs font-bold shrink-0 border border-warning-border font-mono">
                           {initials(m.firstName, m.lastName)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -588,7 +588,7 @@ export const DashboardPage: React.FC = () => {
                           href={m.whatsappUrl || `https://wa.me/91${m.phone}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="size-8 rounded-lg text-emerald-600 hover:bg-emerald-500/10 dark:text-emerald-400 flex items-center justify-center shrink-0 border border-emerald-500/20"
+                          className="size-8 rounded-lg text-positive hover:bg-positive-soft flex items-center justify-center shrink-0 border border-positive-border"
                           aria-label="Send WhatsApp"
                         >
                           <MessageCircle className="size-4" />

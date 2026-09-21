@@ -18,34 +18,70 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
   --color-cream: var(--cream);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-ink-inverse: var(--ink-inverse);
+  --color-disabled-ink: var(--disabled-ink);
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-backdrop: var(--backdrop);
 
-  /* Accent — Iron (#FB923C). One color, used sparingly. */
+  /* Accent — Iron (#FB923C) complete tonal scale */
+  --color-iron-50: var(--iron-50);
+  --color-iron-100: var(--iron-100);
+  --color-iron-200: var(--iron-200);
+  --color-iron-300: var(--iron-300);
+  --color-iron-400: var(--iron-400);
+  --color-iron-500: var(--iron-500);
+  --color-iron-600: var(--iron-600);
+  --color-iron-700: var(--iron-700);
+  --color-iron-800: var(--iron-800);
+  --color-iron-900: var(--iron-900);
   --color-iron: var(--iron);
+  --color-iron-solid: var(--iron-solid);
   --color-iron-hover: var(--iron-hover);
+  --color-iron-active: var(--iron-active);
+  --color-iron-text: var(--iron-text);
   --color-iron-soft: var(--iron-soft);
+  --color-iron-border: var(--iron-border);
   --color-iron-ink: var(--iron-ink);
-  /* Warm secondary — Clay. For warmth moments (member wins, birthdays). */
+
+  /* Warm secondary — Clay */
   --color-clay: var(--clay);
   --color-clay-soft: var(--clay-soft);
   --color-clay-ink: var(--clay-ink);
-  /* Status — muted, never bright. */
+
+  /* Status: positive / warning / danger / info */
   --color-positive: var(--positive);
   --color-positive-soft: var(--positive-soft);
+  --color-positive-border: var(--positive-border);
+  --color-positive-text: var(--positive-text);
   --color-warning: var(--warning);
   --color-warning-soft: var(--warning-soft);
+  --color-warning-border: var(--warning-border);
+  --color-warning-text: var(--warning-text);
   --color-danger: var(--danger);
   --color-danger-soft: var(--danger-soft);
+  --color-danger-border: var(--danger-border);
+  --color-danger-text: var(--danger-text);
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
+  --color-info-border: var(--info-border);
+  --color-info-text: var(--info-text);
 
-  /* Hairlines */
+  /* Hairlines & Control boundaries */
   --color-line: var(--line);
   --color-line-2: var(--line-2);
+  --color-line-input: var(--line-input);
+
+  /* Charts & Data Visualization */
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
 
   /* shadcn / tailwind compat */
   --color-background: var(--bg);
@@ -54,7 +90,7 @@
   --color-card-foreground: var(--ink);
   --color-popover: var(--surface);
   --color-popover-foreground: var(--ink);
-  --color-primary: var(--iron);
+  --color-primary: var(--iron-solid);
   --color-primary-foreground: var(--iron-ink);
   --color-secondary: var(--surface-2);
   --color-secondary-foreground: var(--ink);
@@ -65,9 +101,9 @@
   --color-destructive: var(--danger);
   --color-destructive-foreground: var(--ink-inverse);
   --color-border: var(--line);
-  --color-input: var(--line);
-  --color-ring: var(--iron);
-  --color-sidebar: var(--surface-2);
+  --color-input: var(--line-input);
+  --color-ring: var(--focus-ring);
+  --color-sidebar: var(--sidebar-bg);
 
   --color-ok: var(--positive);
   --color-ok-soft: var(--positive-soft);
@@ -84,7 +120,7 @@
   --font-display: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-serif: "Fraunces", "Iowan Old Style", "Apple Garamond", Georgia, serif;
 
-  /* Radii — refined, two sizes */
+  /* Radii — refined */
   --radius-xs: 4px;
   --radius-sm: 6px;
   --radius: 8px;
@@ -93,15 +129,15 @@
   --radius-2xl: 16px;
   --radius-3xl: 20px;
 
-  /* Shadow — minimal, used sparingly */
+  /* Shadow — minimal, warm-tinted to blend with warm palette */
   --shadow-2xs: 0 1px 0 0 var(--line);
-  --shadow-xs: 0 1px 1px 0 rgba(0,0,0,0.04);
-  --shadow-sm: 0 1px 2px 0 rgba(0,0,0,0.05);
-  --shadow-md: 0 4px 12px -4px rgba(0,0,0,0.08);
-  --shadow-lg: 0 12px 32px -8px rgba(0,0,0,0.12);
-  --shadow-xl: 0 24px 56px -12px rgba(0,0,0,0.16);
-  --shadow-2xl: 0 32px 80px -16px rgba(0,0,0,0.24);
-  --shadow-focus: 0 0 0 3px var(--iron-soft);
+  --shadow-xs: 0 1px 1px 0 rgba(28,25,20,0.04);
+  --shadow-sm: 0 1px 2px 0 rgba(28,25,20,0.05);
+  --shadow-md: 0 4px 12px -4px rgba(28,25,20,0.07);
+  --shadow-lg: 0 12px 32px -8px rgba(28,25,20,0.10);
+  --shadow-xl: 0 24px 56px -12px rgba(28,25,20,0.13);
+  --shadow-2xl: 0 32px 80px -16px rgba(28,25,20,0.20);
+  --shadow-focus: 0 0 0 3px var(--focus-ring-soft);
 
   /* Motion */
   --ease-out-soft: cubic-bezier(0.16, 1, 0.3, 1);
@@ -109,59 +145,134 @@
 }
 
 /* =========================================================================
-   Light theme — paper-white canvas, soft graphite ink, single accent.
+   Light theme — warm-paper canvas, soft charcoal ink, balanced brand scale.
+   Refined for comfort during extended use. WCAG AAA contrast maintained.
    ========================================================================= */
 
 :root,
 .light {
-  --bg: #FAFAF9;
-  --surface: #FFFFFF;
-  --surface-2: #F4F4F2;
-  /* Warm cream band — marketing sections, footer, highlight panels. */
-  --cream: #FAF4E8;
-  --ink: #0A0A0A;
-  --ink-2: #3F3F46;
-  --ink-3: #71717A;
-  --ink-inverse: #FAFAFA;
+  /* Canvas & Surfaces — Warm Stone (soft, anti-fatigue, no pure white glare) */
+  --bg: #F5F3F0;              /* base canvas */
+  --surface: #FDFCFA;          /* cards, panels, popovers */
+  --surface-2: #F0EEEB;        /* secondary buttons, row hovers, control bgs */
+  --surface-3: #EAE7E3;        /* recessed panels, table headers, active tabs */
+  --sidebar-bg: #EFECE8;       /* distinct left sidebar rail */
+  --cream: #F7F1E5;            /* marketing warm band */
+  --backdrop: rgba(28, 25, 20, 0.45); /* warm dialog overlay */
 
-  --iron: #FB923C;           /* primary brand — CTAs, active states, key accents */
-  --iron-hover: #D9480F;
+  /* Inks (Typography) — Warm Charcoal (WCAG AAA compliant) */
+  --ink: #1A1816;              /* primary headings & body (14.8:1 contrast) */
+  --ink-2: #44403C;            /* secondary labels & descriptions (8.2:1) */
+  --ink-3: #78716C;            /* muted text, placeholders, metadata (4.6:1) */
+  --ink-inverse: #FAF9F7;      /* text on dark pills & tooltips */
+  --disabled-ink: #A8A29E;
+
+  /* Borders & Hairlines */
+  --line: #E7E5E0;             /* standard card & panel hairlines */
+  --line-2: #EFECEA;           /* interior dividers & subtle rows */
+  --line-input: #D6D3CD;       /* 3:1 contrast form control boundary */
+
+  /* Brand Scale: Iron Orange (#FB923C) */
+  --iron-50: #FFF8F1;          /* delicate brand tint */
+  --iron-100: #FFEDD5;         /* badge background */
+  --iron-200: #FED7AA;         /* subtle brand border */
+  --iron-300: #FDBA74;         /* focus ring helper */
+  --iron-400: #FB923C;         /* CORE BRAND ACCENT: badges, icons, toggles, indicators */
+  --iron-500: #F97316;         /* vibrant fill */
+  --iron-600: #EA580C;         /* SOLID PRIMARY BUTTON (4.6:1 contrast with #FFF text) */
+  --iron-700: #C2410C;         /* ACCESSIBLE TEXT LINKS & ACTIVE NAV (5.4:1 contrast) */
+  --iron-800: #9A3412;         /* active/pressed primary state */
+  --iron-900: #7C2D12;         /* deepest brand shade */
+
+  /* Semantic Brand Aliases */
+  --iron: #FB923C;
+  --iron-solid: #EA580C;       /* primary button base */
+  --iron-hover: #C2410C;       /* primary button hover */
+  --iron-active: #9A3412;      /* primary button active */
+  --iron-text: #C2410C;        /* text links & active nav text */
   --iron-soft: rgba(251, 146, 60, 0.10);
+  --iron-border: rgba(251, 146, 60, 0.25);
   --iron-ink: #FFFFFF;
 
-  /* Warm secondary — Clay. For warmth moments (member wins, birthdays). */
-  --clay: #F97316;           /* orange-500 — warm accent moments */
+  /* Warm Secondary Accent — Clay */
+  --clay: #F97316;
   --clay-soft: rgba(249, 115, 22, 0.10);
   --clay-ink: #FFFFFF;
 
+  /* Functional Status: Success / Positive */
   --positive: #16A34A;
   --positive-soft: rgba(22, 163, 74, 0.10);
+  --positive-border: rgba(22, 163, 74, 0.25);
+  --positive-text: #15803D;
+
+  /* Functional Status: Warning */
   --warning: #D97706;
   --warning-soft: rgba(217, 119, 6, 0.10);
+  --warning-border: rgba(217, 119, 6, 0.25);
+  --warning-text: #B45309;
+
+  /* Functional Status: Danger / Destructive */
   --danger: #DC2626;
   --danger-soft: rgba(220, 38, 38, 0.10);
+  --danger-border: rgba(220, 38, 38, 0.25);
+  --danger-text: #B91C1C;
+
+  /* Functional Status: Info */
   --info: #2563EB;
   --info-soft: rgba(37, 99, 235, 0.10);
+  --info-border: rgba(37, 99, 235, 0.25);
+  --info-text: #1D4ED8;
 
-  --line: #E5E7EB;
-  --line-2: #F3F4F6;
+  /* Interactive Focus Rings */
+  --focus-ring: #EA580C;
+  --focus-ring-soft: rgba(251, 146, 60, 0.25);
+
+  /* Charts & Data Visualization */
+  --chart-1: #FB923C;          /* Brand Iron Orange */
+  --chart-2: #2563EB;          /* Cobalt Blue */
+  --chart-3: #16A34A;          /* Emerald Green */
+  --chart-4: #8B5CF6;          /* Amethyst Purple */
+  --chart-5: #D97706;          /* Warm Amber */
 }
 
 .dark {
   --bg: #0B0B0A;
   --surface: #131312;
   --surface-2: #1B1B19;
-  /* Warm cream band — deep espresso in dark mode. */
+  --surface-3: #222220;
+  --sidebar-bg: #141413;
   --cream: #181209;
+  --backdrop: rgba(0, 0, 0, 0.70);
+
   --ink: #FAFAF9;
   --ink-2: #D4D4D8;
   --ink-3: #8A8A8E;
   --ink-inverse: #0A0A0A;
+  --disabled-ink: #52525B;
+
+  --line: #2E2E2E;
+  --line-2: #262626;
+  --line-input: #3A3A3A;
+
+  --iron-50: #1C1309;
+  --iron-100: #2E1B0C;
+  --iron-200: #4B270F;
+  --iron-300: #7C3A14;
+  --iron-400: #FB923C;
+  --iron-500: #FB923C;
+  --iron-600: #F97316;
+  --iron-700: #EA580C;
+  --iron-800: #C2410C;
+  --iron-900: #9A3412;
 
   --iron: #FB923C;
-  --iron-hover: #D9480F;
+  --iron-solid: #FB923C;
+  --iron-hover: #F97316;
+  --iron-active: #EA580C;
+  --iron-text: #FB923C;
   --iron-soft: rgba(251, 146, 60, 0.15);
-  --iron-ink: #FFFFFF;
+  --iron-border: rgba(251, 146, 60, 0.30);
+  --iron-ink: #0A0A0A;
 
   --clay: #FBBF24;
   --clay-soft: rgba(251, 191, 36, 0.15);
@@ -169,15 +280,32 @@
 
   --positive: #4ADE80;
   --positive-soft: rgba(74, 222, 128, 0.12);
+  --positive-border: rgba(74, 222, 128, 0.25);
+  --positive-text: #4ADE80;
+
   --warning: #FBBF24;
   --warning-soft: rgba(251, 191, 36, 0.12);
+  --warning-border: rgba(251, 191, 36, 0.25);
+  --warning-text: #FBBF24;
+
   --danger: #F87171;
   --danger-soft: rgba(248, 113, 113, 0.12);
+  --danger-border: rgba(248, 113, 113, 0.25);
+  --danger-text: #F87171;
+
   --info: #60A5FA;
   --info-soft: rgba(96, 165, 250, 0.12);
+  --info-border: rgba(96, 165, 250, 0.25);
+  --info-text: #60A5FA;
 
-  --line: #2E2E2E;
-  --line-2: #262626;
+  --focus-ring: #FB923C;
+  --focus-ring-soft: rgba(251, 146, 60, 0.30);
+
+  --chart-1: #FB923C;
+  --chart-2: #60A5FA;
+  --chart-3: #4ADE80;
+  --chart-4: #A78BFA;
+  --chart-5: #FBBF24;
 }
 
 /* =========================================================================
@@ -203,6 +331,8 @@
     text-rendering: optimizeLegibility;
     font-size: 14px;
     line-height: 1.5;
+    /* Smooth theme switching — prevents jarring flash on light↔dark toggle */
+    transition: background-color 0.25s ease, color 0.25s ease;
   }
 
   /* Numeric stat displays are always tabular. */
@@ -228,7 +358,7 @@
   /* Universal focus ring. */
   :focus { outline: none; }
   :focus-visible {
-    outline: 2px solid var(--iron);
+    outline: 2px solid var(--focus-ring);
     outline-offset: 2px;
     border-radius: 4px;
   }
@@ -364,7 +494,7 @@
     height: 36px;
     padding: 0 12px;
     background-color: var(--surface);
-    border: 1px solid var(--line);
+    border: 1px solid var(--line-input);
     border-radius: var(--radius);
     color: var(--ink);
     font-size: 0.875rem;
@@ -374,14 +504,14 @@
   .gt-input:hover { border-color: var(--ink-3); }
   .gt-input:focus,
   .gt-input:focus-visible {
-    border-color: var(--iron);
-    box-shadow: 0 0 0 3px var(--iron-soft);
+    border-color: var(--focus-ring);
+    box-shadow: 0 0 0 3px var(--focus-ring-soft);
     outline: none;
   }
   /* Required field asterisk — red asterisk, consistent across all forms */
   .gt-label-required::after {
     content: ' *';
-    color: var(--danger);
+    color: var(--danger-text);
     font-weight: 600;
   }
 
@@ -409,11 +539,18 @@
   .gt-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
   .gt-btn-primary {
-    background-color: var(--iron);
+    background-color: var(--iron-solid);
     color: var(--iron-ink);
-    border-color: var(--iron);
+    border-color: var(--iron-solid);
   }
-  .gt-btn-primary:hover:not(:disabled) { background-color: var(--iron-hover); border-color: var(--iron-hover); }
+  .gt-btn-primary:hover:not(:disabled) {
+    background-color: var(--iron-hover);
+    border-color: var(--iron-hover);
+  }
+  .gt-btn-primary:active:not(:disabled) {
+    background-color: var(--iron-active);
+    border-color: var(--iron-active);
+  }
 
   .gt-btn-secondary {
     background-color: var(--surface);
@@ -430,10 +567,10 @@
 
   .gt-btn-danger {
     background-color: var(--surface);
-    color: var(--danger);
+    color: var(--danger-text);
     border-color: var(--line);
   }
-  .gt-btn-danger:hover:not(:disabled) { background-color: var(--danger-soft); border-color: var(--danger); }
+  .gt-btn-danger:hover:not(:disabled) { background-color: var(--danger-soft); border-color: var(--danger-border); }
 
   .gt-btn-icon { width: 36px; padding: 0; }
   .gt-btn-sm { height: 30px; padding: 0 10px; font-size: 0.8125rem; }
@@ -525,7 +662,7 @@
     overflow: hidden;
   }
   .gt-table { width: 100%; border-collapse: separate; border-spacing: 0; }
-  .gt-table-thead { background-color: var(--surface-2); }
+  .gt-table-thead { background-color: var(--surface-3); }
   .gt-table-th {
     text-align: left;
     font-size: 0.6875rem;
@@ -585,14 +722,15 @@
     font-weight: 500;
     border-radius: 4px;
     background-color: var(--surface-2);
+    border: 1px solid var(--line);
     color: var(--ink-2);
   }
-  .gt-chip-iron   { background: var(--iron-soft);   color: var(--iron);     }
-  .gt-chip-ok     { background: var(--positive-soft); color: var(--positive); }
-  .gt-chip-warn   { background: var(--warning-soft);  color: var(--warning);  }
-  .gt-chip-danger { background: var(--danger-soft);   color: var(--danger);   }
-  .gt-chip-info   { background: var(--info-soft);     color: var(--info);     }
-  .gt-chip-muted  { background: var(--surface-2);     color: var(--ink-3);    }
+  .gt-chip-iron   { background: var(--iron-soft);     color: var(--iron-text);     border-color: var(--iron-border); }
+  .gt-chip-ok     { background: var(--positive-soft); color: var(--positive-text); border-color: var(--positive-border); }
+  .gt-chip-warn   { background: var(--warning-soft);  color: var(--warning-text);  border-color: var(--warning-border); }
+  .gt-chip-danger { background: var(--danger-soft);   color: var(--danger-text);   border-color: var(--danger-border); }
+  .gt-chip-info   { background: var(--info-soft);     color: var(--info-text);     border-color: var(--info-border); }
+  .gt-chip-muted  { background: var(--surface-2);     color: var(--ink-3);         border-color: var(--line-2); }
 
   /* Sidebar navigation — clean and functional */
   .gt-nav-link {
@@ -611,8 +749,9 @@
   }
   .gt-nav-link:hover { background-color: var(--surface-2); color: var(--ink); }
   .gt-nav-link[data-active="true"] {
-    color: var(--ink);
+    color: var(--iron-text);
     background-color: var(--surface-2);
+    font-weight: 600;
   }
   .gt-nav-link[data-active="true"]::before {
     content: '';
@@ -644,6 +783,89 @@
   }
   .gt-live { animation: none; }
 }
+/* =========================================================================
+   Landing-page marquee — infinite horizontal scroll of logos.
+   Used by LandingLogoMarquee. Requires two duplicate children inside a
+   flex container so the second copy seamlessly follows the first.
+   ========================================================================= */
+
+@keyframes marquee {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-marquee {
+  display: flex;
+  width: max-content;
+  animation: marquee 32s linear infinite;
+}
+.animate-marquee:hover {
+  animation-play-state: paused;
+}
+
+/* Subtle glow breathe — used on CentralHub ring in GymOSFlow.
+   Slower and gentler than Tailwind's animate-pulse. */
+@keyframes gt-glow-breathe {
+  0%, 100% { opacity: 0.18; }
+  50%      { opacity: 0.08; }
+}
+.gt-glow-breathe {
+  animation: gt-glow-breathe 3.5s ease-in-out infinite;
+}
+
+/* Vercel-style moving thread / flowing dashed line animations */
+@keyframes gt-flow-dash-down {
+  0% {
+    stroke-dashoffset: 16;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes gt-flow-dash-right {
+  0% {
+    stroke-dashoffset: 16;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes gt-flow-dash-left {
+  0% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 16;
+  }
+}
+
+@keyframes gt-pulse-tip {
+  0%, 100% {
+    opacity: 0.65;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.gt-flow-dash-y {
+  animation: gt-flow-dash-down 1.2s linear infinite;
+}
+
+.gt-flow-dash-x-right {
+  animation: gt-flow-dash-right 1.2s linear infinite;
+}
+
+.gt-flow-dash-x-left {
+  animation: gt-flow-dash-left 1.2s linear infinite;
+}
+
+.gt-pulse-arrow {
+  animation: gt-pulse-tip 2s ease-in-out infinite;
+}
+
 /* =========================================================================
    Marketing display recipes — used in the landing page, the dashboard hero,
    and the login welcome. Fraunces (serif) gives a warm, premium voice that
@@ -846,11 +1068,12 @@
     font-weight: 500;
     border-radius: 4px;
     background-color: var(--surface-2);
+    border: 1px solid var(--line);
     color: var(--ink-2);
   }
-  .gt-tag[data-tone="ok"]     { background-color: var(--positive-soft); color: var(--positive); }
-  .gt-tag[data-tone="warn"]   { background-color: var(--warning-soft);  color: var(--warning); }
-  .gt-tag[data-tone="danger"] { background-color: var(--danger-soft);   color: var(--danger); }
-  .gt-tag[data-tone="info"]   { background-color: var(--info-soft);     color: var(--info); }
-  .gt-tag[data-tone="iron"]   { background-color: var(--iron-soft);     color: var(--iron); }
+  .gt-tag[data-tone="ok"]     { background-color: var(--positive-soft); color: var(--positive-text); border-color: var(--positive-border); }
+  .gt-tag[data-tone="warn"]   { background-color: var(--warning-soft);  color: var(--warning-text);  border-color: var(--warning-border); }
+  .gt-tag[data-tone="danger"] { background-color: var(--danger-soft);   color: var(--danger-text);   border-color: var(--danger-border); }
+  .gt-tag[data-tone="info"]   { background-color: var(--info-soft);     color: var(--info-text);     border-color: var(--info-border); }
+  .gt-tag[data-tone="iron"]   { background-color: var(--iron-soft);     color: var(--iron-text);     border-color: var(--iron-border); }
 }

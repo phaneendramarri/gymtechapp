@@ -111,7 +111,7 @@ export const FooterSection: React.FC = () => {
           <div className="flex items-center gap-6">
             <a href="/privacy" className="hover:text-iron transition-colors">Privacy Policy</a>
             <a href="/terms" className="hover:text-iron transition-colors">Terms of Service</a>
-            <a href="/security" className="hover:text-foreground transition-colors">Security</a>
+            <a href="/security" className="hover:text-iron transition-colors">Security</a>
           </div>
         </div>
       </div>

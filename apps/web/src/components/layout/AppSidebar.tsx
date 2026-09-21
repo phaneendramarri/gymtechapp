@@ -143,7 +143,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         className={cn(
           'group relative flex items-center gap-3 rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring select-none active:scale-[0.99]',
           active
-            ? 'bg-primary/10 text-primary font-semibold shadow-[inset_0_0_0_1px_var(--iron-soft)] dark:bg-primary/20'
+            ? 'bg-primary/10 text-(--iron-text) dark:text-primary font-semibold shadow-[inset_0_0_0_1px_var(--iron-soft)] dark:bg-primary/20'
             : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
           collapsedMode ? 'h-9 w-9 justify-center px-0 mx-auto' : 'h-9 px-3 w-full'
         )}
@@ -151,12 +151,12 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         <item.icon
           className={cn(
             'h-4 w-4 shrink-0 transition-transform duration-200 group-hover:scale-105',
-            active ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground'
+            active ? 'text-(--iron-text) dark:text-primary' : 'text-muted-foreground group-hover:text-foreground'
           )}
         />
         {!collapsedMode && <span className="truncate flex-1">{item.label}</span>}
         {!collapsedMode && item.badge && (
-          <span className="ml-auto text-[10px] bg-primary/15 text-primary rounded-full px-1.5 py-0.5 font-mono">
+          <span className="ml-auto text-[10px] bg-primary/15 text-(--iron-text) dark:text-primary rounded-full px-1.5 py-0.5 font-mono">
             {item.badge}
           </span>
         )}

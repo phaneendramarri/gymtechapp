@@ -28,42 +28,186 @@ const NODES: NodeDef[] = [
   { id: 'reports', label: 'Reports', sublabel: 'revenue, dues, exports', icon: BarChart3, accent: '#FB923C', metric: '97%', unit: 'collected' },
 ];
 
-/* ─── Animated SVG connecting line ─── */
-const AnimatedLine: React.FC<{ x1: number; y1: number; x2: number; y2: number; delay: number }> = ({
-  x1, y1, x2, y2, delay,
+/* ─── Vercel-style Animated Flow Arrow / Moving Thread ─── */
+interface FlowArrowProps {
+  direction?: 'down' | 'right' | 'left';
+  length?: number;
+  className?: string;
+  delay?: number;
+}
+
+const AnimatedFlowArrow: React.FC<FlowArrowProps> = ({
+  direction = 'down',
+  length = 42,
+  className = '',
+  delay = 0,
 }) => {
-  const controls = useAnimation();
-  const ref = useRef<SVGLineElement>(null);
-  const inView = useInView(ref, { once: true });
+  const id = React.useId();
+  const filterId = `beam-glow-${id.replace(/[^a-zA-Z0-9]/g, '')}`;
 
-  useEffect(() => {
-    if (!inView) return;
-    controls.start({
-      pathLength: [0, 1],
-      opacity: [0, 1],
-      transition: { pathLength: { duration: 1.2, delay, ease: 'easeInOut' }, opacity: { duration: 0.1 } },
-    });
-  }, [inView, controls, delay]);
+  if (direction === 'down') {
+    return (
+      <div className={`relative flex flex-col items-center justify-center ${className}`}>
+        <svg
+          width="24"
+          height={length}
+          viewBox={`0 0 24 ${length}`}
+          className="overflow-visible text-iron"
+          aria-hidden="true"
+        >
+          <defs>
+            <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
+              <feGaussianBlur stdDeviation="2" result="glow" />
+              <feMerge>
+                <feMergeNode in="glow" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
 
+          {/* Static background dashed guide */}
+          <line
+            x1="12"
+            y1="0"
+            x2="12"
+            y2={length - 8}
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeOpacity="0.25"
+            strokeDasharray="4 3"
+          />
+
+          {/* Animated flowing dashed thread (Vercel moving threads effect) */}
+          <line
+            x1="12"
+            y1="0"
+            x2="12"
+            y2={length - 8}
+            stroke="currentColor"
+            strokeWidth="1.5"
+            strokeDasharray="6 4"
+            strokeOpacity="0.85"
+            className="gt-flow-dash-y"
+          />
+
+          {/* Travelling light pulse / packet */}
+          <circle
+            cx="12"
+            cy="0"
+            r="2.5"
+            fill="var(--iron)"
+            filter={`url(#${filterId})`}
+          >
+            <animate
+              attributeName="cy"
+              values={`0;${length - 8}`}
+              dur="1.8s"
+              begin={`${delay}s`}
+              repeatCount="indefinite"
+            />
+            <animate
+              attributeName="opacity"
+              values="0;0.95;0.95;0"
+              keyTimes="0;0.15;0.85;1"
+              dur="1.8s"
+              begin={`${delay}s`}
+              repeatCount="indefinite"
+            />
+          </circle>
+
+          {/* Arrowhead */}
+          <polygon
+            points={`12,${length} 7.5,${length - 7.5} 16.5,${length - 7.5}`}
+            fill="currentColor"
+            className="gt-pulse-arrow"
+          />
+        </svg>
+      </div>
+    );
+  }
+
+  const isRight = direction === 'right';
   return (
-    <svg
-      className="absolute inset-0 w-full h-full pointer-events-none"
-      style={{ overflow: 'visible' }}
-    >
-      <line
-        x1={`${x1}%`} y1={`${y1}%`} x2={`${x2}%`} y2={`${y2}%`}
-        stroke="url(#line-gradient)"
-        strokeWidth="1.5"
-        strokeDasharray="6 4"
-        strokeOpacity="0.5"
-      />
-      <defs>
-        <linearGradient id="line-gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#FB923C" />
-          <stop offset="100%" stopColor="#FB923C" />
-        </linearGradient>
-      </defs>
-    </svg>
+    <div className={`relative flex items-center justify-center ${className}`}>
+      <svg
+        width={length}
+        height="24"
+        viewBox={`0 0 ${length} 24`}
+        className="overflow-visible text-iron"
+        aria-hidden="true"
+      >
+        <defs>
+          <filter id={filterId} x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="2" result="glow" />
+            <feMerge>
+              <feMergeNode in="glow" />
+              <feMergeNode in="SourceGraphic" />
+            </feMerge>
+          </filter>
+        </defs>
+
+        {/* Static background dashed guide */}
+        <line
+          x1={isRight ? 0 : length}
+          y1="12"
+          x2={isRight ? length - 8 : 8}
+          y2="12"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeOpacity="0.25"
+          strokeDasharray="4 3"
+        />
+
+        {/* Animated flowing dashed thread */}
+        <line
+          x1={isRight ? 0 : length}
+          y1="12"
+          x2={isRight ? length - 8 : 8}
+          y2="12"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeDasharray="6 4"
+          strokeOpacity="0.85"
+          className={isRight ? 'gt-flow-dash-x-right' : 'gt-flow-dash-x-left'}
+        />
+
+        {/* Travelling light pulse / packet */}
+        <circle
+          cx={isRight ? 0 : length}
+          cy="12"
+          r="2.5"
+          fill="var(--iron)"
+          filter={`url(#${filterId})`}
+        >
+          <animate
+            attributeName="cx"
+            values={isRight ? `0;${length - 8}` : `${length};8`}
+            dur="1.8s"
+            begin={`${delay}s`}
+            repeatCount="indefinite"
+          />
+          <animate
+            attributeName="opacity"
+            values="0;0.95;0.95;0"
+            keyTimes="0;0.15;0.85;1"
+            dur="1.8s"
+            begin={`${delay}s`}
+            repeatCount="indefinite"
+          />
+        </circle>
+
+        {/* Arrowhead */}
+        <polygon
+          points={
+            isRight
+              ? `${length},12 ${length - 7.5},7.5 ${length - 7.5},16.5`
+              : `0,12 7.5,7.5 7.5,16.5`
+          }
+          fill="currentColor"
+          className="gt-pulse-arrow"
+        />
+      </svg>
+    </div>
   );
 };
 
@@ -81,12 +225,17 @@ const ModuleNode: React.FC<{ node: NodeDef; index: number; delay: number }> = ({
       transition={{ duration: 0.5, delay, ease: [0.16, 1, 0.3, 1] }}
       className="group relative flex flex-col items-center text-center gap-3 p-5 rounded-2xl border border-line bg-surface hover:border-iron/40 hover:shadow-lg hover:shadow-iron/8 transition-all duration-300 cursor-default"
     >
-      {/* Status dot */}
-      <span
-        className="absolute -top-1 -right-1 size-2.5 rounded-full"
-        aria-hidden="true"
-        style={{ backgroundColor: node.accent, boxShadow: `0 0 0 3px ${node.accent}26` }}
-      />
+      {/* Status dot with pulsing live ripple */}
+      <span className="absolute -top-1 -right-1 flex size-2.5" aria-hidden="true">
+        <span
+          className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-65"
+          style={{ backgroundColor: node.accent }}
+        />
+        <span
+          className="relative inline-flex size-2.5 rounded-full"
+          style={{ backgroundColor: node.accent, boxShadow: `0 0 0 3px ${node.accent}26` }}
+        />
+      </span>
 
       {/* Icon circle */}
       <div
@@ -137,7 +286,7 @@ const CentralHub: React.FC = () => {
     >
       {/* Animated ring */}
       <span
-        className="absolute inset-0 rounded-2xl animate-pulse opacity-20"
+        className="absolute inset-0 rounded-2xl gt-glow-breathe"
         style={{ boxShadow: '0 0 32px 8px rgba(251,146,60,0.3)' }}
       />
 
@@ -157,9 +306,12 @@ const CentralHub: React.FC = () => {
         </p>
       </div>
 
-      {/* Live indicator */}
+      {/* Live indicator with pulsing radar */}
       <div className="flex items-center gap-1.5">
-        <span className="size-1.5 rounded-full bg-emerald-400 shadow-[0_0_0_3px_rgba(52,211,153,0.2)]" />
+        <span className="relative flex size-2">
+          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-positive opacity-75" />
+          <span className="relative inline-flex size-2 rounded-full bg-positive shadow-[0_0_0_2px_var(--positive-soft)]" />
+        </span>
         <span className="text-[9px] font-mono" style={{ color: 'rgba(255,255,255,0.4)' }}>Live</span>
       </div>
     </motion.div>
@@ -185,69 +337,57 @@ export const GymOSFlow: React.FC = () => {
         {/* Connected graph layout */}
         <div className="relative max-w-4xl mx-auto">
 
-          {/* SVG connector lines (behind the cards) */}
-          <svg
-            className="absolute inset-0 w-full h-full pointer-events-none hidden lg:block"
-            style={{ overflow: 'visible', zIndex: 0 }}
-          >
-            <defs>
-              <linearGradient id="lg-left" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#FB923C" stopOpacity="0.6" />
-                <stop offset="100%" stopColor="#FB923C" stopOpacity="0.2" />
-              </linearGradient>
-              <linearGradient id="lg-right" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#FB923C" stopOpacity="0.2" />
-                <stop offset="100%" stopColor="#FB923C" stopOpacity="0.6" />
-              </linearGradient>
-            </defs>
-          </svg>
-
           {/* Row 1: Members → Hub → Memberships */}
-          <div className="relative grid grid-cols-3 gap-4 items-center mb-4">
+          <div className="relative grid grid-cols-3 gap-4 items-center mb-2">
             <ModuleNode node={NODES[0]} index={0} delay={0.05} />
             <CentralHub />
             <ModuleNode node={NODES[1]} index={1} delay={0.1} />
           </div>
 
-          {/* Connector arrows */}
-          <div className="relative grid grid-cols-3 gap-4 items-center mb-4">
-            {/* Dashed lines going down */}
-            <div className="col-start-1 flex justify-end">
-              <svg width="20" height="40" className="text-iron/40">
-                <line x1="10" y1="0" x2="10" y2="40" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 3" />
-                <polygon points="10,40 6,32 14,32" fill="currentColor" />
-              </svg>
+          {/* Connector arrows — flowing down to Row 2 */}
+          <div className="relative grid grid-cols-3 gap-4 items-center my-2">
+            {/* Dashed flowing line going down from Members */}
+            <div className="col-start-1 flex justify-center">
+              <AnimatedFlowArrow direction="down" length={44} delay={0} />
             </div>
-            <div />
-            <div className="col-start-3 flex justify-start">
-              <svg width="20" height="40" className="text-orange-400/40">
-                <line x1="10" y1="0" x2="10" y2="40" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 3" />
-                <polygon points="10,40 6,32 14,32" fill="currentColor" />
-              </svg>
+            {/* Center flowing down from Hub to middle pipeline */}
+            <div className="col-start-2 flex justify-center">
+              <AnimatedFlowArrow direction="down" length={44} delay={0.3} />
+            </div>
+            {/* Dashed flowing line going down from Memberships */}
+            <div className="col-start-3 flex justify-center">
+              <AnimatedFlowArrow direction="down" length={44} delay={0.6} />
             </div>
           </div>
 
-          {/* Row 2: Billing ← Hub → Attendance */}
-          <div className="relative grid grid-cols-3 gap-4 items-center mb-4">
+          {/* Row 2: Billing ← Sync Pipeline → Attendance */}
+          <div className="relative grid grid-cols-3 gap-4 items-center mb-2">
             <ModuleNode node={NODES[2]} index={2} delay={0.15} />
-            <div /> {/* Hub already rendered above — but we want hub in center row 1 */}
+            {/* Central real-time sync node */}
+            <div className="flex flex-col items-center justify-center p-3 rounded-2xl border border-line bg-surface-2/70 text-center gap-1.5 shadow-2xs">
+              <div className="flex items-center gap-1.5 text-[11px] font-mono font-semibold text-iron">
+                <span className="relative flex size-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-iron opacity-75" />
+                  <span className="relative inline-flex size-2 rounded-full bg-iron" />
+                </span>
+                <span>Auto-Sync Pipeline</span>
+              </div>
+              <p className="text-[10px] text-ink-3">Instant automated reconciliation</p>
+            </div>
             <ModuleNode node={NODES[3]} index={3} delay={0.2} />
           </div>
 
-          {/* Connector down from hub */}
-          <div className="relative grid grid-cols-3 gap-4 items-center">
+          {/* Connector down to Reports */}
+          <div className="relative grid grid-cols-3 gap-4 items-center my-2">
             <div />
-            <div className="flex flex-col items-center">
-              <svg width="20" height="40" className="text-iron/40">
-                <line x1="10" y1="0" x2="10" y2="40" stroke="currentColor" strokeWidth="1.5" strokeDasharray="4 3" />
-                <polygon points="10,40 6,32 14,32" fill="currentColor" />
-              </svg>
+            <div className="flex flex-col items-center justify-center">
+              <AnimatedFlowArrow direction="down" length={44} delay={0.4} />
             </div>
             <div />
           </div>
 
           {/* Row 3: Reports — centered below hub */}
-          <div className="relative grid grid-cols-3 gap-4 items-center mt-4">
+          <div className="relative grid grid-cols-3 gap-4 items-center mt-2">
             <div />
             <ModuleNode node={NODES[4]} index={4} delay={0.25} />
             <div />

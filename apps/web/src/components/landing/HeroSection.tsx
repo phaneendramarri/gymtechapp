@@ -49,7 +49,10 @@ export const HeroSection: React.FC = () => {
       {/* ── Eyebrow ── */}
       <motion.div {...fadeUp(0)} className="relative mb-8">
         <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-line bg-surface text-[11px] font-semibold text-ink-2 tracking-wide shadow-sm">
-            <span className="size-2 rounded-full bg-iron shadow-[0_0_0_3px_var(--iron-soft)]" />
+          <span className="relative flex size-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-iron opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-iron shadow-[0_0_0_2px_var(--iron-soft)]" />
+          </span>
           Built for gyms across India
         </span>
       </motion.div>
