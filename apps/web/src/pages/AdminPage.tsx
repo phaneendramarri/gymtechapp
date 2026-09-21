@@ -14,6 +14,7 @@ import {
   Smartphone,
   MessageCircle,
   Save,
+  Send,
   Eye,
   EyeOff,
   Sliders,
@@ -49,7 +50,7 @@ import { GymCrudTab } from '@/components/admin/GymCrudTab';
 import { api } from '@/lib/api';
 import { formatCurrency } from '@/lib/utils';
 import type { PlatformCommunicationsConfig, SmtpSettings, GymFeatureKey } from '@gymtech/shared';
-import { GYM_FEATURES, GYM_FEATURE_LABELS } from '@gymtech/shared';
+import { GYM_FEATURES, GYM_FEATURE_LABELS, ALL_FEATURES_ENABLED_JSON } from '@gymtech/shared';
 
 const DEFAULT_SMTP: SmtpSettings = {
   enabled: false,
@@ -63,17 +64,41 @@ const DEFAULT_SMTP: SmtpSettings = {
   fromEmail: 'notifications@gymtech.app',
 };
 
-const DEFAULT_GATEWAYS: PlatformCommunicationsConfig = {
-  smtp: DEFAULT_SMTP,
+/** Fill a possibly-partial MSG91 block (server JSON, no defaults guaranteed). */
+function normalizeMsg91(src: Record<string, unknown>): NonNullable<PlatformCommunicationsConfig['msg91']> {
+  const s = (v: unknown, fb: string) => (typeof v === 'string' && v !== '' ? v : fb);
+  return {
+    enabled: (src as any)?.enabled === true,
+    authKey: s((src as any)?.authKey, ''),
+    senderId: s((src as any)?.senderId, 'GYMTEC'),
+    emailFrom: s((src as any)?.emailFrom, ''),
+    waNumber: s((src as any)?.waNumber, ''),
+    smsFlowId: s((src as any)?.smsFlowId, ''),
+    whatsappTemplate: s((src as any)?.whatsappTemplate, ''),
+    whatsappLanguage: s((src as any)?.whatsappLanguage, 'en'),
+  };
+}
+
+const DEFAULT_GATEWAYS: PlatformCommunicationsConfig = {  smtp: DEFAULT_SMTP,
+  msg91: {
+    enabled: false,
+    authKey: '',
+    senderId: 'GYMTEC',
+    emailFrom: '',
+    waNumber: '',
+    smsFlowId: '',
+    whatsappTemplate: '',
+    whatsappLanguage: 'en',
+  },
   smsGateway: {
     enabled: false,
-    provider: 'FAST2SMS',
+    provider: 'MSG91',
     apiKey: '',
-    senderId: 'GYMTC',
+    senderId: 'GYMTEC',
   },
   whatsappGateway: {
     enabled: false,
-    provider: 'META_CLOUD_API',
+    provider: 'MSG91',
     accessToken: '',
     phoneNumberId: '',
     businessAccountId: '',
@@ -108,11 +133,19 @@ export const AdminPage: React.FC = () => {
   const [commsConfig, setCommsConfig] = useState<PlatformCommunicationsConfig>(DEFAULT_GATEWAYS);
   const [showSmsKey, setShowSmsKey] = useState(false);
   const [showWaToken, setShowWaToken] = useState(false);
+  const [showMsg91Key, setShowMsg91Key] = useState(false);
+
+  const setMsg91 = (patch: Partial<NonNullable<PlatformCommunicationsConfig['msg91']>>) =>
+    setCommsConfig({
+      ...commsConfig,
+      msg91: normalizeMsg91({ ...(commsConfig.msg91 || {}), ...patch }),
+    });
 
   useEffect(() => {
     if (commsData?.config) {
       setCommsConfig({
         smtp: commsData.config.smtp || DEFAULT_SMTP,
+        msg91: normalizeMsg91(commsData.config.msg91 || {}),
         smsGateway: commsData.config.smsGateway || DEFAULT_GATEWAYS.smsGateway,
         whatsappGateway: commsData.config.whatsappGateway || DEFAULT_GATEWAYS.whatsappGateway,
       });
@@ -419,7 +452,9 @@ export const AdminPage: React.FC = () => {
         maxOwners,
         maxManagers,
         maxStaffTotal,
-        features: '{}',
+        // New gyms start with every module enabled; the platform admin can
+        // narrow the set afterwards via the per-gym feature toggles.
+        features: ALL_FEATURES_ENABLED_JSON,
         durationDays,
       });
 
@@ -856,6 +891,107 @@ export const AdminPage: React.FC = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* 0. MSG91 — one account for Email + SMS + WhatsApp (recommended) */}
+            <Card className="border-primary/30 shadow-xs lg:col-span-2">
+              <CardHeader className="pb-3 border-b border-border flex flex-row items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  <div className="h-8 w-8 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
+                    <Send className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-bold">MSG91 — Email, SMS & WhatsApp</CardTitle>
+                    <CardDescription className="text-xs">
+                      One auth key powers welcome mail, password resets, receipts, reminders, and OTPs. Channels stay off until you enable them here.
+                    </CardDescription>
+                  </div>
+                </div>
+                <Switch
+                  checked={commsConfig.msg91?.enabled ?? false}
+                  onCheckedChange={(enabled) => setMsg91({ enabled })}
+                  aria-label="Toggle MSG91 provider"
+                />
+              </CardHeader>
+              <CardContent className="pt-4 grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div className="space-y-1.5 sm:col-span-2">
+                  <Label className="text-xs font-semibold">MSG91 Auth Key</Label>
+                  <div className="relative">
+                    <Input
+                      type={showMsg91Key ? 'text' : 'password'}
+                      placeholder="Paste from MSG91 panel → API keys"
+                      value={commsConfig.msg91?.authKey || ''}
+                      onChange={(e) => setMsg91({ authKey: e.target.value })}
+                      className="text-xs font-mono pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowMsg91Key(!showMsg91Key)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showMsg91Key ? 'Hide auth key' : 'Show auth key'}
+                    >
+                      {showMsg91Key ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Prefer the <span className="font-mono">MSG91_AUTH_KEY</span> server secret for production; this field overrides it when filled.</p>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">SMS Sender ID</Label>
+                  <Input
+                    placeholder="GYMTEC"
+                    maxLength={6}
+                    value={commsConfig.msg91?.senderId || ''}
+                    onChange={(e) => setMsg91({ senderId: e.target.value.toUpperCase() })}
+                    className="text-xs font-mono uppercase"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Email Sender</Label>
+                  <Input
+                    placeholder="GymTech <hello@yourdomain.com>"
+                    value={commsConfig.msg91?.emailFrom || ''}
+                    onChange={(e) => setMsg91({ emailFrom: e.target.value })}
+                    className="text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">SMS Flow ID</Label>
+                  <Input
+                    placeholder="Approved flow, e.g. 64f…"
+                    value={commsConfig.msg91?.smsFlowId || ''}
+                    onChange={(e) => setMsg91({ smsFlowId: e.target.value.trim() })}
+                    className="text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">WhatsApp Business Number</Label>
+                  <Input
+                    placeholder="919876543210"
+                    value={commsConfig.msg91?.waNumber || ''}
+                    onChange={(e) => setMsg91({ waNumber: e.target.value.replace(/\D/g, '') })}
+                    className="text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">WhatsApp Template Name</Label>
+                  <Input
+                    placeholder="e.g. gym_receipt"
+                    value={commsConfig.msg91?.whatsappTemplate || ''}
+                    onChange={(e) => setMsg91({ whatsappTemplate: e.target.value.trim() })}
+                    className="text-xs font-mono"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold">Template Language</Label>
+                  <Input
+                    placeholder="en"
+                    maxLength={5}
+                    value={commsConfig.msg91?.whatsappLanguage || 'en'}
+                    onChange={(e) => setMsg91({ whatsappLanguage: e.target.value.trim() || 'en' })}
+                    className="text-xs font-mono"
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
             {/* 1. Global SMTP Email Relay */}
             <div className="space-y-4 lg:col-span-2">
               <SmtpConfigBlock
@@ -1018,6 +1154,7 @@ export const AdminPage: React.FC = () => {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="META_CLOUD_API">Meta WhatsApp Cloud API (Direct)</SelectItem>
+                      <SelectItem value="MSG91">MSG91 WhatsApp (Recommended)</SelectItem>
                       <SelectItem value="TWILIO">Twilio for WhatsApp</SelectItem>
                       <SelectItem value="GUPSHUP">Gupshup Enterprise</SelectItem>
                       <SelectItem value="CUSTOM">Custom Webhook</SelectItem>

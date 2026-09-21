@@ -44,7 +44,7 @@ export const LogoIcon: React.FC<{
           className={
             variant === 'monochrome'
               ? 'fill-current opacity-70'
-              : 'fill-[var(--iron,#D9480F)]'
+              : 'fill-[var(--iron,#FB923C)]'
           }
           fillRule="evenodd"
         >

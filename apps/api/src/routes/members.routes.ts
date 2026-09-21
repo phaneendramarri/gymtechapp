@@ -18,7 +18,8 @@ import { LicenseService } from '../services/license.service';
 import { EmailService } from '../services/email.service';
 import { auditGymFromCtx } from '../services/audit.service';
 import { encryptFaceEmbedding } from '../lib/crypto';
-import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated, toSafeErrorMessage } from './helpers';
+import { loadPlatformMsg91 } from '../lib/msg91';
 
 export const memberRoutes = new Hono();
 
@@ -81,7 +82,7 @@ memberRoutes.post('/', requireGym, requireFeature('members'), requirePermission(
       try {
         const planRepo = new PlanRepository(ctx.env.DB, ctx.gymId!);
         const plan = parsed.data.planId ? await planRepo.findById(parsed.data.planId) : null;
-        const emailService = new EmailService(ctx.env);
+        const emailService = new EmailService(ctx.env, await loadPlatformMsg91(ctx.env.DB));
         await emailService.sendWelcomeEmail({
           to: parsed.data.email,
           name: `${result.member.firstName} ${result.member.lastName || ''}`.trim(),
@@ -92,7 +93,7 @@ memberRoutes.post('/', requireGym, requireFeature('members'), requirePermission(
     }
 
     return jsonOk(result, 201);
-  } catch (e: any) { return jsonErr(e.message, 400); }
+  } catch (e: any) { return jsonErr(toSafeErrorMessage(e, 'Could not complete the member operation.'), 400); }
 }));
 
 // ----- Bulk import -----
@@ -135,7 +136,7 @@ memberRoutes.get('/:id', requireGym, requireFeature('members'), requirePermissio
   const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id, tenant.gym.name, ctx.env as unknown as Record<string, string | undefined>);
   try {
     return jsonOk(await memberService.getMemberDetails(id));
-  } catch (e: any) { return jsonErr(e.message, 404); }
+  } catch (e: any) { return jsonErr(toSafeErrorMessage(e, 'Member not found.'), 404); }
 }));
 
 // ----- Update -----
@@ -237,7 +238,7 @@ memberRoutes.get('/:id/export', requireGym, requireFeature('members'), requirePe
       attendance: details.attendance,
     };
     return c.json(exportData, 200);
-  } catch (e: any) { return jsonErr(e.message, 404); }
+  } catch (e: any) { return jsonErr(toSafeErrorMessage(e, 'Member not found.'), 404); }
 }));
 
 // ----- Restore -----
@@ -279,7 +280,7 @@ memberRoutes.post('/:id/renew', requireGym, requireFeature('members'), requirePe
     });
     await auditGym(ctx, 'membership.renew', 'membership', result.membershipId, { after: { planId: parsed.data.planId, memberId: id } });
     return jsonOk(result);
-  } catch (e: any) { return jsonErr(e.message, 400); }
+  } catch (e: any) { return jsonErr(toSafeErrorMessage(e, 'Could not complete the member operation.'), 400); }
 }));
 
 // ----- Freeze -----
@@ -299,7 +300,7 @@ memberRoutes.post('/:id/freeze', requireGym, requireFeature('members'), requireP
     if (e.message === 'Membership is already frozen') return jsonErr('Membership is already frozen', 409);
     if (e.message === 'Cancelled memberships cannot be frozen') return jsonErr('Cancelled memberships cannot be frozen', 409);
     if (e.message === 'Only members with an active membership can be frozen') return jsonErr('Only members with an active membership can be frozen', 409);
-    return jsonErr(e.message, 400);
+    return jsonErr(toSafeErrorMessage(e, 'Could not complete the member operation.'), 400);
   }
 }));
 
@@ -318,6 +319,6 @@ memberRoutes.post('/:id/unfreeze', requireGym, requireFeature('members'), requir
   } catch (e: any) {
     if (e.message === 'Member not found') return jsonErr('Member not found', 404);
     if (e.message === 'Membership is not currently frozen') return jsonErr('Membership is not currently frozen', 409);
-    return jsonErr(e.message, 400);
+    return jsonErr(toSafeErrorMessage(e, 'Could not complete the member operation.'), 400);
   }
 }));

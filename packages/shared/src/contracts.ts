@@ -11,6 +11,12 @@ import {
   GymFeature,
 } from './types';
 import type { GymFeatureKey } from './constants';
+import { GYM_FEATURES } from './constants';
+
+/** Licenses for newly provisioned gyms enable every module by default. */
+export const ALL_FEATURES_ENABLED_JSON = JSON.stringify(
+  Object.fromEntries(GYM_FEATURES.map((k) => [k, true]))
+);
 
 /**
  * Typed RPC client type is now derived in the web app directly:
@@ -281,7 +287,11 @@ export const CreateGymRequestSchema = z.object({
   maxOwners: z.number().int().min(0).default(1),
   maxManagers: z.number().int().min(0).default(2),
   maxStaffTotal: z.number().int().min(0).default(5),
-  features: z.string().default('{}'),
+  // New gyms start will ALL modules enabled. The previous default ('{}')
+  // combined with the secure-deny feature parser meant every provisioned gym
+  // silently lost classes/POS/expenses/lockers/audit-logs until an admin
+  // manually toggled each flag on.
+  features: z.string().default(ALL_FEATURES_ENABLED_JSON),
   durationDays: z.number().int().min(1).default(30),
   ownerName: z.string().min(1, 'Owner name is required'),
   ownerEmail: z.string().email('Valid email required'),
@@ -421,7 +431,7 @@ export type SettlePtCommissionRequest = z.infer<typeof SettlePtCommissionRequest
 
 export const SmtpSettingsSchema = z.object({
   enabled: z.boolean().default(false),
-  provider: z.enum(['CUSTOM', 'GMAIL', 'SENDGRID', 'AWS_SES', 'BREVO', 'RESEND']).default('CUSTOM'),
+  provider: z.enum(['CUSTOM', 'GMAIL', 'SENDGRID', 'AWS_SES', 'BREVO', 'RESEND', 'MSG91']).default('CUSTOM'),
   host: z.string().optional().default(''),
   port: z.number().int().min(1).max(65535).optional().default(587),
   secure: z.boolean().default(false), // true = SSL (465), false = TLS/STARTTLS (587)
@@ -439,8 +449,26 @@ export const TestSmtpRequestSchema = z.object({
 export type TestSmtpRequest = z.infer<typeof TestSmtpRequestSchema>;
 
 // Super-Admin Platform Communications & Gateway Configuration
+//
+// MSG91 is the recommended all-in-one provider (SMS + WhatsApp + Email).
+// The `msg91` block holds MSG91-specific settings; per-channel `provider`
+// fields select it ('MSG91'). Everything is optional so previously saved
+// configs keep parsing unchanged.
+export const Msg91SettingsSchema = z.object({
+  enabled: z.boolean().default(false),
+  authKey: z.string().optional().default(''),
+  senderId: z.string().optional().default('GYMTEC'),
+  emailFrom: z.string().optional().default(''),
+  waNumber: z.string().optional().default(''),
+  smsFlowId: z.string().optional().default(''),
+  whatsappTemplate: z.string().optional().default(''),
+  whatsappLanguage: z.string().optional().default('en'),
+});
+export type Msg91Settings = z.infer<typeof Msg91SettingsSchema>;
+
 export const PlatformCommunicationsConfigSchema = z.object({
   smtp: SmtpSettingsSchema.optional(),
+  msg91: Msg91SettingsSchema.optional(),
   smsGateway: z.object({
     enabled: z.boolean().default(false),
     provider: z.enum(['FAST2SMS', 'TWILIO', 'MSG91', 'CUSTOM']).default('FAST2SMS'),
@@ -449,7 +477,7 @@ export const PlatformCommunicationsConfigSchema = z.object({
   }).optional(),
   whatsappGateway: z.object({
     enabled: z.boolean().default(false),
-    provider: z.enum(['META_CLOUD_API', 'TWILIO', 'GUPSHUP', 'CUSTOM']).default('META_CLOUD_API'),
+    provider: z.enum(['META_CLOUD_API', 'TWILIO', 'GUPSHUP', 'MSG91', 'CUSTOM']).default('META_CLOUD_API'),
     accessToken: z.string().optional().default(''),
     phoneNumberId: z.string().optional().default(''),
     businessAccountId: z.string().optional().default(''),

@@ -5,14 +5,14 @@
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="description" content="GymTech — Gym management software for Indian gyms. Members, memberships, payments, attendance, staff, reports, and member portal in one clean platform." />
-    <meta name="theme-color" content="#F57C00" />
+    <meta name="theme-color" content="#FB923C" />
 
     <!-- Open Graph -->
     <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://gymtech.in/" />
+    <meta property="og:url" content="https://gymtech.app/" />
     <meta property="og:title" content="GymTech — Gym Management Software" />
     <meta property="og:description" content="Complete gym management platform for Indian gyms. Manage members, memberships, payments, attendance, staff, reports, and member portal in one clean platform." />
-    <meta property="og:image" content="https://gymtech.in/og-image.png" />
+    <meta property="og:image" content="https://gymtech.app/og-image.png" />
     <meta property="og:site_name" content="GymTech" />
 
     <!-- Twitter Card -->
@@ -20,39 +20,54 @@
     <meta name="twitter:site" content="@gymtech" />
     <meta name="twitter:title" content="GymTech — Gym Management Software" />
     <meta name="twitter:description" content="Complete gym management platform for Indian gyms." />
-    <meta name="twitter:image" content="https://gymtech.in/og-image.png" />
+    <meta name="twitter:image" content="https://gymtech.app/og-image.png" />
 
     <title>GymTech — Gym Management Software</title>
+    <script>
+      // Apply the saved app theme before first paint so the boot splash
+      // and the app never flash the wrong theme. Mirrors lib/theme.tsx.
+      try {
+        var __t = localStorage.getItem('gymtech_theme') || 'light';
+        if (__t === 'dark' || (__t === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+          document.documentElement.classList.add('dark');
+        }
+      } catch (e) {}
+    </script>
     <style>
-      /* Boot splash — paints instantly before the JS bundle loads so the
-         user never stares at a blank page. Removed by main.tsx on mount. */
+      /* Boot splash — mirrors the RouteSplash loader (logo, sliding bar,
+         one-line message) so full page loads show the same branded
+         loader as in-app route transitions. Removed by main.tsx on mount. */
       #boot {
         position: fixed; inset: 0; z-index: 9999;
         display: flex; flex-direction: column; align-items: center; justify-content: center;
-        gap: 14px; background: #FAFAF9; color: #0A0A0A;
+        gap: 16px; background: #FAFAF9; color: #0A0A0A;
         font-family: Inter, -apple-system, "Segoe UI", sans-serif;
+        transition: opacity 0.25s ease;
       }
-      #boot .boot-mark {
-        width: 44px; height: 44px; border-radius: 12px;
-        background: #D9480F; color: #fff;
-        display: flex; align-items: center; justify-content: center;
-        font-weight: 800; font-size: 20px; letter-spacing: -0.02em;
-      }
-      #boot .boot-name { font-weight: 700; font-size: 15px; letter-spacing: -0.01em; }
-      #boot .boot-msg { font-size: 12px; color: #71717A; }
-      #boot .boot-bar { width: 148px; height: 3px; border-radius: 999px; background: #E5E7EB; overflow: hidden; }
+      #boot.boot-hide { opacity: 0; pointer-events: none; }
+      #boot .boot-logo { display: inline-flex; align-items: center; gap: 10px; }
+      #boot .boot-logo svg { height: 28px; width: auto; display: block; }
+      #boot .boot-ink { fill: #161616; }
+      #boot .boot-iron { fill: #FB923C; }
+      #boot .boot-name { font-weight: 700; font-size: 16px; letter-spacing: -0.01em; }
+      #boot .boot-msg { font-size: 12px; font-weight: 500; color: #71717A; }
+      #boot .boot-bar { width: 144px; height: 4px; border-radius: 999px; background: #E5E7EB; overflow: hidden; }
       #boot .boot-bar > span {
-        display: block; height: 100%; width: 40%; border-radius: 999px; background: #D9480F;
+        display: block; height: 100%; width: 40%; border-radius: 999px; background: #FB923C;
         animation: boot-slide 1.1s ease-in-out infinite;
+        will-change: transform;
       }
       @keyframes boot-slide {
         0% { transform: translateX(-110%); }
         100% { transform: translateX(380%); }
       }
-      @media (prefers-color-scheme: dark) {
-        #boot { background: #0B0B0A; color: #FAFAF9; }
-        #boot .boot-bar { background: #2E2E2E; }
-      }
+      /* App-selected theme (set pre-paint by the script above) — same
+         tokens as index.css .dark so boot matches the app exactly. */
+      html.dark #boot { background: #0B0B0A; color: #FAFAF9; }
+      html.dark #boot .boot-ink { fill: #FAFAF9; }
+      html.dark #boot .boot-bar { background: #2E2E2E; }
+      html.dark #boot .boot-bar > span { background: #FB923C; }
+      html.dark #boot .boot-msg { color: #8A8A8E; }
     </style>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -69,10 +84,32 @@
   <body class="bg-background text-foreground antialiased min-h-screen">
     <div id="root"></div>
     <div id="boot" aria-label="Loading GymTech">
-      <div class="boot-mark">G</div>
-      <div class="boot-name">GymTech</div>
+      <div class="boot-logo">
+        <svg viewBox="0 0 1255 650" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <g transform="translate(-130 -135)">
+            <g class="boot-ink" fill-rule="evenodd">
+              <path d="M149 467 142 474 139 491 141 535 143 540 150 545H174L171 497 175 467Z" />
+              <path d="M213 413 202 421 195 436 189 458 184 502 187 549 196 583 206 598 211 600H247L237 546 236 485 240 450 249 413Z" />
+              <path d="M284 384 273 391 265 406 253 450 249 485 251 557 259 597 264 612 272 626 280 631H320L331 622 339 606 346 582 351 546 344 551 334 584 328 591H321L314 578 307 535 309 466 317 431 324 422 328 421 333 425 339 437 345 464 351 468 348 434 340 403 336 394 329 386 325 384Z" />
+              <path d="M934 167 645 168 619 172 588 181 562 192 539 205 509 227 483 252 453 290 429 330 416 357 401 399 392 443 390 481 388 483H347L343 475 336 470 330 472 326 477 321 498 321 521 326 540 331 545H338L343 541 347 533H393L399 557 415 599 432 630 456 663 477 685 504 707 531 724 561 738 591 748 620 754H677L707 752 738 744 766 733 790 720 829 691V497H572L637 572H740V644L738 646 709 657 677 664 643 665 616 661 586 651 550 629 527 607 503 573 486 533 479 495V459L487 417 495 394 508 367 530 334 560 303 588 283 627 266 664 259H866Z" />
+            </g>
+            <g class="boot-iron" fill-rule="evenodd">
+              <path d="M1186 480 1180 471 1172 470 1167 474 1162 483H1096L1057 532H1162L1167 544 1172 548H1178L1186 538 1190 518V501Z" />
+              <path d="M1334 467 1337 490V525L1334 545H1360L1367 538 1370 525 1371 500 1368 476 1360 467Z" />
+              <path d="M1261 413 1270 454 1274 500 1271 555 1261 600H1300L1307 595 1312 586 1323 545 1325 491 1320 454 1313 431 1304 416 1298 413Z" />
+              <path d="M1188 384 1178 391 1168 410 1160 442 1158 470 1166 464 1170 442 1176 428 1180 423 1186 422 1192 429 1196 440 1203 483 1202 545 1197 574 1190 592 1186 596H1181L1177 592 1170 576 1165 552 1157 546 1159 567 1168 605 1174 618 1182 628 1191 632H1227L1239 623 1245 612 1257 569 1261 535V481L1258 454 1248 412 1236 389 1228 384Z" />
+              <path d="M586 456H867V781L960 674V457H1083L1160 357H670L657 363 648 372Z" />
+              <path d="M923 245 927 251H1077L1081 247 1080 242 1077 240H927Z" />
+              <path d="M1216 249 1213 241 1207 235 1194 232 1185 236 1178 246H1129L1097 279H896L893 281 892 286 896 290H1102L1134 257H1178L1187 269 1203 271 1213 263ZM1196 242 1202 244 1206 250 1204 258 1200 261 1192 260 1188 254 1189 247Z" />
+              <path d="M956 204 959 211H1230L1259 241H1306L1309 247 1319 255 1333 254 1341 247 1344 239 1341 225 1335 219 1328 216 1316 218 1306 230H1264L1234 200H960ZM1325 226 1332 230 1334 238 1329 244 1322 245 1318 242 1316 234 1320 228Z" />
+              <path d="M1271 167V157L1268 150 1261 143 1250 141 1240 146 1234 156H996L992 161 996 167H1234L1242 178 1249 181H1257L1263 178ZM1251 152 1258 154 1261 158 1260 167 1253 171 1244 165 1245 156Z" />
+            </g>
+          </g>
+        </svg>
+        <div class="boot-name">GymTech</div>
+      </div>
       <div class="boot-bar"><span></span></div>
-      <div class="boot-msg">Loading your gym…</div>
+      <div class="boot-msg">Loading…</div>
     </div>
     <script type="module" src="./src/main.tsx"></script>
   </body>

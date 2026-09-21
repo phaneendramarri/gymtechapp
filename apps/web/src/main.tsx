@@ -9,8 +9,13 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
   </React.StrictMode>
 );
 
-// The inline boot splash in index.html owns the first paint — remove it as
-// soon as React takes over so it never lingers over the app.
+// The inline boot splash in index.html owns the first paint — fade it out
+// once React takes over so the handoff to the app never cuts abruptly.
 requestAnimationFrame(() => {
-  setTimeout(() => document.getElementById('boot')?.remove(), 50);
+  setTimeout(() => {
+    const boot = document.getElementById('boot');
+    if (!boot) return;
+    boot.classList.add('boot-hide');
+    setTimeout(() => boot.remove(), 300);
+  }, 50);
 });

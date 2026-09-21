@@ -23,8 +23,16 @@ export interface WorkerEnv {
   APP_ENV?: string;
   CORS_ORIGINS?: string;
   MEDIA_BUCKET?: R2Bucket;
+  /** @deprecated Resend is legacy — MSG91 is the supported email provider. */
   RESEND_API_KEY?: string;
   EMAIL_FROM?: string;
+  MSG91_AUTH_KEY?: string;
+  MSG91_SENDER_ID?: string;
+  MSG91_EMAIL_FROM?: string;
+  MSG91_WA_NUMBER?: string;
+  MSG91_SMS_FLOW_ID?: string;
+  MSG91_WHATSAPP_TEMPLATE?: string;
+  MSG91_WHATSAPP_LANGUAGE?: string;
   APP_URL?: string;
   TURNSTILE_SECRET_KEY?: string;
   RATELIMIT_KV?: KVNamespace;

@@ -1,22 +1,26 @@
 /**
  * Notification service for SMS and WhatsApp messages.
  *
- * CURRENT STATUS — H-8: This is a NO-OP STUB.
- * `generateWhatsAppUrl` builds a WhatsApp Click-to-Chat link but does NOT
- * send messages. To make this functional, integrate one of:
- *   - Twilio WhatsApp Business API  (https://www.twilio.com/whatsapp)
- *   - MessageBird Conversations API (https://messagebird.com/whatsapp)
- *   - Gupshup WhatsApp API          (https://www.gupshup.io/whatsapp-api)
- *   - Meta WhatsApp Business API    (https://developers.facebook.com/docs/whatsapp)
- *
- * When integrating, replace `generateWhatsAppUrl` with an async `send` method
- * that posts to the provider's API and stores the delivery reference in
- * `communication_logs` so GDPR erasure can purge it later.
+ * PROVIDER — MSG91 (all channels, one account).
+ * `generateWhatsAppUrl` builds a staff tap-to-send Click-to-Chat link (kept:
+ * responses still carry it as a manual fallback). `sendTransactional` delivers
+ * for real through MSG91's Flow (SMS) and template (WhatsApp) APIs whenever
+ * an auth key is configured; without one it reports `skipped` and callers
+ * keep the legacy manual-link behavior.
  *
  * IMPORTANT: All sent notifications MUST record an entry in `communication_logs`
  * with `memberId`, `lawfulBasis`, and `retentionUntil` so GDPR erasure
  * (H-9) can purge them when a member exercises their right to deletion.
  */
+
+import {
+  msg91ConfigFromEnv,
+  applyPlatformOverrides,
+  sendMsg91Sms,
+  sendMsg91Whatsapp,
+  type Msg91Config,
+  type Msg91Result,
+} from './msg91';
 
 export interface NotificationPayload {
   recipientPhone: string;
@@ -65,13 +69,77 @@ export function retentionUntilFor(messageType: string, sentAtUnix: number): numb
   return sentAtUnix + COMMS_RETENTION_DAYS * 24 * 60 * 60;
 }
 
+/**
+ * Map a notification payload onto ordered WhatsApp template body params.
+ * Template authors: keep body variables in this order —
+ * {{1}} name, {{2}} gym, then message-specific values.
+ */
+function whatsappTemplateParams(payload: NotificationPayload): string[] {
+  const p = payload.params;
+  switch (payload.type) {
+    case 'WELCOME':
+      return [payload.recipientName, String(p.memberCode ?? '')];
+    case 'PAYMENT_RECEIPT':
+      return [
+        payload.recipientName,
+        String(p.amount ?? ''),
+        String(p.paymentMode ?? ''),
+        String(p.receiptNumber ?? ''),
+      ];
+    case 'EXPIRY_REMINDER':
+      return [payload.recipientName, String(p.expiryDate ?? '')];
+    case 'RENEWAL_CONFIRMATION':
+      return [payload.recipientName, String(p.newExpiryDate ?? '')];
+    default:
+      return [payload.recipientName, String(p.message ?? '')];
+  }
+}
 export class NotificationService {
-  constructor(private gymName: string) {}
+  private msg91: Msg91Config | null;
+
+  constructor(
+    private gymName: string,
+    env?: Record<string, string | undefined>,
+    platformMsg91?: Partial<Msg91Config> | null
+  ) {
+    this.msg91 = env ? applyPlatformOverrides(msg91ConfigFromEnv(env), platformMsg91) : null;
+  }
+
+  /** True when real provider delivery is available for `channel`. */
+  canDeliver(channel: 'SMS' | 'WHATSAPP'): boolean {
+    if (!this.msg91 || this.msg91.authKey.trim().length === 0) return false;
+    if (channel === 'SMS') return this.msg91.smsFlowId.trim().length > 0;
+    return this.msg91.waNumber.trim().length > 0 && this.msg91.whatsappTemplate.trim().length > 0;
+  }
 
   /**
-   * H-8 STUB: Generates a WhatsApp Click-to-Chat URL.
+   * Deliver for real through MSG91. SMS uses the approved Flow (vars are
+   * matched to the flow's template variables); WhatsApp uses the approved
+   * template (body text params in order). Returns the provider result, or a
+   * `skipped` result when MSG91 is not configured yet.
+   */
+  async sendTransactional(
+    channel: 'SMS' | 'WHATSAPP',
+    payload: NotificationPayload
+  ): Promise<Msg91Result> {
+    if (!this.msg91) return { ok: false, skipped: true };
+    if (channel === 'SMS') {
+      return sendMsg91Sms(this.msg91, payload.recipientPhone, {
+        NAME: payload.recipientName,
+        GYM: this.gymName,
+        ...payload.params,
+      });
+    }
+    return sendMsg91Whatsapp(
+      this.msg91,
+      payload.recipientPhone,
+      whatsappTemplateParams(payload)
+    );
+  }
+
+  /**
+   * H-8 STUB (kept as manual fallback): Generates a WhatsApp Click-to-Chat URL.
    * The recipient still needs to manually tap the link to send the message.
-   * TODO: Replace with real sending via Twilio / MessageBird / Gupshup.
    */
   generateWhatsAppUrl(payload: NotificationPayload): string {
     const rawPhone = payload.recipientPhone.replace(/\D/g, '');

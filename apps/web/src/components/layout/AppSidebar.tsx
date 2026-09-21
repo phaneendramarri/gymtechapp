@@ -50,17 +50,23 @@ interface NavItem {
   featureKey?: string;
 }
 
-const MAIN_NAV: NavItem[] = [
+const TRAIN_NAV: NavItem[] = [
   { key: 'dashboard', label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, featureKey: 'dashboard' },
   { key: 'members', label: 'Members', href: '/members', icon: Users, requiredPermission: 'members', featureKey: 'members' },
   { key: 'floor', label: 'Floor & Attendance', href: '/attendance', icon: CalendarCheck, requiredPermission: 'attendance', featureKey: 'attendance' },
   { key: 'classes', label: 'Classes & Timetable', href: '/classes', icon: Calendar, requiredPermission: 'classes', featureKey: 'classes' },
+  { key: 'pt', label: 'PT Sessions', href: '/pt-collections', icon: Trophy, requiredPermission: 'pt_collections', featureKey: 'pt_collections' },
+];
+
+const SELL_NAV: NavItem[] = [
   { key: 'payments', label: 'Payments', href: '/payments', icon: CreditCard, requiredPermission: 'payments', featureKey: 'payments' },
   { key: 'pos', label: 'POS & Store', href: '/pos', icon: ShoppingBag, requiredPermission: 'pos', featureKey: 'pos' },
+  { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, requiredPermission: 'plans', featureKey: 'plans' },
+];
+
+const RUN_NAV: NavItem[] = [
   { key: 'expenses', label: 'Expenses & P&L', href: '/expenses', icon: Receipt, requiredPermission: 'expenses', featureKey: 'expenses' },
   { key: 'lockers', label: 'Lockers', href: '/lockers', icon: Lock, requiredPermission: 'lockers', featureKey: 'lockers' },
-  { key: 'pt', label: 'PT Sessions', href: '/pt-collections', icon: Trophy, requiredPermission: 'pt_collections', featureKey: 'pt_collections' },
-  { key: 'plans', label: 'Plans', href: '/plans', icon: Tag, requiredPermission: 'plans', featureKey: 'plans' },
   { key: 'reports', label: 'Reports', href: '/reports', icon: BarChart3, requiredPermission: 'reports', featureKey: 'reports' },
 ];
 
@@ -74,6 +80,16 @@ const PLATFORM_ADMIN_NAV: NavItem[] = [
   { key: 'admin_gyms', label: 'Gyms & Tenants', href: '/admin', icon: Building2 },
   { key: 'platform_users', label: 'Platform Users', href: '/platform/users', icon: Users },
   { key: 'platform_roles', label: 'Roles & Governance', href: '/platform/roles', icon: Shield },
+];
+
+/** Sidebar sections in display order. Desktop rail and mobile drawer both
+ * render from this single definition, so they can never drift apart. */
+const NAV_SECTIONS: { label: string; items: NavItem[]; platformOnly?: boolean }[] = [
+  { label: 'Train', items: TRAIN_NAV },
+  { label: 'Sell', items: SELL_NAV },
+  { label: 'Run', items: RUN_NAV },
+  { label: 'Manage', items: ADMIN_NAV },
+  { label: 'Platform', items: PLATFORM_ADMIN_NAV, platformOnly: true },
 ];
 
 export interface AppSidebarProps {
@@ -105,7 +121,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
   const hasAccess = (item: NavItem) => {
     if (isSuperAdmin) return true;
     // License feature gate applies to owners too — a disabled module is
-    // hidden regardless of role. Unloaded flags mean "all enabled".
+    // hidden regardless of role. Unknown flags deny (fail closed) until
+    // /me hydrates the license.
     if (item.featureKey && !hasFeature(item.featureKey as any)) return false;
     if (isOwner) return true;
     if (!item.requiredPermission) return true;
@@ -124,9 +141,9 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         to={item.href}
         onClick={onClick}
         className={cn(
-          'group relative flex items-center gap-3 rounded-lg text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring select-none',
+          'group relative flex items-center gap-3 rounded-xl text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring select-none active:scale-[0.99]',
           active
-            ? 'bg-primary/10 text-primary font-semibold dark:bg-primary/20'
+            ? 'bg-primary/10 text-primary font-semibold shadow-[inset_0_0_0_1px_var(--iron-soft)] dark:bg-primary/20'
             : 'text-muted-foreground hover:bg-accent/60 hover:text-foreground',
           collapsedMode ? 'h-9 w-9 justify-center px-0 mx-auto' : 'h-9 px-3 w-full'
         )}
@@ -194,34 +211,21 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
       {/* Mobile Navigation List */}
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
-        <div className="space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-            Operations
-          </p>
-          {MAIN_NAV.filter(hasAccess).map((item) => (
-            <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
-          ))}
-        </div>
-
-        <div className="space-y-1 pt-2 border-t border-border/50">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-            Management
-          </p>
-          {ADMIN_NAV.filter(hasAccess).map((item) => (
-            <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
-          ))}
-        </div>
-
-        {showPlatformNav && (
-          <div className="space-y-1 pt-2 border-t border-border/50">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-              Platform
-            </p>
-            {PLATFORM_ADMIN_NAV.map((item) => (
-              <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
-            ))}
-          </div>
-        )}
+        {NAV_SECTIONS.map((section) => {
+          if (section.platformOnly && !showPlatformNav) return null;
+          const visible = section.items.filter(hasAccess);
+          if (visible.length === 0) return null;
+          return (
+            <div key={section.label} className="space-y-1 pt-2 border-t border-border/50 first:pt-0 first:border-t-0">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
+                {section.label}
+              </p>
+              {visible.map((item) => (
+                <NavItemComponent key={item.key} item={item} onClick={onCloseMobile} />
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       {/* Mobile Drawer Footer with User Info */}
@@ -309,43 +313,23 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
 
         {/* Navigation Group Items */}
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
-          {/* Operations Group */}
-          <div className="space-y-1">
-            {!collapsed && (
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                Operations
-              </p>
-            )}
-            {MAIN_NAV.filter(hasAccess).map((item) => (
-              <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
-            ))}
-          </div>
-
-          {/* Management Group */}
-          <div className="space-y-1 pt-2 border-t border-border/50">
-            {!collapsed && (
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                Management
-              </p>
-            )}
-            {ADMIN_NAV.filter(hasAccess).map((item) => (
-              <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
-            ))}
-          </div>
-
-          {/* Platform Group */}
-          {showPlatformNav && (
-            <div className="space-y-1 pt-2 border-t border-border/50">
-              {!collapsed && (
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
-                  Platform
-                </p>
-              )}
-              {PLATFORM_ADMIN_NAV.map((item) => (
-                <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
-              ))}
-            </div>
-          )}
+          {NAV_SECTIONS.map((section) => {
+            if (section.platformOnly && !showPlatformNav) return null;
+            const visible = section.items.filter(hasAccess);
+            if (visible.length === 0) return null;
+            return (
+              <div key={section.label} className="space-y-1 pt-2 border-t border-border/50 first:pt-0 first:border-t-0">
+                {!collapsed && (
+                  <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground px-3 mb-1 font-mono">
+                    {section.label}
+                  </p>
+                )}
+                {visible.map((item) => (
+                  <NavItemComponent key={item.key} item={item} collapsedMode={collapsed} />
+                ))}
+              </div>
+            );
+          })}
         </nav>
 
         {/* Sidebar Footer — Collapse Toggle */}

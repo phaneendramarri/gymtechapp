@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Plus, ArrowDownToLine, CreditCard, AlertTriangle, TrendingUp, Calendar, CheckCircle2, ChevronRight, User } from 'lucide-react';
+import { Plus, ArrowDownToLine, CreditCard, AlertTriangle, TrendingUp, Calendar, CheckCircle2, ChevronRight, User, Loader2 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { Link } from 'react-router-dom';
 import { AppShell } from '@/components/layout/AppShell';
@@ -111,9 +111,10 @@ export const PaymentsPage: React.FC = () => {
             size="sm"
             onClick={handleExportCsv}
             disabled={isExporting}
-            className="border-border gap-1.5"
+            className="border-border gap-1.5 group"
           >
-            <ArrowDownToLine className={cn("h-3.5 w-3.5", isExporting && "animate-bounce")} />
+            <ArrowDownToLine className={cn("h-3.5 w-3.5", !isExporting && "group-hover:translate-y-px transition-transform")} />
+            {isExporting && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
             <span>{isExporting ? 'Exporting...' : 'Export CSV'}</span>
           </Button>
           {canCollect && (

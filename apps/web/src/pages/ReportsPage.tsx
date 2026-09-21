@@ -64,11 +64,11 @@ const ReportStat: React.FC<{
   iconBg?: string;
   valueClass?: string;
 }> = ({ label, value, sub, icon, iconBg = 'bg-primary/10 text-primary', valueClass }) => (
-  <Card className="border-border shadow-xs">
+  <Card className="rounded-2xl border-border shadow-xs transition-all hover:-translate-y-0.5 hover:shadow-md">
     <CardContent className="p-4">
       <div className="flex items-center justify-between">
         <span className="text-xs font-mono uppercase tracking-wider text-muted-foreground">{label}</span>
-        <div className={cn('h-7 w-7 rounded-md flex items-center justify-center', iconBg)}>{icon}</div>
+        <div className={cn('h-8 w-8 rounded-xl flex items-center justify-center', iconBg)}>{icon}</div>
       </div>
       <p className={cn('text-2xl font-bold font-mono text-foreground mt-2', valueClass)}>{value}</p>
       {sub && <p className="text-xs text-muted-foreground font-mono mt-1">{sub}</p>}
@@ -145,8 +145,8 @@ const OverviewTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ perio
                     <AreaChart data={trend} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
                       <defs>
                         <linearGradient id="reportsRevGrad" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="0%" stopColor="#D9480F" stopOpacity={0.25} />
-                          <stop offset="100%" stopColor="#D9480F" stopOpacity={0.0} />
+                          <stop offset="0%" stopColor="var(--iron)" stopOpacity={0.25} />
+                          <stop offset="100%" stopColor="var(--iron)" stopOpacity={0.0} />
                         </linearGradient>
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" className="stroke-border/60" vertical={false} />
@@ -164,9 +164,9 @@ const OverviewTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ perio
                       />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: 'hsl(var(--card))',
-                          borderColor: 'hsl(var(--border))',
-                          borderRadius: '8px',
+                          backgroundColor: 'var(--surface)',
+                          borderColor: 'var(--line)',
+                          borderRadius: '12px',
                           fontSize: '12px',
                         }}
                         formatter={(v: any) => [formatCurrency(Number(v) * 100), 'Collected']}
@@ -174,7 +174,7 @@ const OverviewTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ perio
                       <Area
                         type="monotone"
                         dataKey="revenue"
-                        stroke="#D9480F"
+                        stroke="var(--iron)"
                         strokeWidth={2.5}
                         fill="url(#reportsRevGrad)"
                       />
@@ -292,8 +292,8 @@ const RevenueTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ period
                 <AreaChart data={timeSeries} margin={{ top: 8, right: 10, left: -10, bottom: 0 }}>
                   <defs>
                     <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#D9480F" stopOpacity={0.3} />
-                      <stop offset="100%" stopColor="#D9480F" stopOpacity={0} />
+                      <stop offset="0%" stopColor="var(--iron)" stopOpacity={0.3} />
+                      <stop offset="100%" stopColor="var(--iron)" stopOpacity={0} />
                     </linearGradient>
                   </defs>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-border/60" vertical={false} />
@@ -305,10 +305,10 @@ const RevenueTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ period
                     tickFormatter={(v) => `₹${Math.round(v / 100)}`}
                   />
                   <Tooltip
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                    contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--line)', borderRadius: '12px', fontSize: '12px' }}
                     formatter={(v: any) => [formatCurrency(Number(v)), 'Revenue']}
                   />
-                  <Area type="monotone" dataKey="revenue_paise" stroke="#D9480F" strokeWidth={2} fill="url(#revGrad)" />
+                  <Area type="monotone" dataKey="revenue_paise" stroke="var(--iron)" strokeWidth={2} fill="url(#revGrad)" />
                 </AreaChart>
               </ResponsiveContainer>
             </div>
@@ -554,7 +554,7 @@ const AttendanceTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ per
                     <XAxis dataKey="date" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                      contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--line)', borderRadius: '12px', fontSize: '12px' }}
                       formatter={(v: any) => [v, 'Check-ins']}
                     />
                     <Bar dataKey="checkin_count" fill="#3B82F6" radius={[3, 3, 0, 0]} />
@@ -585,7 +585,7 @@ const AttendanceTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ per
                     <XAxis dataKey="label" tick={{ fontSize: 9 }} tickLine={false} axisLine={false} />
                     <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                      contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--line)', borderRadius: '12px', fontSize: '12px' }}
                       formatter={(v: any) => [v, 'Check-ins']}
                     />
                     <Bar dataKey="checkin_count" fill="#8B5CF6" radius={[3, 3, 0, 0]} />
@@ -695,7 +695,7 @@ const GrowthTab: React.FC<{ period: 'month' | 'quarter' | 'year' }> = ({ period 
                   <XAxis dataKey="period" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
                   <Tooltip
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }}
+                    contentStyle={{ backgroundColor: 'var(--surface)', borderColor: 'var(--line)', borderRadius: '12px', fontSize: '12px' }}
                   />
                   <Bar dataKey="joins" name="New Joins" fill="#10B981" radius={[3, 3, 0, 0]} />
                   <Bar dataKey="churned" name="Churned" fill="#EF4444" radius={[3, 3, 0, 0]} />

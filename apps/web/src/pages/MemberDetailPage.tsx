@@ -23,6 +23,7 @@ import {
   QrCode,
   Download,
   AlertTriangle,
+  Loader2,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
@@ -219,7 +220,13 @@ export const MemberDetailPage: React.FC = () => {
             title="Dispatch WhatsApp message (1 credit deducted)"
           >
             <MessageCircle className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
-            {isSendingWa ? 'Sending…' : 'WhatsApp'}
+            {isSendingWa ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Sending…
+              </span>
+            ) : (
+              'WhatsApp'
+            )}
           </Button>
           <Button
             onClick={handleSendSms}
@@ -230,7 +237,13 @@ export const MemberDetailPage: React.FC = () => {
             title="Dispatch SMS alert (1 credit deducted)"
           >
             <Smartphone className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-            {isSendingSms ? 'Sending…' : 'Send SMS'}
+            {isSendingSms ? (
+              <span className="inline-flex items-center gap-1.5">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> Sending…
+              </span>
+            ) : (
+              'Send SMS'
+            )}
           </Button>
           {canRecord && (
             <Button onClick={() => setIsPaymentOpen(true)} size="sm" className="h-8 gap-1.5 text-xs font-semibold">
@@ -242,7 +255,7 @@ export const MemberDetailPage: React.FC = () => {
     >
       <div className="space-y-6">
         {/* TOP: Identity & Membership Overview Card */}
-        <Card className="border-border shadow-xs overflow-hidden">
+        <Card className="rounded-2xl border-border shadow-xs overflow-hidden">
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
               <div className="flex items-start gap-4">

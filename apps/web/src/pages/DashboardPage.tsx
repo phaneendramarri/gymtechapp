@@ -135,6 +135,14 @@ export const DashboardPage: React.FC = () => {
     ? Math.round(((currMonthRevenue - prevMonthRevenue) / prevMonthRevenue) * 100)
     : null;
 
+  const hour = now.getHours();
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const firstName = user?.name?.split(' ')[0] || 'there';
+  const dateLine = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+  const attentionItems: string[] = [];
+  if (expiring.length > 0) attentionItems.push(`${expiring.length} renewal${expiring.length === 1 ? '' : 's'} due within 7 days`);
+  if (pending > 0) attentionItems.push(`${formatCurrency(pending * 100)} in outstanding dues`);
+
   return (
     <AppShell
       breadcrumb={[{ label: 'Dashboard' }, { label: 'Overview' }]}
@@ -172,19 +180,59 @@ export const DashboardPage: React.FC = () => {
     >
       <div className="space-y-6">
 
+        {/* Morning briefing — one glance: greeting, live pulse, attention items */}
+        <motion.section
+          {...fadeUp(0)}
+          className="relative overflow-hidden rounded-2xl border border-border bg-cream px-5 py-4 sm:px-6"
+        >
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6">
+            <div className="min-w-0 flex-1">
+              <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">{dateLine}</p>
+              <h2 className="text-lg sm:text-xl font-bold tracking-tight text-foreground mt-0.5 truncate">
+                {greeting}, {firstName}
+              </h2>
+              <p className="text-xs text-muted-foreground mt-1">
+                <span className="inline-flex items-center gap-1.5 font-semibold text-foreground">
+                  <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {todayCount} on the floor
+                </span>
+                {attentionItems.length > 0 ? (
+                  <span> · {attentionItems.join(' · ')}</span>
+                ) : (
+                  <span> · All clear — nothing needs attention</span>
+                )}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <Button asChild size="sm" variant="outline" className="h-8 gap-1.5 text-xs bg-card/70">
+                <Link to="/payments">
+                  <Wallet className="h-3.5 w-3.5" />
+                  <span>Collect dues</span>
+                </Link>
+              </Button>
+              <Button asChild size="sm" className="h-8 gap-1.5 text-xs font-semibold">
+                <Link to="/members/new">
+                  <UserPlus className="h-3.5 w-3.5" />
+                  <span>Add Member</span>
+                </Link>
+              </Button>
+            </div>
+          </div>
+        </motion.section>
+
         {/* ============================================================
             TABS BAR (satnaing/shadcn-admin pattern)
             ============================================================ */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="h-9 p-1 bg-muted/60">
-            <TabsTrigger value="overview" className="text-xs px-3.5 h-7">Overview</TabsTrigger>
-            <TabsTrigger value="floor" className="text-xs px-3.5 h-7">
+          <TabsList className="h-9 p-1 bg-muted/60 rounded-full">
+            <TabsTrigger value="overview" className="text-xs px-3.5 h-7 rounded-full">Overview</TabsTrigger>
+            <TabsTrigger value="floor" className="text-xs px-3.5 h-7 rounded-full">
               Live Floor ({todayCount})
             </TabsTrigger>
-            <TabsTrigger value="renewals" className="text-xs px-3.5 h-7">
+            <TabsTrigger value="renewals" className="text-xs px-3.5 h-7 rounded-full">
               Renewals ({expiring.length})
             </TabsTrigger>
-            <TabsTrigger value="ledger" className="text-xs px-3.5 h-7">Transactions</TabsTrigger>
+            <TabsTrigger value="ledger" className="text-xs px-3.5 h-7 rounded-full">Transactions</TabsTrigger>
           </TabsList>
 
           {/* ============================================================
@@ -197,12 +245,14 @@ export const DashboardPage: React.FC = () => {
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 
                 {/* Total Revenue MTD */}
-                <Card className="rounded-xl shadow-xs border-border">
+                <Card className="rounded-2xl shadow-xs border-border">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
                       Total Revenue (MTD)
                     </CardTitle>
-                    <IndianRupee className="h-4 w-4 text-muted-foreground" />
+                    <span className="flex size-8 items-center justify-center rounded-xl bg-(--iron-soft) text-(--iron) shrink-0">
+                      <IndianRupee className="h-4 w-4" />
+                    </span>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
@@ -223,12 +273,14 @@ export const DashboardPage: React.FC = () => {
                 </Card>
 
                 {/* Subscriptions / Active Members */}
-                <Card className="rounded-xl shadow-xs border-border">
+                <Card className="rounded-2xl shadow-xs border-border">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
                       Active Memberships
                     </CardTitle>
-                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="flex size-8 items-center justify-center rounded-xl bg-(--positive-soft) text-(--positive) shrink-0">
+                      <Users className="h-4 w-4" />
+                    </span>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
@@ -247,12 +299,14 @@ export const DashboardPage: React.FC = () => {
                 </Card>
 
                 {/* Floor Attendance Today */}
-                <Card className="rounded-xl shadow-xs border-border">
+                <Card className="rounded-2xl shadow-xs border-border">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
                       Floor Check-ins
                     </CardTitle>
-                    <Activity className="h-4 w-4 text-muted-foreground" />
+                    <span className="flex size-8 items-center justify-center rounded-xl bg-(--info-soft) text-(--info) shrink-0">
+                      <Activity className="h-4 w-4" />
+                    </span>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
@@ -267,12 +321,14 @@ export const DashboardPage: React.FC = () => {
                 </Card>
 
                 {/* Outstanding Dues / Renewals */}
-                <Card className="rounded-xl shadow-xs border-border">
+                <Card className="rounded-2xl shadow-xs border-border">
                   <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                     <CardTitle className="text-xs font-semibold uppercase tracking-wider font-mono text-muted-foreground">
                       Pending Dues
                     </CardTitle>
-                    <Wallet className="h-4 w-4 text-muted-foreground" />
+                    <span className="flex size-8 items-center justify-center rounded-xl bg-(--warning-soft) text-(--warning) shrink-0">
+                      <Wallet className="h-4 w-4" />
+                    </span>
                   </CardHeader>
                   <CardContent>
                     <div className="text-2xl font-bold font-mono tracking-tight text-foreground">
@@ -292,7 +348,7 @@ export const DashboardPage: React.FC = () => {
               
               {/* Overview Bar Chart (Col 1-4) */}
               <motion.div {...fadeUp(0.05)} className="lg:col-span-4">
-                <Card className="h-full rounded-xl shadow-xs border-border flex flex-col justify-between">
+                <Card className="h-full rounded-2xl shadow-xs border-border flex flex-col justify-between">
                   <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
                     <div>
                       <CardTitle className="text-base font-semibold">Overview</CardTitle>
@@ -307,12 +363,13 @@ export const DashboardPage: React.FC = () => {
                       {weeklyAttendance.slice(-7).map((d: any, i: number) => {
                         const max = Math.max(...last7Days, 1);
                         const height = Math.round((d.count / max) * 100);
+                        const isPeak = d.count === max && max > 0;
                         const dayLabel = new Date(d.date).toLocaleDateString('en-IN', { weekday: 'short' });
                         return (
                           <div key={i} className="flex-1 flex flex-col items-center gap-2 h-full">
                             <div className="w-full flex-1 flex items-end">
                               <div
-                                className="w-full rounded-t-md bg-primary hover:brightness-110 transition-all cursor-pointer shadow-xs"
+                                className={`w-full rounded-t-lg transition-all cursor-pointer shadow-xs hover:-translate-y-0.5 ${isPeak ? 'bg-(--iron)' : 'bg-(--iron)/20 hover:bg-(--iron)/40'}`}
                                 style={{ height: `${height}%`, minHeight: '6px' }}
                                 title={`${d.count} check-ins on ${dayLabel}`}
                               />
@@ -328,7 +385,7 @@ export const DashboardPage: React.FC = () => {
 
               {/* Recent Sales / Payments List (Col 5-7) */}
               <motion.div {...fadeUp(0.08)} className="lg:col-span-3">
-                <Card className="h-full rounded-xl shadow-xs border-border flex flex-col justify-between">
+                <Card className="h-full rounded-2xl shadow-xs border-border flex flex-col justify-between">
                   <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
                     <div>
                       <CardTitle className="text-base font-semibold">Recent Sales</CardTitle>
@@ -440,7 +497,7 @@ export const DashboardPage: React.FC = () => {
               TAB 2: LIVE FLOOR (Check-ins feed)
               ============================================================ */}
           <TabsContent value="floor" className="space-y-4">
-            <Card className="rounded-xl shadow-xs border-border">
+            <Card className="rounded-2xl shadow-xs border-border">
               <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
                 <div>
                   <CardTitle className="text-base font-semibold">Live Floor Activity</CardTitle>
@@ -489,7 +546,7 @@ export const DashboardPage: React.FC = () => {
               TAB 3: RENEWALS QUEUE
               ============================================================ */}
           <TabsContent value="renewals" className="space-y-4">
-            <Card className="rounded-xl shadow-xs border-border">
+            <Card className="rounded-2xl shadow-xs border-border">
               <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
                 <div>
                   <CardTitle className="text-base font-semibold">Renewals Ending Soon</CardTitle>
@@ -548,7 +605,7 @@ export const DashboardPage: React.FC = () => {
               TAB 4: TRANSACTIONS / LEDGER
               ============================================================ */}
           <TabsContent value="ledger" className="space-y-4">
-            <Card className="rounded-xl shadow-xs border-border">
+            <Card className="rounded-2xl shadow-xs border-border">
               <CardHeader className="flex flex-row items-center justify-between pb-3 border-b border-border/50">
                 <div>
                   <CardTitle className="text-base font-semibold">Payment Ledger</CardTitle>

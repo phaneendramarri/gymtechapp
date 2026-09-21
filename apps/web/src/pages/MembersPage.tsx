@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { Plus, FileSpreadsheet, Search, X, Filter } from 'lucide-react';
@@ -10,7 +10,6 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn } from '@/lib/utils';
 
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Input } from '@/components/ui/input';
 
 const STATUS_TABS: { key: string; label: string }[] = [
@@ -31,6 +30,20 @@ export const MembersPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  // Press / anywhere on this page to jump to search (unless typing).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.isContentEditable)) return;
+      e.preventDefault();
+      searchRef.current?.focus();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
 
   // Always fetch all members to get the status summary counts.
   const { data: summaryData } = useQuery({
@@ -80,8 +93,8 @@ export const MembersPage: React.FC = () => {
     >
       <ExcelMigrationDialog open={isMigrationOpen} onOpenChange={setIsMigrationOpen} />
 
-      {/* STATUS SUMMARY — five small tiles, hairline-bordered */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-0 border border-border rounded-xl bg-card overflow-hidden shadow-2xs mb-6">
+      {/* STATUS SUMMARY — five small tiles, hairline grid dividers */}
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-px bg-border/70 border border-border rounded-2xl overflow-hidden shadow-2xs mb-6">
         <SummaryCell label="Total" value={summary.total} active={statusFilter === 'ALL'} onClick={() => setStatusFilter('ALL')} />
         <SummaryCell label="Active" value={summary.active} active={statusFilter === 'ACTIVE'} onClick={() => setStatusFilter('ACTIVE')} tone="ok" />
         <SummaryCell label="Ending soon" value={summary.expiring} active={statusFilter === 'EXPIRING'} onClick={() => setStatusFilter('EXPIRING')} tone="warn" hint="in 7 days" />
@@ -89,27 +102,23 @@ export const MembersPage: React.FC = () => {
         <SummaryCell label="Expired" value={summary.expired} active={statusFilter === 'EXPIRED'} onClick={() => setStatusFilter('EXPIRED')} tone="danger" />
       </div>
 
-      {/* Filter bar */}
+      {/* Filter bar — the summary tiles above are the status filter;
+          search narrows within it. Press / to jump here. */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3">
-        <Tabs value={statusFilter} onValueChange={setStatusFilter} className="w-auto">
-          <TabsList className="h-9 p-1 bg-muted/60">
-            {STATUS_TABS.map((t) => (
-              <TabsTrigger key={t.key} value={t.key} className="text-xs px-3 h-7">
-                {t.label}
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </Tabs>
+        <p className="text-xs text-muted-foreground">
+          Showing <span className="font-semibold text-foreground">{STATUS_TABS.find((t) => t.key === statusFilter)?.label}</span> members
+        </p>
 
         <div className="relative w-full sm:w-64 lg:w-80 shrink-0">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
           <Input
+            ref={searchRef}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, phone, code…"
-            className="pl-9 pr-9 h-9 text-xs"
+            className="pl-9 pr-14 h-9 text-xs rounded-full"
           />
-          {search && (
+          {search ? (
             <button
               onClick={() => setSearch('')}
               className="absolute right-2.5 top-1/2 -translate-y-1/2 h-5 w-5 rounded text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors"
@@ -117,6 +126,10 @@ export const MembersPage: React.FC = () => {
             >
               <X className="h-3 w-3" />
             </button>
+          ) : (
+            <kbd className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 hidden sm:inline-flex h-4 items-center rounded border border-border bg-muted px-1 font-mono text-[10px] text-muted-foreground">
+              /
+            </kbd>
           )}
         </div>
       </div>
@@ -149,9 +162,10 @@ const SummaryCell: React.FC<{
 }> = ({ label, value, active, onClick, tone, hint }) => (
   <button
     onClick={onClick}
+    aria-pressed={active}
     className={cn(
-      'text-left py-3.5 px-4 border-r border-border last:border-r-0 transition-colors select-none',
-      active ? 'bg-accent/80' : 'hover:bg-accent/40'
+      'text-left py-3.5 px-4 bg-card transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',
+      active ? 'bg-primary/[0.06]' : 'hover:bg-accent/40'
     )}
   >
     <p className="text-[11px] uppercase tracking-wider font-mono text-muted-foreground flex items-center gap-1.5">

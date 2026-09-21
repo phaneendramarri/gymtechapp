@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/shared/TurnstileWidget';
 import {
   ArrowRight,
@@ -13,6 +13,7 @@ import {
   EyeOff,
   KeyRound,
   Dumbbell,
+  Loader2,
   Shield,
   ShieldCheck,
   Sparkles,
@@ -24,6 +25,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/shared/Logo';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { api } from '@/lib/api';
 
 type LoginMode = 'STAFF' | 'MEMBER';
@@ -147,12 +155,12 @@ export const LoginPage: React.FC = () => {
         </a>
         <div className="flex items-center gap-2">
           <ThemeToggle />
-          <a
-            href="/"
+          <Link
+            to="/"
             className="text-xs text-ink-3 hover:text-ink transition-colors px-3 py-2"
           >
             ← Back to site
-          </a>
+          </Link>
         </div>
       </header>
 
@@ -194,11 +202,11 @@ export const LoginPage: React.FC = () => {
         <section className="flex flex-col justify-center px-6 sm:px-10 lg:px-16 py-12">
           <div className="max-w-sm w-full mx-auto">
             {/* Mode switcher */}
-            <div className="inline-flex p-1 bg-(--surface-2) rounded-lg mb-8" role="tablist">
+            <div className="inline-flex p-1 bg-(--surface-2) rounded-full mb-8 border border-(--line)/60" role="tablist">
               <button
                 type="button"
                 onClick={() => { setMode('STAFF'); setError(null); setFailedAttempts(0); setTurnstileToken(''); setGymSlug(''); setMemberIdentifier(''); setMemberCode(''); turnstileRef.current?.reset(); }}
-                className={`px-3 h-8 text-xs font-medium rounded-md transition-colors ${mode === 'STAFF' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
+                className={`px-4 h-8 text-xs font-medium rounded-full transition-all ${mode === 'STAFF' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
                 role="tab"
                 aria-selected={mode === 'STAFF'}
               >
@@ -207,7 +215,7 @@ export const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setMode('MEMBER'); setError(null); setFailedAttempts(0); setTurnstileToken(''); setGymSlug(''); turnstileRef.current?.reset(); }}
-                className={`px-3 h-8 text-xs font-medium rounded-md transition-colors ${mode === 'MEMBER' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
+                className={`px-4 h-8 text-xs font-medium rounded-full transition-all ${mode === 'MEMBER' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
                 role="tab"
                 aria-selected={mode === 'MEMBER'}
               >
@@ -235,8 +243,8 @@ export const LoginPage: React.FC = () => {
             </motion.div>
 
             {error && (
-              <div className="mt-6 flex items-start gap-2 rounded-md border border-(--danger) bg-danger-soft px-3 py-2.5">
-                <AlertCircle className="h-3.5 w-3.5 text-(--danger) shrink-0 mt-0.5" />
+              <div role="alert" className="mt-6 flex items-start gap-2 rounded-md border border-(--danger) bg-danger-soft px-3 py-2.5">
+                <AlertCircle className="h-3.5 w-3.5 text-(--danger) shrink-0 mt-0.5" aria-hidden="true" />
                 <p className="text-xs text-(--danger) leading-snug">{error}</p>
               </div>
             )}
@@ -252,6 +260,7 @@ export const LoginPage: React.FC = () => {
                         id="email"
                         type="email"
                         required
+                        autoComplete="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@yourgym.com"
@@ -283,6 +292,7 @@ export const LoginPage: React.FC = () => {
                         id="password"
                         type={showPassword ? 'text' : 'password'}
                         required
+                        autoComplete="current-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
@@ -291,9 +301,9 @@ export const LoginPage: React.FC = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword((prev) => !prev)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink-2 transition-colors p-1"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-ink-3 hover:text-ink-2 transition-colors p-1 rounded-md focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:outline-none"
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
-                        tabIndex={-1}
+                        aria-pressed={showPassword}
                       >
                         {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                       </button>
@@ -307,6 +317,7 @@ export const LoginPage: React.FC = () => {
                     <Input
                       id="gymSlug"
                       required
+                      autoComplete="off"
                       value={gymSlug}
                       onChange={(e) => setGymSlug(e.target.value)}
                       placeholder="fitpro-gym"
@@ -322,6 +333,7 @@ export const LoginPage: React.FC = () => {
                     <Input
                       id="memberIdentifier"
                       required
+                      autoComplete="username"
                       value={memberIdentifier}
                       onChange={(e) => setMemberIdentifier(e.target.value)}
                       placeholder="9876543210 or rahul@gmail.com"
@@ -334,6 +346,9 @@ export const LoginPage: React.FC = () => {
                     <Input
                       id="memberCode"
                       required
+                      autoComplete="off"
+                      autoCapitalize="characters"
+                      spellCheck={false}
                       value={memberCode}
                       onChange={(e) => setMemberCode(e.target.value)}
                       placeholder="MEM-1001"
@@ -375,92 +390,91 @@ export const LoginPage: React.FC = () => {
               <Button
                 type="submit"
                 disabled={isLoading}
+                aria-busy={isLoading}
                 className="w-full bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) font-medium h-10 mt-2 gap-2"
               >
-                {isLoading ? 'Signing in…' : mode === 'STAFF' ? 'Sign in' : 'Open my pass'}
-                {!isLoading && <ArrowRight className="h-3.5 w-3.5" />}
+                {isLoading ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    Signing in…
+                  </>
+                ) : (
+                  <>
+                    {mode === 'STAFF' ? 'Sign in' : 'Open my pass'}
+                    <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                  </>
+                )}
               </Button>
             </form>
 
             <p className="text-[11px] text-ink-3 mt-6 leading-relaxed">
-              By continuing you agree to GymTech's <a href="/" className="underline underline-offset-2 hover:text-ink-2">Terms</a> and <a href="/" className="underline underline-offset-2 hover:text-ink-2">Privacy</a>.
+              By continuing you agree to GymTech's <Link to="/terms" className="underline underline-offset-2 hover:text-ink-2">Terms</Link> and <Link to="/privacy" className="underline underline-offset-2 hover:text-ink-2">Privacy</Link>.
             </p>
           </div>
         </section>
       </main>
 
-      {/* Forgot password dialog — kept simple, no glassmorphism */}
-      {forgotOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/40"
-          onClick={() => setForgotOpen(false)}
-        >
-          <div
-            className="w-full max-w-sm bg-(--surface) border border-(--line) rounded-xl p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between gap-3 mb-1">
-              <h3 className="text-h3 text-ink">Reset your password</h3>
-              <button
-                onClick={() => setForgotOpen(false)}
-                aria-label="Close"
-                className="text-ink-3 hover:text-ink h-7 w-7 rounded-md hover:bg-(--surface-2) flex items-center justify-center -mt-1 -mr-1"
-              >
-                ×
-              </button>
-            </div>
-            <p className="text-meta mb-4">
+      {/* Forgot password dialog — Radix Dialog for focus trap, Escape-to-close,
+          and screen-reader announcements. */}
+      <Dialog open={forgotOpen} onOpenChange={setForgotOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader className="text-left">
+            <DialogTitle className="text-h3 text-ink">Reset your password</DialogTitle>
+            <DialogDescription className="text-meta">
               We'll email you a link to choose a new password.
-            </p>
+            </DialogDescription>
+          </DialogHeader>
 
-            {forgotMessage && (
-              <div className="mb-3 flex items-start gap-2 rounded-md border border-(--positive) bg-(--positive-soft) px-3 py-2.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-(--positive) shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="text-xs text-(--positive) leading-snug">{forgotMessage}</p>
-                  {forgotDevUrl && (
-                    <p className="text-[11px] text-ink-2 mt-2 break-all font-mono">
-                      <span className="text-ink-3">Dev reset URL: </span>
-                      <a href={forgotDevUrl} className="text-(--iron) underline">{forgotDevUrl}</a>
-                    </p>
-                  )}
-                </div>
+          {forgotMessage && (
+            <div role="status" className="flex items-start gap-2 rounded-md border border-(--positive) bg-(--positive-soft) px-3 py-2.5">
+              <CheckCircle2 className="h-3.5 w-3.5 text-(--positive) shrink-0 mt-0.5" aria-hidden="true" />
+              <div className="flex-1">
+                <p className="text-xs text-(--positive) leading-snug">{forgotMessage}</p>
+                {forgotDevUrl && (
+                  <p className="text-[11px] text-ink-2 mt-2 break-all font-mono">
+                    <span className="text-ink-3">Dev reset URL: </span>
+                    <a href={forgotDevUrl} className="text-(--iron) underline">{forgotDevUrl}</a>
+                  </p>
+                )}
               </div>
-            )}
-            {forgotError && (
-              <div className="mb-3 flex items-start gap-2 rounded-md border border-(--danger) bg-danger-soft px-3 py-2.5">
-                <AlertCircle className="h-3.5 w-3.5 text-(--danger) shrink-0 mt-0.5" />
-                <p className="text-xs text-(--danger) leading-snug">{forgotError}</p>
-              </div>
-            )}
+            </div>
+          )}
+          {forgotError && (
+            <div role="alert" className="flex items-start gap-2 rounded-md border border-(--danger) bg-danger-soft px-3 py-2.5">
+              <AlertCircle className="h-3.5 w-3.5 text-(--danger) shrink-0 mt-0.5" aria-hidden="true" />
+              <p className="text-xs text-(--danger) leading-snug">{forgotError}</p>
+            </div>
+          )}
 
-            <form onSubmit={handleForgotSubmit} className="flex flex-col gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="forgotEmail" className="text-xs font-medium text-ink-2">Work email</Label>
-                <div className="relative">
-                  <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-3" />
-                  <Input
-                    id="forgotEmail"
-                    type="email"
-                    required
-                    value={forgotEmail}
-                    onChange={(e) => setForgotEmail(e.target.value)}
-                    placeholder="you@yourgym.com"
-                    className="pl-9 h-10 bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron)"
-                  />
-                </div>
+          <form onSubmit={handleForgotSubmit} className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="forgotEmail" className="text-xs font-medium text-ink-2">Work email</Label>
+              <div className="relative">
+                <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-3" aria-hidden="true" />
+                <Input
+                  id="forgotEmail"
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="you@yourgym.com"
+                  className="pl-9 h-10 bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron)"
+                />
               </div>
-              <Button
-                type="submit"
-                disabled={forgotLoading}
-                className="w-full bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) h-10 font-medium"
-              >
-                {forgotLoading ? 'Sending…' : 'Send reset link'}
-              </Button>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>
+            <Button
+              type="submit"
+              disabled={forgotLoading}
+              aria-busy={forgotLoading}
+              className="w-full bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) h-10 font-medium gap-2"
+            >
+              {forgotLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />}
+              {forgotLoading ? 'Sending…' : 'Send reset link'}
+            </Button>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

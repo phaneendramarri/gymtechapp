@@ -10,7 +10,7 @@ import { MemberRepository } from '../repositories/member.repository';
 import { MembershipRepository } from '../repositories/membership.repository';
 import { NotificationService } from '../lib/notifications';
 import { auditGymFromCtx } from '../services/audit.service';
-import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated, queryId } from './helpers';
 
 export const paymentRoutes = new Hono();
 
@@ -20,7 +20,9 @@ paymentRoutes.get('/', requireGym, requireFeature('payments'), requirePermission
   const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'payments');
   const memberId = c.req.query('memberId');
   const paymentRepo = new PaymentRepository(ctx.env.DB, ctx.gymId!);
-  const memberIdNum = memberId ? parseInt(memberId, 10) : undefined;
+  // Strict: a garbage ?memberId= must 400, not silently drop the filter and
+  // return every payment in the gym.
+  const memberIdNum = queryId(memberId, 'memberId');
   const [payments, total, summary] = await Promise.all([
     paymentRepo.list({ limit, offset, memberId: memberIdNum }),
     paymentRepo.count({ memberId: memberIdNum }),

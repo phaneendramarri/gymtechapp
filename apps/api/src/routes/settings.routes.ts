@@ -14,6 +14,7 @@ import { LicenseRepository } from '../repositories/license.repository';
 import { SettingsRepository } from '../repositories/settings.repository';
 import { LicenseService } from '../services/license.service';
 import { NotificationService } from '../lib/notifications';
+import { msg91ConfigFromEnv, applyPlatformOverrides, loadPlatformMsg91 } from '../lib/msg91';
 import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 
 export const settingsRoutes = new Hono();
@@ -72,9 +73,22 @@ settingsRoutes.get('/notifications', requireGym, safeHandler(async (c) => {
   const smsBalance: ChannelBalance = { total: maxSms, used: smsUsed, remaining: Math.max(0, maxSms - smsUsed) };
   const whatsappBalance: ChannelBalance = { total: maxWhatsapp, used: whatsappUsed, remaining: Math.max(0, maxWhatsapp - whatsappUsed) };
 
-  const emailServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = ctx.env.RESEND_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED';
-  const smsServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = 'NOT_CONFIGURED';
-  const whatsappServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' = 'NOT_CONFIGURED';
+  // Channel readiness follows the MSG91 config (env secrets, platform
+  // overrides): auth key alone lights up email; SMS additionally needs a
+  // Flow ID; WhatsApp needs the business number + template. Legacy RESEND
+  // key keeps email ACTIVE for deployments still on it.
+  const msg91 = applyPlatformOverrides(
+    msg91ConfigFromEnv(ctx.env as unknown as Record<string, string | undefined>),
+    await loadPlatformMsg91(ctx.env.DB)
+  );
+  const emailServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' =
+    msg91.authKey.trim().length > 0 || ctx.env.RESEND_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED';
+  const smsServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' =
+    msg91.authKey.trim().length > 0 && msg91.smsFlowId.trim().length > 0 ? 'ACTIVE' : 'NOT_CONFIGURED';
+  const whatsappServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' =
+    msg91.authKey.trim().length > 0 && msg91.waNumber.trim().length > 0 && msg91.whatsappTemplate.trim().length > 0
+      ? 'ACTIVE'
+      : 'NOT_CONFIGURED';
 
   const res: NotificationSettingsResponse = {
     ...DEFAULT_NOTIFICATION_SETTINGS, ...saved,
@@ -127,20 +141,48 @@ settingsRoutes.post('/notifications/dispatch', requireGym, requirePermission('se
       messageType: type, memberId: memberId ?? null, dispatchedById: ctx.user?.id, ip: client.ip,
     });
     if (!deduction.success) return jsonErr(deduction.error || 'Insufficient SMS balance.', 402);
-    return jsonOk({ success: true, channel: 'SMS', recipientPhone, remainingCredits: deduction.remainingCredits, message: `SMS dispatched to ${recipientName}.` });
+    const notifService = new NotificationService(
+      tenant.gym.name,
+      ctx.env as unknown as Record<string, string | undefined>,
+      await loadPlatformMsg91(ctx.env.DB)
+    );
+    const sent = await notifService.sendTransactional('SMS', {
+      recipientPhone, recipientName, type, params: (params as Record<string, string | number>) || {},
+    });
+    return jsonOk({
+      success: true, channel: 'SMS', recipientPhone, remainingCredits: deduction.remainingCredits,
+      message: `SMS dispatched to ${recipientName}.`,
+      sentVia: sent.ok ? 'MSG91' : sent.skipped ? 'MANUAL' : 'FAILED',
+      ...(sent.providerMessageId ? { providerMessageId: sent.providerMessageId } : {}),
+      ...(!sent.ok && !sent.skipped ? { providerError: sent.error } : {}),
+    });
   } else if (channel === 'WHATSAPP') {
     const deduction = await licenseService.consumeCommunicationQuota({
       channel: 'WHATSAPP', credits: 1, recipientPhone, recipientName,
       messageType: type, memberId: memberId ?? null, dispatchedById: ctx.user?.id, ip: client.ip,
     });
     if (!deduction.success) return jsonErr(deduction.error || 'Insufficient WhatsApp balance.', 402);
-    const notifService = new NotificationService(tenant.gym.name);
+    const notifService = new NotificationService(
+      tenant.gym.name,
+      ctx.env as unknown as Record<string, string | undefined>,
+      await loadPlatformMsg91(ctx.env.DB)
+    );
+    const sent = await notifService.sendTransactional('WHATSAPP', {
+      recipientPhone, recipientName,
+      type: type === 'CUSTOM' ? 'WELCOME' : type,
+      params: (params as Record<string, string | number>) || {},
+    });
     const whatsappUrl = notifService.generateWhatsAppUrl({
       recipientPhone, recipientName,
       type: type === 'CUSTOM' ? 'WELCOME' : type,
       params: (params as Record<string, string | number>) || {},
     });
-    return jsonOk({ success: true, channel: 'WHATSAPP', recipientPhone, whatsappUrl, remainingCredits: deduction.remainingCredits });
+    return jsonOk({
+      success: true, channel: 'WHATSAPP', recipientPhone, whatsappUrl, remainingCredits: deduction.remainingCredits,
+      sentVia: sent.ok ? 'MSG91' : sent.skipped ? 'MANUAL' : 'FAILED',
+      ...(sent.providerMessageId ? { providerMessageId: sent.providerMessageId } : {}),
+      ...(!sent.ok && !sent.skipped ? { providerError: sent.error } : {}),
+    });
   }
   return jsonErr('Unsupported channel', 400);
 }));

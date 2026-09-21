@@ -22,6 +22,8 @@ export const DEFAULT_PAGE_SIZE: Record<string, number> = {
  * Parse and cap pagination query params.
  * - `limit`  → capped at MAX_PAGE_SIZE (100), minimum 1
  * - `offset` → minimum 0
+ * Non-numeric input falls back to the tier default (parseInt('abc') is
+ * NaN, which would otherwise propagate into the DB query as NaN).
  */
 export function parsePageParams(
   rawLimit: string | undefined,
@@ -29,8 +31,10 @@ export function parsePageParams(
   tier = 'default',
 ): { limit: number; offset: number } {
   const defaultSize = DEFAULT_PAGE_SIZE[tier] ?? DEFAULT_PAGE_SIZE.default;
-  const limit = Math.min(Math.max(1, parseInt(rawLimit || String(defaultSize), 10)), MAX_PAGE_SIZE);
-  const offset = Math.max(0, parseInt(rawOffset || '0', 10));
+  const parsedLimit = parseInt(rawLimit || String(defaultSize), 10);
+  const parsedOffset = parseInt(rawOffset || '0', 10);
+  const limit = Math.min(Math.max(1, Number.isFinite(parsedLimit) ? parsedLimit : defaultSize), MAX_PAGE_SIZE);
+  const offset = Math.max(0, Number.isFinite(parsedOffset) ? parsedOffset : 0);
   return { limit, offset };
 }
 
@@ -115,6 +119,63 @@ export function jsonErr(message: string, status = 400, extra?: object | string):
     status,
     headers: { 'Content-Type': 'application/json' },
   });
+}
+
+/**
+ * Strict-parse an optional integer query param (timestamps, limits).
+ * Non-numeric input (including '' and '12abc', which parseInt would silently
+ * coerce) falls back instead of propagating NaN into DB queries.
+ */
+export function parseQueryInt(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw === '') return fallback;
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) return fallback;
+  const parsed = parseInt(trimmed, 10);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
+ * Strict-parse an optional integer id query param (`?memberId=`, `?trainerId=`).
+ * Returns undefined when absent; throws a 400 Response (caught by
+ * safeHandler, same contract as paramId) when present but invalid — so a
+ * garbage filter can never silently widen into an unfiltered query.
+ */
+export function queryId(raw: string | undefined, name: string): number | undefined {
+  if (raw === undefined || raw === '') return undefined;
+  const trimmed = raw.trim();
+  if (!/^\d+$/.test(trimmed)) {
+    throw jsonErr(`Invalid ${name} parameter`, 400);
+  }
+  const parsed = parseInt(trimmed, 10);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw jsonErr(`Invalid ${name} parameter`, 400);
+  }
+  return parsed;
+}
+
+/**
+ * Sanitize a caught error into a client-safe message.
+ *
+ * Service-layer business errors (validation, not-found, state conflicts)
+ * are safe to surface; ORM/driver internals (Drizzle "Failed query …" +
+ * SQL text, SQLITE_* codes, stack fragments) must never reach the browser.
+ * Unknown errors are logged server-side and replaced with `fallback`.
+ */
+export function toSafeErrorMessage(e: unknown, fallback: string): string {
+  const raw = e instanceof Error ? e.message : String(e ?? '');
+  if (!raw) return fallback;
+  if (
+    /failed query|drizzle|sqlite|D1_ERROR|syntax error|database error|UNIQUE constraint failed|PRIMARY KEY|FOREIGN KEY|no such (table|column)|bind parameter/i.test(
+      raw
+    )
+  ) {
+    console.error('Sanitized internal error:', raw.slice(0, 500));
+    if (/UNIQUE constraint failed|PRIMARY KEY.*exists|already exists/i.test(raw)) {
+      return 'A record with these details already exists.';
+    }
+    return fallback;
+  }
+  return raw;
 }
 
 export function jsonOk(

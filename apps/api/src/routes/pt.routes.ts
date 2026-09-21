@@ -22,7 +22,7 @@ import { MemberRepository } from '../repositories/member.repository';
 import { PtRepository } from '../repositories/pt.repository';
 import { PaymentRepository } from '../repositories/payment.repository';
 import { auditGymFromCtx } from '../services/audit.service';
-import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, parseQueryInt, queryId } from './helpers';
 
 export const ptRoutes = new Hono();
 
@@ -34,13 +34,15 @@ export const ptRoutes = new Hono();
  */
 function ledgerTrainerId(user: SessionUser, query?: string): number | null {
   if (isPtTrainer(user)) return user.id;
-  return query ? parseInt(query, 10) : null;
+  if (query === undefined || query === '') return null;
+  // Strict: garbage must 400, not become NaN (empty ledger) or widen scope.
+  return queryId(query, 'trainerId') ?? null;
 }
 
 ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const trainerId = ledgerTrainerId(ctx.user!, c.req.query('trainerId'));
-  const limit = Math.min(parseInt(c.req.query('limit') || '100', 10), 500);
+  const limit = Math.min(parseQueryInt(c.req.query('limit'), 100), 500);
 
   const ptRepo = new PtRepository(ctx.env.DB);
   const collections = await ptRepo.listForGym(ctx.gymId!, trainerId, limit);
@@ -157,10 +159,10 @@ ptRoutes.get('/packages', requireGym, requireFeature('pt_collections'), safeHand
     ? await new PtRepository(ctx.env.DB).listPackages(ctx.gymId!, ctx.user!.id, undefined)
     : await new PtRepository(ctx.env.DB).listPackages(
         ctx.gymId!,
-        c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined,
+        queryId(c.req.query('memberId'), 'memberId'),
         isPtTrainer(ctx.user)
           ? ctx.user!.id
-          : (c.req.query('trainerId') ? parseInt(c.req.query('trainerId')!, 10) : undefined)
+          : queryId(c.req.query('trainerId'), 'trainerId')
       );
 
   return jsonOk({ packages });
@@ -200,12 +202,12 @@ ptRoutes.post('/packages', requireGym, requireFeature('pt_collections'), require
 
 ptRoutes.get('/sessions', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const packageId = c.req.query('packageId') ? parseInt(c.req.query('packageId')!, 10) : undefined;
+  const packageId = queryId(c.req.query('packageId'), 'packageId');
   // Member portal sessions read only their own log — the session id is the
   // member id, and `?memberId=` cannot widen it to another member's history.
   const memberId = isMemberSession(ctx.user)
     ? ctx.user!.id
-    : (c.req.query('memberId') ? parseInt(c.req.query('memberId')!, 10) : undefined);
+    : queryId(c.req.query('memberId'), 'memberId');
 
   const ptRepo = new PtRepository(ctx.env.DB);
   const sessions = await ptRepo.listSessions(ctx.gymId!, packageId, memberId);

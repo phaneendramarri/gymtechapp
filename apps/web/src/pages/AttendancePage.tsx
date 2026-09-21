@@ -128,7 +128,7 @@ export const AttendancePage: React.FC = () => {
     >
       <motion.section
         {...fadeUp(0)}
-        className="grid grid-cols-1 sm:grid-cols-3 gap-0 border border-border rounded-xl bg-card overflow-hidden shadow-2xs mb-8"
+        className="grid grid-cols-1 sm:grid-cols-3 gap-px bg-border/70 border border-border rounded-2xl overflow-hidden shadow-2xs mb-8"
       >
         <HeroCell
           icon={<Activity className="h-4 w-4 text-primary" />}
@@ -183,7 +183,7 @@ export const AttendancePage: React.FC = () => {
 
           {isLoading ? (
             <div className="p-4 space-y-3">
-              {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full rounded-lg" />)}
+              {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-14 w-full rounded-xl" />)}
             </div>
           ) : logs.length === 0 ? (
             <EmptyState
@@ -191,7 +191,7 @@ export const AttendancePage: React.FC = () => {
               description="Members who scan their QR code or check in at the desk will appear in this live stream."
             />
           ) : (
-            <ul className="divide-y divide-border border border-border rounded-xl bg-card shadow-2xs overflow-hidden">
+            <ul className="divide-y divide-border border border-border rounded-2xl bg-card shadow-2xs overflow-hidden">
               {logs.map((log: any) => (
                 <motion.li
                   key={log.id}
@@ -253,7 +253,7 @@ const HeroCell: React.FC<{
   live?: boolean;
   hint?: string;
 }> = ({ icon, label, value, isString, live, hint }) => (
-  <div className="px-5 py-4 border-b sm:border-b-0 sm:border-r border-border last:border-r-0">
+  <div className="px-5 py-4 bg-card">
     <p className="text-xs font-mono uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
       {icon}
       <span>{label}</span>

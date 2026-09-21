@@ -10,7 +10,7 @@
 
 If you discover a security vulnerability, please **do not** open a public GitHub issue.
 
-Instead, email us directly at: **security@gymtech.in**
+Instead, email us directly at: **security@gymtech.app**
 
 Include the following details:
 

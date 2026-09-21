@@ -46,7 +46,18 @@ export interface AppEnv {
   CORS_ORIGINS?: string;
   /** @deprecated R2 binding — kept for backward compat, not used by current routes. */
   MEDIA_BUCKET?: R2Bucket;
+  /** @deprecated Resend is legacy — MSG91 is the supported email provider. Kept so old deploys keep reporting email ACTIVE. */
   RESEND_API_KEY?: string;
+  // MSG91 — Email + SMS + WhatsApp through one account. Only AUTH_KEY is
+  // secret (wrangler secret put); the rest can be env vars or platform
+  // settings (Admin → Communications), which override env when set.
+  MSG91_AUTH_KEY?: string;
+  MSG91_SENDER_ID?: string;
+  MSG91_EMAIL_FROM?: string;
+  MSG91_WA_NUMBER?: string;
+  MSG91_SMS_FLOW_ID?: string;
+  MSG91_WHATSAPP_TEMPLATE?: string;
+  MSG91_WHATSAPP_LANGUAGE?: string;
   EMAIL_FROM?: string;
   APP_URL?: string;
   TURNSTILE_SECRET_KEY?: string;

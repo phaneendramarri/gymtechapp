@@ -189,17 +189,17 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         </div>
 
         {/* Center: Command Palette Trigger Input */}
-        <div className="flex-1 max-w-sm mx-2 hidden lg:block">
+        <div className="flex-1 max-w-md mx-2 hidden md:block">
           <button
             type="button"
             onClick={() => setCommandOpen(true)}
-            className="w-full h-8 px-2.5 text-xs text-muted-foreground bg-secondary/50 hover:bg-secondary hover:text-foreground border border-border/60 rounded-lg flex items-center justify-between transition-colors shadow-2xs group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full h-9 px-3.5 text-xs text-muted-foreground bg-secondary/50 hover:bg-secondary hover:text-foreground border border-border/60 rounded-full flex items-center justify-between transition-all shadow-2xs group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <span className="flex items-center gap-2 truncate">
               <Search className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
               <span className="truncate">Search members, actions, records...</span>
             </span>
-            <kbd className="pointer-events-none inline-flex h-4.5 select-none items-center gap-0.5 rounded border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground shrink-0">
+            <kbd className="pointer-events-none inline-flex h-4.5 select-none items-center gap-0.5 rounded-full border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground shrink-0">
               <span className="text-[10px]">⌘</span>K
             </kbd>
           </button>
@@ -212,7 +212,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             variant="ghost"
             size="icon"
             onClick={() => setCommandOpen(true)}
-            className="lg:hidden h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="md:hidden h-8 w-8 text-muted-foreground hover:text-foreground"
             aria-label="Search"
           >
             <Search className="h-4 w-4" />

@@ -6,7 +6,7 @@
    GymTech OS — design system v2.
 
    Refined for premium SaaS: softer surfaces, confident typography,
-   minimal decoration. One accent (#D9480F iron) used like punctuation.
+   minimal decoration. One accent (#FB923C iron) used like punctuation.
    Monochrome ink scale. Hairline borders. Generous whitespace.
 
    Type: Inter at weight 400/500/600. Tabular numerals for all stats.
@@ -18,12 +18,13 @@
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
+  --color-cream: var(--cream);
   --color-ink: var(--ink);
   --color-ink-2: var(--ink-2);
   --color-ink-3: var(--ink-3);
   --color-ink-inverse: var(--ink-inverse);
 
-  /* Accent — Iron (#D9480F). One color, used sparingly. */
+  /* Accent — Iron (#FB923C). One color, used sparingly. */
   --color-iron: var(--iron);
   --color-iron-hover: var(--iron-hover);
   --color-iron-soft: var(--iron-soft);
@@ -116,14 +117,16 @@
   --bg: #FAFAF9;
   --surface: #FFFFFF;
   --surface-2: #F4F4F2;
+  /* Warm cream band — marketing sections, footer, highlight panels. */
+  --cream: #FAF4E8;
   --ink: #0A0A0A;
   --ink-2: #3F3F46;
   --ink-3: #71717A;
   --ink-inverse: #FAFAFA;
 
-  --iron: #D9480F;           /* primary brand — CTAs, active states, key accents */
-  --iron-hover: #B9380C;
-  --iron-soft: rgba(217, 72, 15, 0.10);
+  --iron: #FB923C;           /* primary brand — CTAs, active states, key accents */
+  --iron-hover: #D9480F;
+  --iron-soft: rgba(251, 146, 60, 0.10);
   --iron-ink: #FFFFFF;
 
   /* Warm secondary — Clay. For warmth moments (member wins, birthdays). */
@@ -148,6 +151,8 @@
   --bg: #0B0B0A;
   --surface: #131312;
   --surface-2: #1B1B19;
+  /* Warm cream band — deep espresso in dark mode. */
+  --cream: #181209;
   --ink: #FAFAF9;
   --ink-2: #D4D4D8;
   --ink-3: #8A8A8E;

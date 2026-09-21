@@ -26,7 +26,9 @@ import { requireAuth } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
 import { PasswordResetRepository } from '../repositories/password-reset.repository';
-import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, toSafeErrorMessage } from './helpers';
+import { GENERIC_INVALID_CREDENTIALS } from '../lib/lockout';
+import { loadPlatformMsg91 } from '../lib/msg91';
 
 export const authRoutes = new Hono();
 
@@ -124,8 +126,18 @@ authRoutes.post('/login', safeHandler(async (c) => {
           metadata: { reason: e.message },
         });
       }
-    } catch {}
-    return jsonErr(e.message, 401);
+    } catch {} // audit best-effort only — never blocks the error response
+    // Credential errors use fixed business messages; anything else (e.g. a
+    // Drizzle "Failed query …" + SQL dump from a DB outage) is sanitized so
+    // login failures can never leak query internals or enable enumeration.
+    const safe = toSafeErrorMessage(e, GENERIC_INVALID_CREDENTIALS);
+    const knownSafe = new Set([
+      GENERIC_INVALID_CREDENTIALS,
+      'This account has been deactivated or suspended',
+      'This gym account has been suspended by the platform administrator',
+      'This admin account has been deactivated or suspended',
+    ]);
+    return jsonErr(knownSafe.has(safe) ? safe : GENERIC_INVALID_CREDENTIALS, 401);
   }
 }));
 
@@ -160,7 +172,14 @@ authRoutes.post('/platform-login', safeHandler(async (c) => {
       buildCsrfCookie(csrf, ctx.env.APP_ENV),
     ]);
   } catch (e: any) {
-    return jsonErr(e.message, 401);
+    const safe = toSafeErrorMessage(e, GENERIC_INVALID_CREDENTIALS);
+    const knownSafe = new Set([
+      GENERIC_INVALID_CREDENTIALS,
+      'This account has been deactivated or suspended',
+      'This gym account has been suspended by the platform administrator',
+      'This admin account has been deactivated or suspended',
+    ]);
+    return jsonErr(knownSafe.has(safe) ? safe : GENERIC_INVALID_CREDENTIALS, 401);
   }
 }));
 
@@ -253,7 +272,10 @@ authRoutes.post('/forgot-password', safeHandler(async (c) => {
     expiresAt: expiresAt,
   });
 
-  const emailService = new EmailService(ctx.env);
+  const emailService = new EmailService(
+    ctx.env,
+    await loadPlatformMsg91(ctx.env.DB)
+  );
   const sendResult = await emailService.sendPasswordResetEmail({ to: user.email, name: user.name, token });
 
   // Only include the raw reset URL in non-production environments. The URL
@@ -295,7 +317,10 @@ authRoutes.post('/reset-password', safeHandler(async (c) => {
     passwordHash: newHash,
   });
 
-  const emailService = new EmailService(ctx.env);
+  const emailService = new EmailService(
+    ctx.env,
+    await loadPlatformMsg91(ctx.env.DB)
+  );
   await emailService.sendPasswordResetConfirmation({ to: user.email, name: user.name });
 
   return jsonOk({ success: true, message: 'Your password has been successfully reset.' });

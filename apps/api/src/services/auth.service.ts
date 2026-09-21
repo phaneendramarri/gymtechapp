@@ -9,8 +9,9 @@ import {
   createRefreshToken,
   ACCESS_TOKEN_EXPIRY_SECONDS,
   REFRESH_TOKEN_EXPIRY_SECONDS,
+  hashOpaqueToken,
+  verifyOpaqueToken,
 } from '../lib/session';
-import { hashOpaqueToken, verifyOpaqueToken } from '../lib/password';
 import {
   GENERIC_INVALID_CREDENTIALS,
   isAccountLocked,

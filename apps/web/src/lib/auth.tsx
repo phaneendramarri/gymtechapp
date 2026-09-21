@@ -16,8 +16,8 @@ interface AuthContextType {
   token: string | null;
   /**
    * License feature flags for the current gym (from GET /api/auth/me).
-   * Null until hydrated — treated as "all enabled" so first paint never
-   * hides modules. Platform admins and members always see all/null.
+   * Null until hydrated (or when logged out) — treated as "nothing enabled"
+   * so feature-gated modules stay hidden until the license is confirmed.
    */
   enabledFeatures: GymFeatureKey[] | null;
   hasFeature: (key: GymFeatureKey) => boolean;

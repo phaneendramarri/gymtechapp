@@ -4,10 +4,15 @@
  * A gym's enabled features live in `licenses.features` as a JSON object, e.g.
  *   {"members": true, "payments": true, "pt_collections": false}
  *
- * Semantics (deliberately forgiving so legacy data keeps working):
- *   - missing, unparsable, empty, or non-object JSON → ALL features enabled
- *     (this is the default for every license created before gating existed)
+ * Semantics (secure by default — see tests/unit/feature-flags.spec.ts):
+ *   - missing, unparsable, empty, or non-object JSON → NO features enabled
+ *     (fail closed, so corrupt license data can never silently expose modules)
  *   - a non-empty object → exactly the keys explicitly set to `true`
+ *
+ * New gyms are provisioned with every flag set to `true` (see
+ * ALL_FEATURES_ENABLED_JSON in @gymtech/shared), so the deny-default only
+ * bites on legacy/corrupt rows — which a platform admin re-enables via the
+ * per-gym feature toggles.
  *
  * Keeping this pure makes it unit-testable and safe to call from middleware
  * on every request.

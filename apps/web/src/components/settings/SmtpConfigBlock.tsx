@@ -33,6 +33,19 @@ const PROVIDERS: {
   instructions: string;
 }[] = [
   {
+    id: 'MSG91',
+    name: 'MSG91 (Email + SMS + WhatsApp)',
+    badge: 'Recommended',
+    host: 'api.msg91.com',
+    port: 443,
+    secure: true,
+    userLabel: 'Sender Email (Verified in MSG91)',
+    passLabel: 'MSG91 Auth Key',
+    userPlaceholder: 'notifications@yourdomain.com',
+    passPlaceholder: 'Paste auth key from MSG91 panel → API',
+    instructions: 'One MSG91 account powers email, SMS, and WhatsApp. Paste the auth key here for email, then fill sender IDs, Flow ID, and WhatsApp template in the MSG91 panel below.',
+  },
+  {
     id: 'GMAIL',
     name: 'Gmail / Google Workspace',
     badge: 'Most Popular',
@@ -48,7 +61,7 @@ const PROVIDERS: {
   {
     id: 'RESEND',
     name: 'Resend',
-    badge: 'Modern & Free Tier',
+    badge: 'Legacy',
     host: 'smtp.resend.com',
     port: 465,
     secure: true,

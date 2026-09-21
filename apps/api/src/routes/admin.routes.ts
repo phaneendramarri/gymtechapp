@@ -19,7 +19,8 @@ import { LicenseRepository } from '../repositories/license.repository';
 import { SettingsRepository } from '../repositories/settings.repository';
 import { AuditService, auditSaasFromCtx } from '../services/audit.service';
 import { EmailService } from '../services/email.service';
-import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated } from './helpers';
+import { loadPlatformMsg91 } from '../lib/msg91';
+import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated, toSafeErrorMessage } from './helpers';
 
 export const adminRoutes = new Hono();
 
@@ -182,7 +183,9 @@ adminRoutes.get('/audit-logs', safeHandler(async (c) => {
   const ctx = getCtx(c);
   const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'audit');
   const action = c.req.query('action') || undefined;
-  const affectedGymId = c.req.query('affectedGymId') ? parseInt(c.req.query('affectedGymId')!, 10) : undefined;
+  const affectedGymRaw = c.req.query('affectedGymId');
+  const affectedGymParsed = affectedGymRaw ? parseInt(affectedGymRaw, 10) : NaN;
+  const affectedGymId = Number.isFinite(affectedGymParsed) ? affectedGymParsed : undefined;
   const auditService = new AuditService(ctx.env.DB);
   const result = await auditService.listSaasEvents({ limit, offset, action, affectedGymId });
   // The admin console reads `events` (see api.getAdminAuditLogs) — the
@@ -195,11 +198,12 @@ adminRoutes.get('/communications', safeHandler(async (c) => {
   try {
     const config = await new SettingsRepository(ctx.env.DB).getPlatformSetting('communications') ?? {
       smtp: { enabled: false, provider: 'CUSTOM', host: '', port: 587, secure: false, username: '', password: '', fromName: '', fromEmail: '' },
-      smsGateway: { enabled: false, provider: 'FAST2SMS', apiKey: '', senderId: 'GYMTC' },
-      whatsappGateway: { enabled: false, provider: 'META_CLOUD_API', accessToken: '', phoneNumberId: '', businessAccountId: '' },
+      msg91: { enabled: false, authKey: '', senderId: 'GYMTEC', emailFrom: '', waNumber: '', smsFlowId: '', whatsappTemplate: '', whatsappLanguage: 'en' },
+      smsGateway: { enabled: false, provider: 'MSG91', apiKey: '', senderId: 'GYMTEC' },
+      whatsappGateway: { enabled: false, provider: 'MSG91', accessToken: '', phoneNumberId: '', businessAccountId: '' },
     };
     return jsonOk({ config });
-  } catch (e: any) { return jsonErr(e.message || 'Failed to load gateway config', 500); }
+  } catch (e: any) { return jsonErr(toSafeErrorMessage(e, 'Failed to load gateway config'), 500); }
 }));
 
 adminRoutes.put('/communications', safeHandler(async (c) => {
@@ -218,15 +222,15 @@ adminRoutes.post('/communications/test-smtp', safeHandler(async (c) => {
   const parsed = TestSmtpRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid SMTP test payload');
   const { smtp, testRecipient } = parsed.data;
-  const emailService = new EmailService(ctx.env);
+  const platformMsg91 = await loadPlatformMsg91(ctx.env.DB);
+  // A test sent with the MSG91 provider selected validates the MSG91 email
+  // path (auth key + sender); other providers keep the legacy behavior of
+  // reporting what still needs configuring.
+  void smtp;
+  const emailService = new EmailService(ctx.env, platformMsg91);
   const result = await emailService.sendTestSmtpEmail({
     to: testRecipient,
     gymName: 'GymTech Platform Central',
-    smtpHost: smtp.host || 'smtp.custom-relay.net',
-    smtpPort: smtp.port || 587,
-    provider: smtp.provider,
-    apiKey: smtp.password || ctx.env.RESEND_API_KEY,
-    fromEmail: smtp.fromEmail || (smtp.provider === 'RESEND' ? 'GymTech <onboarding@resend.dev>' : undefined),
   });
   await auditSaas(ctx, 'communications.test_smtp', null, 'platformSettings', null, { after: { testRecipient } });
   return jsonOk(result);

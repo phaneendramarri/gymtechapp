@@ -8,6 +8,7 @@ import { GymFeatureKey } from '@gymtech/shared';
 import { RouteSplash } from './components/layout/RouteSplash';
 import { ToastProvider } from './components/ui/toast';
 import { ProtectedRoute } from './components/layout/ProtectedRoute';
+import { LandingPage } from './pages/LandingPage';
 import { LoginPage } from './pages/LoginPage';
 import { ErrorBoundary } from './components/layout/ErrorBoundary';
 
@@ -35,6 +36,10 @@ const KioskPage           = lazy(() => import('./pages/KioskPage').then(m => ({ 
 const AuditLogsPage       = lazy(() => import('./pages/AuditLogsPage').then(m => ({ default: m.AuditLogsPage })));
 const RolesManagementPage = lazy(() => import('./pages/platform/RolesManagementPage').then(m => ({ default: m.RolesManagementPage })));
 const PlatformUsersPage   = lazy(() => import('./pages/platform/PlatformUsersPage').then(m => ({ default: m.PlatformUsersPage })));
+const AboutPage           = lazy(() => import('./pages/AboutPage').then(m => ({ default: m.AboutPage })));
+const ContactPage         = lazy(() => import('./pages/ContactPage').then(m => ({ default: m.ContactPage })));
+const TermsPage           = lazy(() => import('./pages/TermsPage').then(m => ({ default: m.TermsPage })));
+const PrivacyPage         = lazy(() => import('./pages/PrivacyPage').then(m => ({ default: m.PrivacyPage })));
 
 // Branded route-loading state — shown while a lazy page chunk loads so
 // navigation never flashes a blank page.
@@ -93,10 +98,14 @@ const AppRoutes: React.FC = () => {
       */}
       <Routes location={location} key={location.pathname.split('/')[1] || 'root'}>
 
-          <Route path="/" element={<Navigate to="/login" replace />} />
+          <Route path="/" element={<PageTransition><LandingPage /></PageTransition>} />
 
           <Route path="/login"          element={<PageTransition><LoginPage /></PageTransition>} />
           <Route path="/reset-password" element={<PageTransition><ResetPasswordPage /></PageTransition>} />
+          <Route path="/about"          element={<PageTransition><AboutPage /></PageTransition>} />
+          <Route path="/contact"        element={<PageTransition><ContactPage /></PageTransition>} />
+          <Route path="/terms"          element={<PageTransition><TermsPage /></PageTransition>} />
+          <Route path="/privacy"        element={<PageTransition><PrivacyPage /></PageTransition>} />
 
           <Route path="/dashboard"              element={<PageTransition><Guarded><DashboardPage /></Guarded></PageTransition>} />
           <Route path="/members"                element={<PageTransition><Guarded permissions={['members']}><MembersPage /></Guarded></PageTransition>} />
@@ -124,7 +133,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/platform/roles" element={<PageTransition><Guarded superAdmin><RolesManagementPage /></Guarded></PageTransition>} />
           <Route path="/platform/users" element={<PageTransition><Guarded superAdmin><PlatformUsersPage /></Guarded></PageTransition>} />
 
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
 
         </Routes>
     </Suspense>

@@ -30,7 +30,7 @@ import {
   DEFAULT_SIGNED_URL_TTL_SECONDS,
   MAX_SIGNED_URL_TTL_SECONDS,
 } from '../lib/media';
-import { jsonErr, jsonOk } from './helpers';
+import { jsonErr, jsonOk, toSafeErrorMessage } from './helpers';
 
 export const mediaRoutes = new Hono();
 
@@ -88,10 +88,10 @@ mediaRoutes.post('/upload', requireGym, safeHandler(async (c) => {
     );
   } catch (err: any) {
     if (err?.code === 'MEDIA_NOT_CONFIGURED') {
-      return jsonErr(err.message, 503);
+      return jsonErr('Media storage is not configured for this gym.', 503);
     }
     console.error('Media upload failed:', err);
-    return jsonErr(`Image upload failed: ${err.message}`, 500);
+    return jsonErr(toSafeErrorMessage(err, 'Image upload failed.'), 500);
   }
 }));
 
@@ -131,9 +131,9 @@ mediaRoutes.get('/sign', requireGym, safeHandler(async (c) => {
     return jsonOk({ url, expiresAt, key });
   } catch (err: any) {
     if (err?.code === 'MEDIA_NOT_CONFIGURED') {
-      return jsonErr(err.message, 503);
+      return jsonErr('Media storage is not configured for this gym.', 503);
     }
-    return jsonErr(err.message, 500);
+    return jsonErr(toSafeErrorMessage(err, 'Could not sign the media URL.'), 500);
   }
 }));
 
@@ -159,7 +159,6 @@ mediaRoutes.get('/:gymId/:key', requireGym, safeHandler(async (c) => {
   try {
     const obj = await fetchForGym({ env: ctx.env as any }, ctx.gymId!, fullKey);
     if (!obj) return jsonErr('Media object not found', 404);
-
     const headers = new Headers();
     if (obj.contentType) headers.set('Content-Type', obj.contentType);
     if (typeof obj.size === 'number') headers.set('Content-Length', String(obj.size));
@@ -168,10 +167,10 @@ mediaRoutes.get('/:gymId/:key', requireGym, safeHandler(async (c) => {
     return new Response(obj.body as any, { headers });
   } catch (err: any) {
     if (err?.code === 'MEDIA_NOT_CONFIGURED') {
-      return jsonErr(err.message, 503);
+      return jsonErr('Media storage is not configured for this gym.', 503);
     }
     console.error('Media fetch failed:', err);
-    return jsonErr(`Media fetch failed: ${err.message}`, 500);
+    return jsonErr(toSafeErrorMessage(err, 'Media fetch failed.'), 500);
   }
 }));
 
@@ -194,8 +193,8 @@ mediaRoutes.delete('/:gymId/:key', requireGym, safeHandler(async (c) => {
     return jsonOk({ success: true, deleted: fullKey });
   } catch (err: any) {
     if (err?.code === 'MEDIA_NOT_CONFIGURED') {
-      return jsonErr(err.message, 503);
+      return jsonErr('Media storage is not configured for this gym.', 503);
     }
-    return jsonErr(err.message, 500);
+    return jsonErr(toSafeErrorMessage(err, 'Could not delete the media object.'), 500);
   }
 }));

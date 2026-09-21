@@ -80,6 +80,13 @@ export const AppShell: React.FC<AppShellProps> = ({
 
   return (
     <div className="min-h-screen flex w-full bg-background text-foreground selection:bg-primary/20">
+      {/* Keyboard / screen-reader shortcut past the nav rail and header. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-3 focus:z-[100] focus:rounded-md focus:bg-primary focus:px-3 focus:py-2 focus:text-xs focus:font-semibold focus:text-primary-foreground"
+      >
+        Skip to content
+      </a>
       <AppSidebar
         collapsed={collapsed}
         onToggleCollapsed={toggle}
@@ -95,8 +102,10 @@ export const AppShell: React.FC<AppShellProps> = ({
         />
 
         <main
+          id="main-content"
+          tabIndex={-1}
           className={cn(
-            'flex-1 min-h-0',
+            'flex-1 min-h-0 focus:outline-none',
             flush ? 'overflow-x-auto' : ''
           )}
         >

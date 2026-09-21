@@ -4,7 +4,13 @@ import type { AppEnv } from '../app';
 import type { RequestContext } from './context';
 
 export function paramId(params: Record<string, string>): number {
-  const id = parseInt(params.id, 10);
+  const raw = (params.id ?? '').trim();
+  // Strict: reject "12abc", "0x10", "", "-3" — parseInt would silently
+  // coerce trailing-garbage/hex strings into wrong ids.
+  if (!/^\d+$/.test(raw)) {
+    throw jsonError('Invalid id parameter', 400);
+  }
+  const id = parseInt(raw, 10);
   if (!Number.isFinite(id) || id <= 0) {
     throw jsonError('Invalid id parameter', 400);
   }
@@ -36,8 +42,10 @@ export function safeHandler(
       return await handler(c as unknown as ApiContext);
     } catch (e: any) {
       if (e instanceof Response) return e;
+      // Never expose raw error internals (Drizzle/SQL messages, stacks) to
+      // clients — log server-side and return a generic envelope instead.
       console.error('Handler error:', e);
-      return new Response(JSON.stringify({ error: e?.message || 'Internal Server Error' }), {
+      return new Response(JSON.stringify({ error: 'Internal Server Error' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json' },
       });
