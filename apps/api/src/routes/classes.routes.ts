@@ -3,7 +3,7 @@ import { requireGym, requireFeature, requirePermission, requirePermissionOrMembe
 import { getCtx } from '../middleware/context';
 import { isMemberSession } from '../lib/roles';
 import { safeHandler, paramId } from '../middleware/params';
-import { jsonOk, jsonErr, jsonValidationErr } from './helpers';
+import { jsonOk, jsonErr, jsonValidationErr, queryId } from './helpers';
 import { ClassRepository } from '../repositories/class.repository';
 import { CreateClassRequestSchema, UpdateClassRequestSchema, CreateScheduleRequestSchema, BookClassRequestSchema } from '@gymtech/shared';
 
@@ -57,7 +57,14 @@ classesRoutes.delete('/:id', requireGym, requireFeature('classes'), requirePermi
 classesRoutes.get('/schedules', requireGym, requireFeature('classes'), requirePermissionOrMember('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const dayStr = c.req.query('dayOfWeek');
-  const dayOfWeek = dayStr !== undefined ? parseInt(dayStr, 10) : undefined;
+  let dayOfWeek: number | undefined;
+  if (dayStr !== undefined && dayStr !== '') {
+    const trimmed = dayStr.trim();
+    if (!/^[0-6]$/.test(trimmed)) {
+      return jsonErr('Invalid dayOfWeek parameter. Must be an integer between 0 and 6', 400);
+    }
+    dayOfWeek = parseInt(trimmed, 10);
+  }
   const repo = new ClassRepository(ctx.env.DB);
   const schedules = await repo.listSchedules(ctx.gymId!, dayOfWeek);
   return jsonOk({ schedules });
@@ -87,9 +94,8 @@ classesRoutes.delete('/schedules/:id', requireGym, requireFeature('classes'), re
 // GET /api/classes/bookings?scheduleId=&bookingDate= — roster for a schedule, optionally scoped to a day
 classesRoutes.get('/bookings', requireGym, requireFeature('classes'), requirePermission('classes'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const scheduleIdStr = c.req.query('scheduleId');
-  const scheduleId = scheduleIdStr !== undefined ? parseInt(scheduleIdStr, 10) : NaN;
-  if (!Number.isInteger(scheduleId) || scheduleId <= 0) return jsonErr('scheduleId is required', 400);
+  const scheduleId = queryId(c.req.query('scheduleId'), 'scheduleId');
+  if (!scheduleId) return jsonErr('scheduleId is required', 400);
   const bookingDate = c.req.query('bookingDate') || undefined;
 
   const repo = new ClassRepository(ctx.env.DB);

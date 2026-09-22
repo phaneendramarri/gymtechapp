@@ -19,7 +19,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PhotoCaptureUpload } from '@/components/members/PhotoCaptureUpload';
 import { api } from '@/lib/api';
 import { CreateMemberRequestSchema, CreateMemberResponse } from '@gymtech/shared';
-import { extractSignatureFromUrl, serializeFaceSignature } from '@/lib/face-matcher';
+import { extractDescriptorFromImageUrl, serializeDescriptor } from '@/lib/face-api';
 import { formatCurrency } from '@/lib/utils';
 
 export const NewMemberPage: React.FC = () => {
@@ -36,6 +36,7 @@ export const NewMemberPage: React.FC = () => {
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [faceEmbedding, setFaceEmbedding] = useState<string | undefined>(undefined);
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [joinedDate, setJoinedDate] = useState(new Date().toISOString().split('T')[0]);
@@ -116,13 +117,13 @@ export const NewMemberPage: React.FC = () => {
         return;
       }
 
-      let faceEmbedding: string | undefined = undefined;
-      if (photoUrl) {
+      let finalFaceEmbedding = faceEmbedding;
+      if (!finalFaceEmbedding && photoUrl) {
         try {
-          const sig = await extractSignatureFromUrl(photoUrl);
-          if (sig) faceEmbedding = serializeFaceSignature(sig);
+          const desc = await extractDescriptorFromImageUrl(photoUrl);
+          if (desc) finalFaceEmbedding = serializeDescriptor(desc);
         } catch (err) {
-          console.warn('Face embedding generation skipped:', err);
+          console.warn('Face embedding generation fallback skipped:', err);
         }
       }
 
@@ -135,7 +136,7 @@ export const NewMemberPage: React.FC = () => {
         dateOfBirth: dateOfBirth || undefined,
         joinedDate,
         photoUrl: photoUrl || undefined,
-        faceEmbedding,
+        faceEmbedding: finalFaceEmbedding,
         address: address || undefined,
         emergencyContactName: emergencyContactName || undefined,
         emergencyContactPhone: emergencyContactPhone || undefined,
@@ -254,6 +255,7 @@ export const NewMemberPage: React.FC = () => {
                 <PhotoCaptureUpload
                   value={photoUrl}
                   onChange={setPhotoUrl}
+                  onFaceDescriptorGenerated={(desc) => setFaceEmbedding(desc || undefined)}
                   label="Member Photo (for Face ID & Digital Member Pass)"
                 />
 

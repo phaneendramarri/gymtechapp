@@ -106,15 +106,8 @@ paymentRoutes.get('/:id/invoice', requireGym, requireFeature('payments'), requir
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: any };
   const id = paramId(c.req.param() as Record<string, string>);
-  const payment: any = await ctx.env.DB.prepare(`
-    SELECT p.*, m.firstName, m.lastName, m.phone as memberPhone, m.memberCode,
-           mp.name as planName, mp.taxPercentage as planTaxPercentage
-    FROM payments p
-    JOIN members m ON m.id = p.memberId
-    LEFT JOIN memberships ms ON ms.id = p.membershipId
-    LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
-    WHERE p.id = ? AND p.gymId = ?
-  `).bind(id, ctx.gymId!).first();
+  const paymentRepo = new PaymentRepository(ctx.env.DB, ctx.gymId!);
+  const payment = await paymentRepo.getPaymentDetailsForInvoice(id);
   if (!payment) return jsonErr('Payment not found', 404);
 
   const taxPercentage = Number(payment.planTaxPercentage || 0);
@@ -139,7 +132,7 @@ paymentRoutes.get('/:id/invoice', requireGym, requireFeature('payments'), requir
     },
     planName: payment.planName ?? null, sacCode: '999723', amount: amountPaise,
     taxPercentage, taxableAmount, taxAmount,
-    cgst: Math.round(taxAmount / 2), sgst: taxAmount - Math.round(taxAmount / 2),
+    cgst, sgst,
     notes: payment.notes,
   });
 }));
@@ -149,12 +142,8 @@ paymentRoutes.get('/:id/receipt', requireGym, requireFeature('payments'), requir
   const ctx = getCtx(c);
   const tenant = c.get('tenant' as never) as { gym: any };
   const id = paramId(c.req.param() as Record<string, string>);
-  const payment: any = await ctx.env.DB.prepare(`
-    SELECT p.*, m.firstName, m.lastName, m.phone, m.memberCode, mp.name as planName
-    FROM payments p JOIN members m ON m.id = p.memberId
-    LEFT JOIN memberships ms ON ms.id = p.membershipId
-    LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
-    WHERE p.id = ? AND p.gymId = ?`).bind(id, ctx.gymId!).first();
+  const paymentRepo = new PaymentRepository(ctx.env.DB, ctx.gymId!);
+  const payment = await paymentRepo.getPaymentDetailsForInvoice(id);
   if (!payment) return jsonErr('Payment not found', 404);
   const { generateReceiptHTML } = await import('../lib/receipt-generator');
   const amountPaise = Number(payment.amountPaise ?? 0);
@@ -166,11 +155,13 @@ paymentRoutes.get('/:id/receipt', requireGym, requireFeature('payments'), requir
     phone: payment.phone,
     amountPaise,
     paymentMode: payment.paymentMode,
-    referenceId: payment.referenceId,
-    planName: payment.planName,
-    notes: payment.notes,
-    gymName: tenant.gym.name, gymPhone: tenant.gym.phone, gymAddress: tenant.gym.address,
-    gymEmail: tenant.gym.email, gstNumber: tenant.gym.gstNumber,
+    referenceId: payment.referenceId ?? undefined,
+    planName: payment.planName ?? undefined,
+    notes: payment.notes ?? undefined,
+    gymName: tenant.gym.name, gymPhone: tenant.gym.phone,
+    gymAddress: tenant.gym.address ?? undefined,
+    gymEmail: tenant.gym.email ?? undefined,
+    gstNumber: tenant.gym.gstNumber ?? undefined,
   });
   return new Response(html, { headers: { 'Content-Type': 'text/html' } });
 }));

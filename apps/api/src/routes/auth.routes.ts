@@ -18,6 +18,7 @@ import {
   buildSessionCookie,
   buildCsrfCookie,
   buildClearSessionCookie,
+  buildClearCsrfCookie,
   generateCsrfToken,
   readCookie,
   COOKIE_NAMES,
@@ -369,8 +370,8 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
   const memberCode = member.memberCode ?? '';
   const phone = member.phone ?? '';
   const memberCodeMatches = memberCode.toUpperCase() === trimCode.toUpperCase();
-  // phone can be NULL for portal-only imports; guard the endsWith probe.
-  const phoneMatches = (phone && (phone.endsWith(trimCode) || phone === trimCode)) || false;
+  // phone can be NULL for portal-only imports; require at least 4 digits for suffix matching to prevent overly broad matches
+  const phoneMatches = Boolean(phone && ((trimCode.length >= 4 && phone.endsWith(trimCode)) || phone === trimCode));
   const identMatchesCode = memberCode.toUpperCase() === trimIdent.toUpperCase();
 
   if (!memberCodeMatches && !phoneMatches && !identMatchesCode) {
@@ -504,8 +505,7 @@ authRoutes.post('/logout', requireAuth, safeHandler(async (c) => {
     undefined,
     [
       buildClearSessionCookie(ctx.env.APP_ENV),
-      // CSRF cookie: clear by setting Max-Age=0
-      buildCsrfCookie('', ctx.env.APP_ENV).replace(/Max-Age=\d+/, 'Max-Age=0'),
+      buildClearCsrfCookie(ctx.env.APP_ENV),
     ]
   );
 }));

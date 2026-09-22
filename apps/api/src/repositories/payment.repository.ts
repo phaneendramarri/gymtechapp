@@ -225,4 +225,36 @@ export class PaymentRepository {
       monthlyCount: monthRes?.count ?? 0,
     };
   }
+
+  /**
+   * Fetch payment details joined with member and plan information for invoice and receipt generation.
+   */
+  async getPaymentDetailsForInvoice(paymentId: number): Promise<{
+    id: number;
+    receiptNumber: string;
+    paymentDate: number;
+    paymentMode: string;
+    referenceId: string | null;
+    status: string;
+    amountPaise: number;
+    notes: string | null;
+    firstName: string;
+    lastName: string | null;
+    phone: string;
+    memberPhone: string;
+    memberCode: string;
+    planName: string | null;
+    planTaxPercentage: number | null;
+  } | null> {
+    const row = await this.d1.prepare(`
+      SELECT p.*, m.firstName, m.lastName, m.phone, m.phone as memberPhone, m.memberCode,
+             mp.name as planName, mp.taxPercentage as planTaxPercentage
+      FROM payments p
+      JOIN members m ON m.id = p.memberId
+      LEFT JOIN memberships ms ON ms.id = p.membershipId
+      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+      WHERE p.id = ? AND p.gymId = ?
+    `).bind(paymentId, this.gymId).first<any>();
+    return row ?? null;
+  }
 }

@@ -4,6 +4,7 @@ import {
   buildSessionCookie,
   buildClearSessionCookie,
   buildCsrfCookie,
+  buildClearCsrfCookie,
   readCookie,
   COOKIE_NAMES,
   generateCsrfToken,
@@ -52,6 +53,20 @@ describe('Cookie helpers (Phase 1.2 — JWT in httpOnly cookie)', () => {
 
     it('omits Secure flag in development', () => {
       const cookie = buildCsrfCookie('csrf-abc', 'development');
+      expect(cookie).not.toContain('Secure');
+    });
+  });
+
+  describe('buildClearCsrfCookie', () => {
+    it('uses Max-Age=0 to clear the CSRF cookie', () => {
+      const cookie = buildClearCsrfCookie('production');
+      expect(cookie).toContain(`${COOKIE_NAMES.CSRF}=`);
+      expect(cookie).toContain('Max-Age=0');
+      expect(cookie).not.toContain('HttpOnly');
+    });
+
+    it('omits Secure in development', () => {
+      const cookie = buildClearCsrfCookie('development');
       expect(cookie).not.toContain('Secure');
     });
   });

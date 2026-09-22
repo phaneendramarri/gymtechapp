@@ -17,7 +17,7 @@ import { MemberService } from '../services/member.service';
 import { LicenseService } from '../services/license.service';
 import { EmailService } from '../services/email.service';
 import { auditGymFromCtx } from '../services/audit.service';
-import { encryptFaceEmbedding } from '../lib/crypto';
+import { encryptFaceEmbedding, decryptFaceEmbedding } from '../lib/crypto';
 import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated, toSafeErrorMessage } from './helpers';
 import { loadPlatformMsg91 } from '../lib/msg91';
 
@@ -46,6 +46,19 @@ memberRoutes.get('/', requireGym, requireFeature('members'), requirePermission('
     memberRepo.list({ search, status, limit, offset }),
     memberRepo.countTotal({ search, status }),
   ]);
+
+  if (ctx.env.FACE_EMBEDDING_KEY) {
+    for (const m of members) {
+      if (m.faceEmbedding) {
+        try {
+          m.faceEmbedding = await decryptFaceEmbedding(m.faceEmbedding, ctx.env as unknown as Record<string, string | undefined>);
+        } catch {
+          // Fall back to stored value if unencrypted or legacy
+        }
+      }
+    }
+  }
+
   return jsonPaginated(members, total, limit, offset);
 }));
 
@@ -62,7 +75,11 @@ memberRoutes.post('/', requireGym, requireFeature('members'), requirePermission(
     // Phase 4.2: encrypt face embedding before storing
     let encryptedFaceEmbedding: string | undefined;
     if (parsed.data.faceEmbedding) {
-      encryptedFaceEmbedding = await encryptFaceEmbedding(parsed.data.faceEmbedding, ctx.env as unknown as Record<string, string | undefined>);
+      if (ctx.env.FACE_EMBEDDING_KEY) {
+        encryptedFaceEmbedding = await encryptFaceEmbedding(parsed.data.faceEmbedding, ctx.env as unknown as Record<string, string | undefined>);
+      } else {
+        encryptedFaceEmbedding = parsed.data.faceEmbedding;
+      }
     }
     const result = await memberService.createMemberWithPlan({
       firstName: parsed.data.firstName, lastName: parsed.data.lastName, phone: parsed.data.phone,
@@ -157,7 +174,11 @@ memberRoutes.put('/:id', requireGym, requireFeature('members'), requirePermissio
     if (parsed.data.faceEmbedding === null) {
       encryptedFaceEmbedding = null; // clear the embedding
     } else if (parsed.data.faceEmbedding) {
-      encryptedFaceEmbedding = await encryptFaceEmbedding(parsed.data.faceEmbedding, ctx.env as unknown as Record<string, string | undefined>);
+      if (ctx.env.FACE_EMBEDDING_KEY) {
+        encryptedFaceEmbedding = await encryptFaceEmbedding(parsed.data.faceEmbedding, ctx.env as unknown as Record<string, string | undefined>);
+      } else {
+        encryptedFaceEmbedding = parsed.data.faceEmbedding;
+      }
     }
   }
 

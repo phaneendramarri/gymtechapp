@@ -12,7 +12,7 @@ import { jsonErr, jsonOk, jsonValidationErr } from './helpers';
 export const attendanceRoutes = new Hono();
 
 // List today's attendance
-attendanceRoutes.get('/', requireGym, requirePermission('attendance'), safeHandler(async (c) => {
+attendanceRoutes.get('/', requireGym, requireFeature('attendance'), requirePermission('attendance'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const attendanceRepo = new AttendanceRepository(ctx.env.DB, ctx.gymId!);
   return jsonOk({ logs: await attendanceRepo.listToday() });

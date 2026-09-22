@@ -16,7 +16,7 @@ const auditGym = auditGymFromCtx;
 
 staffRoutes.get('/', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const userRepo = new UserRepository(ctx.db);
+  const userRepo = new UserRepository(ctx.env.DB);
   return jsonOk({ staff: await userRepo.listGymStaff(ctx.gymId!) });
 }));
 
@@ -26,7 +26,7 @@ staffRoutes.post('/', requireGym, requireFeature('staff'), requirePermission('st
   const parsed = CreateStaffRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid staff payload');
 
-  const userRepo = new UserRepository(ctx.db);
+  const userRepo = new UserRepository(ctx.env.DB);
   const existing = await userRepo.findByEmail(parsed.data.email);
   if (existing) return jsonErr('A user with this email already exists', 409);
 
@@ -55,7 +55,7 @@ staffRoutes.delete('/:id', requireGym, requireFeature('staff'), requirePermissio
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   if (ctx.user?.id === id) return jsonErr('You cannot archive your own user account', 400);
-  const userRepo = new UserRepository(ctx.db);
+  const userRepo = new UserRepository(ctx.env.DB);
   const before = await userRepo.findById(id);
   if (!before || before.gymId !== ctx.gymId!) return jsonErr('Staff member not found in this gym', 404);
   await userRepo.softDelete(id, ctx.gymId!);
@@ -66,7 +66,7 @@ staffRoutes.delete('/:id', requireGym, requireFeature('staff'), requirePermissio
 staffRoutes.post('/:id/restore', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
-  const userRepo = new UserRepository(ctx.db);
+  const userRepo = new UserRepository(ctx.env.DB);
   const success = await userRepo.restore(id, ctx.gymId!);
   if (!success) return jsonErr('Staff member not found in archive', 404);
   const restored = await userRepo.findById(id);
@@ -77,7 +77,7 @@ staffRoutes.post('/:id/restore', requireGym, requireFeature('staff'), requirePer
 staffRoutes.patch('/:id', requireGym, requireFeature('staff'), requirePermission('staff'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
-  const userRepo = new UserRepository(ctx.db);
+  const userRepo = new UserRepository(ctx.env.DB);
   const before = await userRepo.findById(id);
   if (!before || before.gymId !== ctx.gymId!) return jsonErr('Staff member not found in this gym', 404);
 

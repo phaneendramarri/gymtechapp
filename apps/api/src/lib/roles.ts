@@ -22,9 +22,10 @@
 import type { SessionUser, UserRole } from '@gymtech/shared';
 import { USER_ROLES, GYM_FEATURES } from '@gymtech/shared';
 
-export function jsonError(message: string, status: number, extra?: Record<string, unknown>) {
+export function jsonError(message: string, status = 400, extra?: Record<string, unknown> | string): Response {
   const body: Record<string, unknown> = { error: message };
-  if (extra) Object.assign(body, extra);
+  if (extra && typeof extra === 'object') Object.assign(body, extra);
+  else if (typeof extra === 'string') body.details = extra;
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },

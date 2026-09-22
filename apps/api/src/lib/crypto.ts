@@ -1,4 +1,4 @@
-﻿// filepath: apps/api/src/lib/crypto.ts
+// filepath: apps/api/src/lib/crypto.ts
 /**
  * Phase 4.2: AES-GCM encryption for face embeddings and sensitive data at rest.
  * Uses Web Crypto API (available in Cloudflare Workers).
@@ -20,6 +20,12 @@ export interface EncryptedData {
 /**
  * Derive a KEK from the FACE_EMBEDDING_KEY env var using PBKDF2.
  * Cached after first call to avoid re-deriving on every request.
+ *
+ * TRADE-OFF: The key is cached at the module (isolate) level. If
+ * `FACE_EMBEDDING_KEY` is rotated, the stale key persists until the
+ * Cloudflare Worker isolate is evicted (typically minutes, not hours).
+ * A fresh deployment (`wrangler deploy`) forces all isolates to restart,
+ * so rotation is safe as long as it's accompanied by a deploy.
  */
 let cachedKey: CryptoKey | null = null;
 

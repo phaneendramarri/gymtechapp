@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
-import { jsonOk, jsonValidationErr } from './helpers';
+import { jsonOk, jsonValidationErr, queryId } from './helpers';
 import { ExpenseRepository } from '../repositories/expense.repository';
 import { CreateExpenseCategoryRequestSchema, CreateExpenseRequestSchema } from '@gymtech/shared';
 
@@ -33,8 +33,7 @@ expensesRoutes.get('/', requireGym, requireFeature('expenses'), requirePermissio
   const ctx = getCtx(c);
   const fromDate = c.req.query('from');
   const toDate = c.req.query('to');
-  const catIdStr = c.req.query('categoryId');
-  const categoryId = catIdStr ? parseInt(catIdStr, 10) : undefined;
+  const categoryId = queryId(c.req.query('categoryId'), 'categoryId');
 
   const repo = new ExpenseRepository(ctx.env.DB);
   const items = await repo.listExpenses(ctx.gymId!, fromDate, toDate, categoryId);

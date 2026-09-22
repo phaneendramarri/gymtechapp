@@ -18,7 +18,7 @@
 		{
 			"binding": "DB",
 			"database_name": "gymtechapp",
-			"database_id": "883a2b75-179b-49df-b31e-cc2194364e86",
+			"database_id": "78248d12-342f-4e25-905e-a66aee508e65",
 			"migrations_dir": "apps/api/migrations"
 		}
 	],
@@ -68,11 +68,11 @@
 	"kv_namespaces": [
 		{
 			"binding": "RATELIMIT_KV",
-			"id": "715f6385f67e44eca40acfd0131931c7"
+			"id": "a3e40f7cccc14964b777255a3f9cfdf5"
 		},
 		{
 			"binding": "DENYLIST_KV",
-			"id": "fda88bd39f88438e8b18f7444731031d"
+			"id": "ac34497526944c339a070144070f2f8f"
 		}
 	],
 	// ─────────────────────────────────────────────────────────────────
@@ -108,20 +108,20 @@
 				{
 					"binding": "DB",
 					"database_name": "gymtechapp-d1-staging",
-					"database_id": "REPLACE_WITH_STAGING_D1_DATABASE_ID",
+					"database_id": "1621b668-5514-44fa-8066-5338f8fd8342",
 					"migrations_dir": "apps/api/migrations"
 				}
 			],
 			"kv_namespaces": [
 				{
 					"binding": "RATELIMIT_KV",
-					"id": "REPLACE_WITH_STAGING_KV_NAMESPACE_ID",
-					"preview_id": "REPLACE_WITH_STAGING_KV_PREVIEW_NAMESPACE_ID"
+					"id": "fc04191fd55d4700a2f5c4b4e3d09b43",
+					"preview_id": "5d450ffbf4a841f0a9aac7c63f741595"
 				},
 				{
 					"binding": "DENYLIST_KV",
-					"id": "REPLACE_WITH_STAGING_DENYLIST_KV_NAMESPACE_ID",
-					"preview_id": "REPLACE_WITH_STAGING_DENYLIST_KV_PREVIEW_NAMESPACE_ID"
+					"id": "c3bff9a1513d435b94c967cf75debfb2",
+					"preview_id": "f55d4eff7df94216b7ba5320d1c46c61"
 				}
 			]
 			// secrets live in Cloudflare's secret store per name, e.g.
@@ -142,18 +142,18 @@
 				{
 					"binding": "DB",
 					"database_name": "gymtechapp",
-					"database_id": "883a2b75-179b-49df-b31e-cc2194364e86",
+					"database_id": "78248d12-342f-4e25-905e-a66aee508e65",
 					"migrations_dir": "apps/api/migrations"
 				}
 			],
 			"kv_namespaces": [
 				{
 					"binding": "RATELIMIT_KV",
-					"id": "715f6385f67e44eca40acfd0131931c7"
+					"id": "a3e40f7cccc14964b777255a3f9cfdf5"
 				},
 				{
 					"binding": "DENYLIST_KV",
-					"id": "fda88bd39f88438e8b18f7444731031d"
+					"id": "ac34497526944c339a070144070f2f8f"
 				}
 			]
 			// secrets:

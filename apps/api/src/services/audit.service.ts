@@ -44,17 +44,20 @@ export function extractClientInfo(req: Request): { ip: string; userAgent: string
  * Reads actor + gymId off the Hono context and never throws.
  */
 export async function auditGymFromCtx(
-  c: any,
+  cOrCtx: any,
   action: string,
   entityType: string,
   entityId: number | null,
   details: { before?: unknown; after?: unknown; metadata?: unknown } = {}
 ): Promise<void> {
-  const ctx = c.get ? c.get('ctx' as never) as { gymId?: number; user?: { id: number; role: string } | null } : null;
-  if (!ctx?.gymId) return;
-  const client = extractClientInfo(c.req.raw);
+  const isHono = typeof cOrCtx?.get === 'function';
+  const ctx = isHono ? (cOrCtx.get('ctx' as never) as { gymId?: number; user?: { id: number; role: string } | null; env?: { DB: any } }) : cOrCtx;
+  const db = (isHono ? cOrCtx.env?.DB : cOrCtx?.env?.DB) || ctx?.env?.DB;
+  if (!ctx?.gymId || !db) return;
+  const rawReq = isHono ? cOrCtx.req?.raw : undefined;
+  const client = rawReq ? extractClientInfo(rawReq) : { ip: '127.0.0.1', userAgent: 'Internal/Route' };
   try {
-    await new AuditService(c.env.DB).recordGymEvent({
+    await new AuditService(db).recordGymEvent({
       gymId: ctx.gymId,
       actorUserId: ctx.user?.id ?? null,
       actorRole: ctx.user?.role ?? null,

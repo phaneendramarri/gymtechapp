@@ -17,15 +17,8 @@ export function paramId(params: Record<string, string>): number {
   return id;
 }
 
-export function jsonError(message: string, status = 400, extra?: object | string): Response {
-  const body: Record<string, unknown> = { error: message };
-  if (extra && typeof extra === 'object') Object.assign(body, extra);
-  else if (typeof extra === 'string') body.details = extra;
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  });
-}
+import { jsonError } from '../lib/roles';
+export { jsonError };
 
 export type ApiContext = Context<{ Bindings: AppEnv; Variables: { requestId: string; ctx: RequestContext } }>;
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useTransition } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Search,
@@ -15,6 +15,7 @@ import {
   AlertCircle,
   VideoOff,
   QrCode,
+  UserX,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -23,13 +24,15 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { api } from '@/lib/api';
 import {
-  extractSignatureFromUrl,
-  deserializeFaceSignature,
-  matchLiveVideoAgainstEnrolled,
-  FaceSignature,
-  EnrolledFaceMember,
-  FaceMatchResult,
-} from '@/lib/face-matcher';
+  loadFaceApiModels,
+  extractFaceDescriptor,
+  deserializeDescriptor,
+  extractDescriptorFromImageUrl,
+  findBestFaceMatch,
+  type EnrolledFaceRecord,
+  type EnrolledFaceMember,
+  type FaceMatch,
+} from '@/lib/face-api';
 import { QRScanner } from './QRScanner';
 
 interface CheckInPanelProps {
@@ -75,9 +78,12 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
   const [isMatchingFace, setIsMatchingFace] = useState(false);
   const [autoScanEnabled, setAutoScanEnabled] = useState(true);
   const [enrolledCount, setEnrolledCount] = useState(0);
-  const [currentMatch, setCurrentMatch] = useState<FaceMatchResult | null>(null);
+  const [currentMatch, setCurrentMatch] = useState<FaceMatch | null>(null);
   const [isEnrolledLoading, setIsEnrolledLoading] = useState(false);
-  const enrolledCacheRef = useRef<Array<{ member: EnrolledFaceMember; signature: FaceSignature }>>([]);
+  const [modelsReady, setModelsReady] = useState(false);
+  const [scanAttemptCount, setScanAttemptCount] = useState(0);
+  const [noMatchDetected, setNoMatchDetected] = useState(false);
+  const enrolledCacheRef = useRef<EnrolledFaceRecord[]>([]);
   const scanIntervalRef = useRef<any>(null);
 
   // Play pleasant chime on successful Face ID recognition
@@ -100,6 +106,17 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
     } catch {
       // Audio autoplay policy fallback
     }
+  };
+
+  // Switch to manual search fallback
+  const switchToManualSearch = (initialQuery = '') => {
+    stopWebcam();
+    setCurrentMatch(null);
+    setActiveMode('search');
+    if (initialQuery) setSearchQuery(initialQuery);
+    setTimeout(() => {
+      searchInputRef.current?.focus();
+    }, 150);
   };
 
   // --- FETCH RECENT ACTIVE MEMBERS FOR QUICK ACCESS ---
@@ -190,6 +207,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
     } else {
       stopWebcam();
       setCurrentMatch(null);
+      setNoMatchDetected(false);
       if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
     }
     return () => {
@@ -198,7 +216,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
     };
   }, [activeMode]);
 
-  // --- PRELOAD AND ENROLL MEMBER PHOTO SIGNATURES ---
+  // --- PRELOAD AND ENROLL MEMBER PHOTO DESCRIPTORS ---
   const loadEnrolledMembers = async () => {
     if (enrolledCacheRef.current.length > 0) {
       setEnrolledCount(enrolledCacheRef.current.length);
@@ -207,22 +225,26 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
 
     setIsEnrolledLoading(true);
     try {
-      // Fetch members with limit 100
-      const res = await api.getMembers({ limit: 100, status: 'ACTIVE' });
+      // 1. Initialize @vladmandic/face-api models
+      const loaded = await loadFaceApiModels();
+      setModelsReady(loaded);
+
+      // 2. Fetch active members
+      const res = await api.getMembers({ limit: 200, status: 'ACTIVE' });
       const eligibleMembers = (res.members || []).filter((m: any) => Boolean(m.faceEmbedding || m.photoUrl));
 
-      const enrolledArr: Array<{ member: EnrolledFaceMember; signature: FaceSignature }> = [];
+      const enrolledArr: EnrolledFaceRecord[] = [];
 
       for (const m of eligibleMembers) {
-        // 1. Fast path: deserialize pre-computed faceEmbedding directly from DB!
-        let sig: FaceSignature | null = deserializeFaceSignature(m.faceEmbedding);
+        // Fast path: deserialize pre-computed 128-D descriptor directly from DB
+        let descriptor = deserializeDescriptor(m.faceEmbedding);
 
-        // 2. Fallback: extract from photoUrl if embedding was not yet saved
-        if (!sig && m.photoUrl) {
-          sig = await extractSignatureFromUrl(m.photoUrl);
+        // Fallback: extract from photoUrl if embedding was not saved yet
+        if (!descriptor && m.photoUrl) {
+          descriptor = await extractDescriptorFromImageUrl(m.photoUrl);
         }
 
-        if (sig) {
+        if (descriptor) {
           enrolledArr.push({
             member: {
               id: m.id,
@@ -231,8 +253,12 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
               phone: m.phone,
               photoUrl: m.photoUrl,
               faceEmbedding: m.faceEmbedding,
+              status: m.status,
+              planName: m.planName,
+              membershipStatus: m.membershipStatus,
+              endDate: m.endDate,
             },
-            signature: sig,
+            descriptor,
           });
         }
       }
@@ -240,31 +266,42 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
       enrolledCacheRef.current = enrolledArr;
       setEnrolledCount(enrolledArr.length);
     } catch (err) {
-      console.error('Failed to load enrolled members for face comparison:', err);
+      console.error('Failed to load enrolled members for face recognition:', err);
     } finally {
       setIsEnrolledLoading(false);
     }
   };
 
-  // --- REAL-TIME FACE SCANNING LOOP ---
+  // --- REAL-TIME FACE SCANNING & EUCLIDEAN MATCHING LOOP ---
   const performFaceScan = async () => {
     if (!videoRef.current || !cameraActive || isMatchingFace || isCheckingIn) return;
     if (enrolledCacheRef.current.length === 0) return;
 
     setIsMatchingFace(true);
+    setScanAttemptCount((c) => c + 1);
+
     try {
-      const match = await matchLiveVideoAgainstEnrolled(videoRef.current, enrolledCacheRef.current);
-      if (match) {
-        setCurrentMatch(match);
-        if (match.isMatch && match.confidence >= 75) {
+      // 1. Detect face and compute 128-D descriptor from live camera video frame
+      const liveDescriptor = await extractFaceDescriptor(videoRef.current);
+
+      if (liveDescriptor) {
+        // 2. Compare using Euclidean distance against all enrolled members
+        const match = findBestFaceMatch(liveDescriptor, enrolledCacheRef.current, 0.55);
+
+        if (match && match.isConfidentMatch) {
+          setCurrentMatch(match);
+          setNoMatchDetected(false);
           playSuccessChime();
-          // Auto check-in verified match
-          await onCheckIn(match.member.memberCode, 'FACE_ID');
-          // Reset match after check-in
-          setTimeout(() => setCurrentMatch(null), 3500);
+        } else if (match) {
+          // Weak match or unknown face
+          setCurrentMatch(match);
+          setNoMatchDetected(!match.isConfidentMatch);
         }
       } else {
-        setCurrentMatch(null);
+        // No face in reticle
+        if (!currentMatch?.isConfidentMatch) {
+          setCurrentMatch(null);
+        }
       }
     } catch (err) {
       console.error('Face match error:', err);
@@ -275,17 +312,29 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
 
   // Interval for auto-scanning
   useEffect(() => {
-    if (activeMode === 'face' && cameraActive && autoScanEnabled) {
+    if (activeMode === 'face' && cameraActive && autoScanEnabled && !currentMatch?.isConfidentMatch) {
       scanIntervalRef.current = setInterval(() => {
         performFaceScan();
-      }, 1500);
+      }, 1200);
     } else {
       if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
     }
     return () => {
       if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
     };
-  }, [activeMode, cameraActive, autoScanEnabled, isCheckingIn]);
+  }, [activeMode, cameraActive, autoScanEnabled, isCheckingIn, currentMatch]);
+
+  // Handle Confirmed Check-In
+  const handleConfirmFaceCheckIn = async () => {
+    if (!currentMatch) return;
+    const memberCode = currentMatch.member.memberCode;
+    await onCheckIn(memberCode, 'FACE_ID');
+    // Clear match after check-in so terminal is ready for next member
+    setTimeout(() => {
+      setCurrentMatch(null);
+      setNoMatchDetected(false);
+    }, 2000);
+  };
 
   // Handle Manual Direct Code Submit
   const handleManualSubmit = (e: React.FormEvent) => {
@@ -316,7 +365,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
               {activeMode === 'face' && (
                 <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
                   <span className="h-1.5 w-1.5 rounded-full bg-primary animate-ping" />
-                  AI Biometric
+                  Face ID (@vladmandic/face-api)
                 </span>
               )}
             </CardTitle>
@@ -550,7 +599,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                       type="button"
                       disabled={isCheckingIn}
                       onClick={() => onCheckIn(m.memberCode, 'MANUAL')}
-                      className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border bg-secondary/30 hover:border-primary hover:bg-secondary/70 transition-all text-left group"
+                      className="flex items-center gap-2.5 p-2.5 rounded-lg border border-border bg-secondary/30 hover:border-primary hover:bg-secondary/70 transition-all text-left group cursor-pointer"
                     >
                       <div className="size-8 rounded-full border border-border bg-card flex items-center justify-center overflow-hidden shrink-0">
                         {m.photoUrl ? (
@@ -604,13 +653,11 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
               <QRScanner
                 onScan={async (data) => {
                   setShowQRScanner(false);
-                  // Parse QR payload format: gymtech://checkin/{gymId}/{memberId}/{memberCode}
                   const match = data.match(/gymtech:\/\/checkin\/(\d+)\/(\d+)\/(.+)/);
                   if (match) {
                     const [, , , memberCode] = match;
                     await onCheckIn(memberCode, 'QR');
                   } else {
-                    // Fallback: treat raw data as member code
                     await onCheckIn(data, 'QR');
                   }
                 }}
@@ -626,7 +673,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
         )}
 
         {/* ========================================================================= */}
-        {/* MODE 3: BIOMETRIC FACE ID CAMERA TERMINAL */}
+        {/* MODE 3: BIOMETRIC FACE ID CAMERA TERMINAL (@vladmandic/face-api) */}
         {/* ========================================================================= */}
         {activeMode === 'face' && (
           <div className="flex flex-col gap-4">
@@ -642,7 +689,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                     className="size-full object-cover transform -scale-x-100"
                   />
 
-                  {/* High-Tech Biometric HUD Overlay */}
+                  {/* Biometric HUD Overlay */}
                   <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4">
                     {/* Top HUD Status */}
                     <div className="flex items-center justify-between">
@@ -657,12 +704,24 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                     </div>
 
                     {/* Central Face Target Reticle */}
-                    <div className="relative mx-auto size-48 sm:size-56 rounded-3xl border-2 border-dashed border-primary/50 flex items-center justify-center">
+                    <div className={`relative mx-auto size-48 sm:size-56 rounded-3xl border-2 transition-all duration-300 flex items-center justify-center ${
+                      currentMatch?.isConfidentMatch
+                        ? 'border-ok scale-105 shadow-[0_0_20px_rgba(34,197,94,0.4)]'
+                        : 'border-dashed border-primary/50'
+                    }`}>
                       {/* Biometric Corner Brackets */}
-                      <div className="absolute -top-1.5 -left-1.5 size-5 border-t-3 border-l-3 border-primary rounded-tl-lg" />
-                      <div className="absolute -top-1.5 -right-1.5 size-5 border-t-3 border-r-3 border-primary rounded-tr-lg" />
-                      <div className="absolute -bottom-1.5 -left-1.5 size-5 border-b-3 border-l-3 border-primary rounded-bl-lg" />
-                      <div className="absolute -bottom-1.5 -right-1.5 size-5 border-b-3 border-r-3 border-primary rounded-br-lg" />
+                      <div className={`absolute -top-1.5 -left-1.5 size-5 border-t-3 border-l-3 rounded-tl-lg ${
+                        currentMatch?.isConfidentMatch ? 'border-ok' : 'border-primary'
+                      }`} />
+                      <div className={`absolute -top-1.5 -right-1.5 size-5 border-t-3 border-r-3 rounded-tr-lg ${
+                        currentMatch?.isConfidentMatch ? 'border-ok' : 'border-primary'
+                      }`} />
+                      <div className={`absolute -bottom-1.5 -left-1.5 size-5 border-b-3 border-l-3 rounded-bl-lg ${
+                        currentMatch?.isConfidentMatch ? 'border-ok' : 'border-primary'
+                      }`} />
+                      <div className={`absolute -bottom-1.5 -right-1.5 size-5 border-b-3 border-r-3 rounded-br-lg ${
+                        currentMatch?.isConfidentMatch ? 'border-ok' : 'border-primary'
+                      }`} />
 
                       {/* Animated Laser Scanning Line */}
                       <div className="absolute inset-x-2 h-0.5 bg-linear-to-r from-transparent via-primary to-transparent shadow-[0_0_12px_var(--primary)] animate-[bounce_2s_infinite]" />
@@ -671,7 +730,12 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                       {isMatchingFace ? (
                         <div className="px-3 py-1 rounded-full bg-black/70 backdrop-blur-md text-white text-[10px] font-mono flex items-center gap-1.5 animate-pulse">
                           <Sparkles className="size-3 text-primary animate-spin" />
-                          Comparing Face...
+                          Matching Descriptor...
+                        </div>
+                      ) : currentMatch?.isConfidentMatch ? (
+                        <div className="px-3 py-1 rounded-full bg-ok/90 backdrop-blur-md text-white text-[10px] font-mono flex items-center gap-1.5 font-bold shadow-sm">
+                          <CheckCircle2 className="size-3.5" />
+                          Face Identified!
                         </div>
                       ) : null}
                     </div>
@@ -679,7 +743,9 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                     {/* Bottom HUD Hint */}
                     <div className="text-center">
                       <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-white/80 text-[11px] font-medium border border-white/10">
-                        Align member face inside the reticle
+                        {currentMatch?.isConfidentMatch
+                          ? 'Match found! Click Confirm Check-In below'
+                          : 'Align member face inside the reticle'}
                       </span>
                     </div>
                   </div>
@@ -704,68 +770,119 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
               )}
             </div>
 
-            {/* Live Match Card (When Face is Recognized) */}
-            {currentMatch && currentMatch.confidence >= 65 && (
+            {/* Confident Face Match Card: Displays Name, Photo, Status, and Check-In Button */}
+            {currentMatch && currentMatch.isConfidentMatch && (
               <div
-                className={`p-3.5 rounded-xl border flex items-center justify-between gap-3 animate-in fade-in zoom-in-95 duration-200 ${
-                  currentMatch.isMatch
-                    ? 'bg-ok/10 border-ok/40 text-foreground'
-                    : 'bg-warn/10 border-warn/40 text-foreground'
-                }`}
+                className="p-4 rounded-xl border-2 border-ok/50 bg-ok/10 text-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in zoom-in-95 duration-200 shadow-md"
               >
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="size-11 rounded-full border-2 border-primary overflow-hidden shrink-0">
+                <div className="flex items-center gap-3.5 min-w-0">
+                  {/* Member Photo */}
+                  <div className="size-14 rounded-full border-2 border-ok overflow-hidden shrink-0 bg-secondary shadow-sm">
                     {currentMatch.member.photoUrl ? (
-                      <img src={currentMatch.member.photoUrl} alt={currentMatch.member.name || 'Member photo'} className="size-full object-cover" />
+                      <img
+                        src={currentMatch.member.photoUrl}
+                        alt={currentMatch.member.name}
+                        className="size-full object-cover"
+                      />
                     ) : (
-                      <div className="size-full bg-secondary flex items-center justify-center font-bold text-xs text-muted-foreground">
+                      <div className="size-full bg-secondary flex items-center justify-center font-bold text-base text-muted-foreground">
                         {currentMatch.member.name.charAt(0)}
                       </div>
                     )}
                   </div>
+
+                  {/* Member Name & Status */}
                   <div className="flex flex-col min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-sm text-foreground truncate">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-display font-bold text-base text-foreground truncate">
                         {currentMatch.member.name}
                       </span>
-                      <Badge variant={currentMatch.isMatch ? 'default' : 'outline'} className="text-[10px]">
-                        {currentMatch.confidence}% Match
+                      <Badge
+                        variant={currentMatch.member.status === 'ACTIVE' ? 'default' : 'destructive'}
+                        className="text-[10px] uppercase font-bold"
+                      >
+                        {currentMatch.member.status || 'ACTIVE'}
                       </Badge>
                     </div>
-                    <span className="text-[11px] font-mono text-muted-foreground">
-                      {currentMatch.member.memberCode} ·{' '}
-                      {currentMatch.isMatch ? 'Authenticating...' : 'Verification in progress'}
-                    </span>
+
+                    <div className="flex items-center gap-2 text-xs font-mono text-muted-foreground mt-0.5 flex-wrap">
+                      <span>{currentMatch.member.memberCode}</span>
+                      {currentMatch.member.phone && <span>· +91 {currentMatch.member.phone}</span>}
+                    </div>
+
+                    {/* Biometric Match Metrics */}
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <Badge variant="outline" className="text-[10px] font-mono bg-ok/20 text-ok border-ok/40">
+                        {currentMatch.confidence}% Match (Distance: {currentMatch.distance})
+                      </Badge>
+                      {currentMatch.member.planName && (
+                        <span className="text-[11px] text-muted-foreground">
+                          Plan: {currentMatch.member.planName}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </div>
 
+                {/* Primary Check-in Button */}
+                <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setCurrentMatch(null)}
+                    className="h-9 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Scan Again
+                  </Button>
+                  <Button
+                    type="button"
+                    size="default"
+                    disabled={isCheckingIn}
+                    onClick={handleConfirmFaceCheckIn}
+                    className="bg-ok hover:bg-ok/90 text-white font-bold text-sm shadow-md gap-2 h-10 px-5"
+                  >
+                    <UserCheck className="size-4" />
+                    {isCheckingIn ? 'Recording...' : 'Confirm Check-In'}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Unrecognized / Non-confident face detected hint */}
+            {noMatchDetected && !currentMatch?.isConfidentMatch && (
+              <div className="p-3 rounded-lg border border-warn/30 bg-warn/10 text-xs flex items-center justify-between gap-2 animate-in fade-in">
+                <div className="flex items-center gap-2 text-foreground">
+                  <UserX className="size-4 text-warn shrink-0" />
+                  <span>Face not recognized or similarity below threshold.</span>
+                </div>
                 <Button
+                  type="button"
+                  variant="outline"
                   size="sm"
-                  disabled={isCheckingIn}
-                  onClick={() => onCheckIn(currentMatch.member.memberCode, 'FACE_ID')}
-                  className="bg-primary text-primary-foreground font-bold text-xs shrink-0"
+                  onClick={() => switchToManualSearch()}
+                  className="text-xs h-7 border-warn/40 text-foreground hover:bg-warn/20"
                 >
-                  <UserCheck className="size-3.5 mr-1" />
-                  Check In
+                  Search Manually
                 </Button>
               </div>
             )}
 
-            {/* Face ID Controls & Enrolled Notice */}
+            {/* Face ID Controls & Manual Search Fallback */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-xl bg-secondary/40 border border-border">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-mono font-semibold text-foreground">{enrolledCount}</span> enrolled member
-                photos ready for biometric matching.
+                <span className="font-mono font-semibold text-foreground">{enrolledCount}</span> registered member
+                biometric descriptors loaded.
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={performFaceScan}
                   disabled={!cameraActive || isMatchingFace || isCheckingIn}
-                  className="h-8 text-xs font-semibold gap-1.5 border-border"
+                  className="h-8 text-xs font-semibold gap-1.5 border-border cursor-pointer"
                 >
                   <RefreshCw className={`size-3.5 ${isMatchingFace ? 'animate-spin' : ''}`} />
                   Scan Now
@@ -775,10 +892,22 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                   variant={autoScanEnabled ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => setAutoScanEnabled(!autoScanEnabled)}
-                  className="h-8 text-xs font-semibold gap-1.5"
+                  className="h-8 text-xs font-semibold gap-1.5 cursor-pointer"
                 >
                   <Zap className="size-3.5" />
                   {autoScanEnabled ? 'Auto-Scan ON' : 'Auto-Scan OFF'}
+                </Button>
+
+                {/* Direct Manual Search Fallback button */}
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => switchToManualSearch()}
+                  className="h-8 text-xs font-medium text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
+                >
+                  <Search className="size-3.5" />
+                  Manual Search Fallback
                 </Button>
               </div>
             </div>

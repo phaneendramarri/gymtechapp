@@ -15,7 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { PhotoCaptureUpload } from './PhotoCaptureUpload';
 import { api } from '@/lib/api';
 import { Member, UpdateMemberRequest } from '@gymtech/shared';
-import { extractSignatureFromUrl, serializeFaceSignature } from '@/lib/face-matcher';
+import { extractDescriptorFromImageUrl, serializeDescriptor } from '@/lib/face-api';
 
 interface EditMemberDialogProps {
   member: Member;
@@ -36,6 +36,8 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
   const [lastName, setLastName] = useState(member.lastName || '');
   const [phone, setPhone] = useState(member.phone || '');
   const [email, setEmail] = useState(member.email || '');
+  const [photoUrl, setPhotoUrl] = useState(member.photoUrl || '');
+  const [faceEmbedding, setFaceEmbedding] = useState<string | undefined>(undefined);
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>((member.gender as any) || 'MALE');
   const [status, setStatus] = useState<NonNullable<typeof member.status>>(member.status || 'ACTIVE');
   const [dateOfBirth, setDateOfBirth] = useState<string>(member.dateOfBirth ? new Date(member.dateOfBirth * 1000).toISOString().split('T')[0] : '');
@@ -43,7 +45,6 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
   const [emergencyContactName, setEmergencyContactName] = useState(member.emergencyContactName || '');
   const [emergencyContactPhone, setEmergencyContactPhone] = useState(member.emergencyContactPhone || '');
   const [healthNotes, setHealthNotes] = useState(member.healthNotes || '');
-  const [photoUrl, setPhotoUrl] = useState(member.photoUrl || '');
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -77,11 +78,11 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
 
     setIsSubmitting(true);
 
-    let faceEmbedding: string | undefined = undefined;
-    if (photoUrl && photoUrl !== member.photoUrl) {
+    let finalFaceEmbedding = faceEmbedding;
+    if (!finalFaceEmbedding && photoUrl && photoUrl !== member.photoUrl) {
       try {
-        const sig = await extractSignatureFromUrl(photoUrl);
-        if (sig) faceEmbedding = serializeFaceSignature(sig);
+        const desc = await extractDescriptorFromImageUrl(photoUrl);
+        if (desc) finalFaceEmbedding = serializeDescriptor(desc);
       } catch (err) {
         console.warn('Face embedding generation skipped:', err);
       }
@@ -100,7 +101,7 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
       emergencyContactPhone: emergencyContactPhone.trim() || undefined,
       healthNotes: healthNotes.trim() || undefined,
       photoUrl: photoUrl || undefined,
-      faceEmbedding: faceEmbedding || (photoUrl === member.photoUrl ? member.faceEmbedding || undefined : undefined),
+      faceEmbedding: finalFaceEmbedding || (photoUrl === member.photoUrl ? member.faceEmbedding || undefined : undefined),
     };
 
     try {
@@ -148,6 +149,7 @@ export const EditMemberDialog: React.FC<EditMemberDialogProps> = ({
           <PhotoCaptureUpload
             value={photoUrl}
             onChange={setPhotoUrl}
+            onFaceDescriptorGenerated={(desc) => setFaceEmbedding(desc || undefined)}
             label="Profile Photo / Fast Check-in Avatar"
           />
 

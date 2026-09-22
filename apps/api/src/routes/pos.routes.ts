@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
-import { jsonOk, jsonValidationErr } from './helpers';
+import { jsonOk, jsonValidationErr, parsePageParams } from './helpers';
 import { PosRepository } from '../repositories/pos.repository';
 import { CreateProductRequestSchema, UpdateProductRequestSchema, CreatePosSaleRequestSchema } from '@gymtech/shared';
 
@@ -66,8 +66,7 @@ posRoutes.post('/sales', requireGym, requireFeature('pos'), requirePermission('p
 // GET /api/pos/sales — list sales history
 posRoutes.get('/sales', requireGym, requireFeature('pos'), requirePermission('pos'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const limitStr = c.req.query('limit');
-  const limit = limitStr ? parseInt(limitStr, 10) : 50;
+  const { limit } = parsePageParams(c.req.query('limit'), undefined, 'default');
   const repo = new PosRepository(ctx.env.DB);
   const sales = await repo.listSales(ctx.gymId!, limit);
   return jsonOk({ sales });

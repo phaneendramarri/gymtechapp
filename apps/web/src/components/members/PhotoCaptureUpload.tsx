@@ -1,20 +1,23 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, Trash2, User, RefreshCw } from 'lucide-react';
+import { Camera, Upload, Trash2, User, RefreshCw, ScanFace, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { compressAndConvertToBase64 } from '@/lib/image';
+import { extractFaceDescriptor, serializeDescriptor, loadFaceApiModels } from '@/lib/face-api';
 import { cn } from '@/lib/utils';
 
 interface PhotoCaptureUploadProps {
   value?: string;
   onChange: (base64Url: string) => void;
+  onFaceDescriptorGenerated?: (descriptorJson: string) => void;
   label?: string;
 }
 
 export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
   value,
   onChange,
+  onFaceDescriptorGenerated,
   label = 'Member Profile Photo',
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -25,7 +28,13 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
   const [fileSizeKb, setFileSizeKb] = useState<number | null>(null);
   const [imgDims, setImgDims] = useState<{ w: number; h: number } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [faceStatus, setFaceStatus] = useState<'idle' | 'detecting' | 'detected' | 'not_detected'>('idle');
   const { toast } = useToast();
+
+  // Pre-warm face-api models when user interacts or mounts
+  useEffect(() => {
+    loadFaceApiModels().catch(() => {});
+  }, []);
 
   // Safely attach stream to video element when webcam activates
   useEffect(() => {
@@ -54,8 +63,9 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
 
   const processFile = async (file: File) => {
     setIsProcessing(true);
+    setFaceStatus('detecting');
     try {
-      // Read dimensions before compression for the readout.
+      // Read dimensions before compression
       const probeUrl = URL.createObjectURL(file);
       const probe = await new Promise<HTMLImageElement>((resolve, reject) => {
         const img = new Image();
@@ -64,14 +74,29 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
         img.src = probeUrl;
       });
       setImgDims({ w: probe.naturalWidth, h: probe.naturalHeight });
+
+      // Run face detection on the original image
+      const descriptor = await extractFaceDescriptor(probe);
       URL.revokeObjectURL(probeUrl);
 
       const result = await compressAndConvertToBase64(file, { maxWidth: 300, maxHeight: 300, quality: 0.75 });
       onChange(result.base64);
       setFileSizeKb(Math.round(result.sizeBytes / 1024));
-      toast('success', 'Photo uploaded', `${file.name} ready.`);
+
+      if (descriptor) {
+        setFaceStatus('detected');
+        const serialized = serializeDescriptor(descriptor);
+        if (onFaceDescriptorGenerated) {
+          onFaceDescriptorGenerated(serialized);
+        }
+        toast('success', 'Face Detected', 'Biometric template generated successfully for Face ID check-in.');
+      } else {
+        setFaceStatus('not_detected');
+        toast('info', 'Photo uploaded', 'No clear face detected in this photo. For Face ID check-in, use a clear front-facing portrait.');
+      }
     } catch (err) {
-      console.error('Failed to compress image:', err);
+      console.error('Failed to process image:', err);
+      setFaceStatus('idle');
       toast('error', 'Upload failed', 'Could not process this image. Try a JPG or PNG under 2 MB.');
     } finally {
       setIsProcessing(false);
@@ -81,31 +106,57 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
   const startWebcam = async () => {
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 320, height: 320, facingMode: 'user' },
+        video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
         audio: false,
       });
       setStream(mediaStream);
       setIsCapturingWebcam(true);
+      loadFaceApiModels().catch(() => {});
     } catch (err) {
       console.error('Camera error:', err);
       toast('error', 'Camera unavailable', 'Camera access was not granted or is unavailable on this device.');
     }
   };
 
-  const snapPhoto = () => {
+  const snapPhoto = async () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
     const canvas = document.createElement('canvas');
-    canvas.width = 300;
-    canvas.height = 300;
+    canvas.width = video.videoWidth || 320;
+    canvas.height = video.videoHeight || 320;
     const ctx = canvas.getContext('2d');
-    if (ctx) {
-      ctx.drawImage(video, 0, 0, 300, 300);
-      const base64 = canvas.toDataURL('image/webp', 0.75);
-      onChange(base64);
-      setFileSizeKb(Math.round((base64.length * 3) / 4096));
-    }
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const base64 = canvas.toDataURL('image/webp', 0.8);
+    onChange(base64);
+    setFileSizeKb(Math.round((base64.length * 3) / 4096));
+    setImgDims({ w: canvas.width, h: canvas.height });
+
     stopWebcam();
+
+    // Extract descriptor from the captured canvas
+    setIsProcessing(true);
+    setFaceStatus('detecting');
+    try {
+      const descriptor = await extractFaceDescriptor(canvas);
+      if (descriptor) {
+        setFaceStatus('detected');
+        const serialized = serializeDescriptor(descriptor);
+        if (onFaceDescriptorGenerated) {
+          onFaceDescriptorGenerated(serialized);
+        }
+        toast('success', 'Face Registered', 'Biometric face descriptor saved for front-desk check-in!');
+      } else {
+        setFaceStatus('not_detected');
+        toast('info', 'Photo captured', 'Face not clearly detected. You can keep this photo or retake with better lighting.');
+      }
+    } catch (err) {
+      console.error('Face descriptor error on snap:', err);
+      setFaceStatus('idle');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const stopWebcam = () => {
@@ -120,6 +171,10 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
     onChange('');
     setFileSizeKb(null);
     setImgDims(null);
+    setFaceStatus('idle');
+    if (onFaceDescriptorGenerated) {
+      onFaceDescriptorGenerated('');
+    }
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -133,22 +188,28 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
 
         {/* Avatar Display Frame (3:4) */}
         <div
-          className="relative w-20 sm:w-24 aspect-[3/4] rounded-lg border-2 border-border bg-card overflow-hidden flex items-center justify-center shrink-0 shadow-xs"
+          className="relative w-24 sm:w-28 aspect-[3/4] rounded-xl border-2 border-border bg-card overflow-hidden flex items-center justify-center shrink-0 shadow-xs"
         >
           {isCapturingWebcam ? (
-            <video
-              ref={(el) => {
-                videoRef.current = el;
-                if (el && stream && el.srcObject !== stream) {
-                  el.srcObject = stream;
-                  el.play().catch(() => {});
-                }
-              }}
-              autoPlay
-              playsInline
-              muted
-              className="size-full object-cover"
-            />
+            <>
+              <video
+                ref={(el) => {
+                  videoRef.current = el;
+                  if (el && stream && el.srcObject !== stream) {
+                    el.srcObject = stream;
+                    el.play().catch(() => {});
+                  }
+                }}
+                autoPlay
+                playsInline
+                muted
+                className="size-full object-cover transform -scale-x-100"
+              />
+              {/* Face alignment guideline overlay */}
+              <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
+                <div className="w-16 h-22 rounded-[50%] border-2 border-dashed border-primary/60 animate-pulse" />
+              </div>
+            </>
           ) : value ? (
             <img src={value} alt="Member Photo" className="size-full object-cover" />
           ) : (
@@ -158,23 +219,15 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
           )}
 
           {isProcessing && (
-            <div className="absolute inset-0 bg-black/60 flex items-center justify-center text-white">
-              <RefreshCw className="size-5 animate-spin" />
-            </div>
-          )}
-
-          {/* Click-to-retake hint */}
-          {value && !isCapturingWebcam && (
-            <div className="absolute inset-0 bg-black/0 hover:bg-black/40 transition-colors flex items-end justify-center opacity-0 hover:opacity-100">
-              <span className="m-1 text-[10px] font-mono text-white bg-black/60 rounded px-1.5 py-0.5">
-                Click to retake
-              </span>
+            <div className="absolute inset-0 bg-black/70 backdrop-blur-xs flex flex-col items-center justify-center text-white gap-1.5 p-2 text-center">
+              <RefreshCw className="size-5 animate-spin text-primary" />
+              <span className="text-[10px] font-mono">Analyzing Face...</span>
             </div>
           )}
         </div>
 
         {/* Action Controls */}
-        <div className="flex-1 flex flex-col gap-2 w-full">
+        <div className="flex-1 flex flex-col gap-2.5 w-full">
           <input
             ref={fileInputRef}
             type="file"
@@ -194,7 +247,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
               if (f) processFile(f);
             }}
             className={cn(
-              "rounded-lg border-2 border-dashed p-3 text-center transition-colors",
+              "rounded-lg border-2 border-dashed p-3 text-center transition-colors cursor-pointer",
               isDragOver
                 ? "border-primary bg-primary/5"
                 : "border-border bg-card/40 hover:border-primary/40"
@@ -205,10 +258,10 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
             onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') fileInputRef.current?.click(); }}
           >
             <p className="text-xs text-muted-foreground">
-              <span className="font-semibold text-foreground">Drop an image</span> or click to upload
+              <span className="font-semibold text-foreground">Drop a portrait</span> or click to upload
             </p>
             <p className="text-[10px] font-mono text-muted-foreground mt-0.5">
-              JPG / PNG / WebP · max 2 MB · 3:4 portrait
+              Used for member identification & Face ID biometric check-in
             </p>
           </div>
 
@@ -221,7 +274,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
                 className="bg-primary text-primary-foreground text-xs font-bold gap-1.5 h-8 flex-1"
               >
                 <Camera className="size-3.5" />
-                <span>Snap Photo</span>
+                <span>Snap & Generate Biometric ID</span>
               </Button>
               <Button
                 type="button"
@@ -239,22 +292,22 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={() => fileInputRef.current?.click()}
-                className="text-xs h-8 gap-1.5 border-border bg-card hover:bg-secondary"
+                onClick={startWebcam}
+                className="text-xs h-8 gap-1.5 border-primary/40 bg-primary/5 text-primary hover:bg-primary/10 font-medium"
               >
-                <Upload className="size-3.5" />
-                <span>Upload Image</span>
+                <Camera className="size-3.5" />
+                <span>Capture with Webcam</span>
               </Button>
-              
+
               <Button
                 type="button"
                 size="sm"
                 variant="outline"
-                onClick={startWebcam}
+                onClick={() => fileInputRef.current?.click()}
                 className="text-xs h-8 gap-1.5 border-border bg-card hover:bg-secondary"
               >
-                <Camera className="size-3.5" />
-                <span>Use Webcam</span>
+                <Upload className="size-3.5" />
+                <span>Upload File</span>
               </Button>
 
               {value && (
@@ -263,7 +316,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
                   size="sm"
                   variant="ghost"
                   onClick={clearPhoto}
-                  className="text-xs h-8 text-destructive hover:bg-destructive/10 px-2"
+                  className="text-xs h-8 text-destructive hover:bg-destructive/10 px-2 ml-auto"
                   title="Remove Photo"
                 >
                   <Trash2 className="size-3.5" />
@@ -272,17 +325,31 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
             </div>
           )}
 
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
-            <span>WebP compressed for fast check-in</span>
-            {fileSizeKb !== null && (
-              <Badge variant="outline" className="text-[10px] font-mono bg-ok/10 text-ok border-ok/30">
-                {fileSizeKb} KB
+          {/* Biometric Status & Metadata Badges */}
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap pt-0.5">
+            {faceStatus === 'detected' && (
+              <Badge variant="outline" className="text-[10px] font-mono bg-ok/10 text-ok border-ok/30 flex items-center gap-1">
+                <CheckCircle2 className="size-3" />
+                Face Descriptor Ready (128-D)
               </Badge>
             )}
-            {imgDims && (
-              <Badge variant="outline" className="text-[10px] font-mono">
-                {imgDims.w} × {imgDims.h}
+
+            {faceStatus === 'not_detected' && (
+              <Badge variant="outline" className="text-[10px] font-mono bg-warn/10 text-warn border-warn/30 flex items-center gap-1">
+                <AlertCircle className="size-3" />
+                No face detected (Retake for Face ID)
               </Badge>
+            )}
+
+            {fileSizeKb !== null && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {fileSizeKb} KB
+              </span>
+            )}
+            {imgDims && (
+              <span className="font-mono text-[10px] text-muted-foreground">
+                {imgDims.w}×{imgDims.h}
+              </span>
             )}
           </div>
         </div>

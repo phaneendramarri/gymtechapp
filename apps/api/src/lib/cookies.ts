@@ -100,6 +100,20 @@ export function buildCsrfCookie(csrfToken: string, appEnv: string | undefined): 
 }
 
 /**
+ * Build a `Set-Cookie` header that clears the CSRF cookie.
+ * Use this on logout paths.
+ */
+export function buildClearCsrfCookie(appEnv: string | undefined): string {
+  return buildCookie(CSRF_COOKIE_NAME, '', {
+    httpOnly: false,
+    secure: isSecureContext(appEnv),
+    sameSite: 'Lax',
+    path: '/',
+    maxAgeSeconds: 0,
+  });
+}
+
+/**
  * Extract a cookie value by name from the `Cookie:` header. Returns
  * `null` if the cookie is missing.
  */
