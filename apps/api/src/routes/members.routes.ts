@@ -18,7 +18,7 @@ import { LicenseService } from '../services/license.service';
 import { EmailService } from '../services/email.service';
 import { auditGymFromCtx } from '../services/audit.service';
 import { encryptFaceEmbedding, decryptFaceEmbedding } from '../lib/crypto';
-import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated, toSafeErrorMessage } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated, toSafeErrorMessage, parseDateToUnixSeconds } from './helpers';
 import { loadPlatformMsg91 } from '../lib/msg91';
 
 export const memberRoutes = new Hono();
@@ -81,12 +81,16 @@ memberRoutes.post('/', requireGym, requireFeature('members'), requirePermission(
         encryptedFaceEmbedding = parsed.data.faceEmbedding;
       }
     }
+    const dateOfBirth = parseDateToUnixSeconds(parsed.data.dateOfBirth);
+    if (dateOfBirth === null) return jsonErr('Invalid dateOfBirth', 400);
+    const joinedDate = parseDateToUnixSeconds(parsed.data.joinedDate);
+    if (joinedDate === null) return jsonErr('Invalid joinedDate', 400);
     const result = await memberService.createMemberWithPlan({
       firstName: parsed.data.firstName, lastName: parsed.data.lastName, phone: parsed.data.phone,
       email: parsed.data.email && parsed.data.email.length > 0 ? parsed.data.email : undefined,
       gender: parsed.data.gender,
-      dateOfBirth: parsed.data.dateOfBirth ? Math.floor(new Date(parsed.data.dateOfBirth).getTime() / 1000) : undefined,
-      joinedDate: parsed.data.joinedDate ? Math.floor(new Date(parsed.data.joinedDate).getTime() / 1000) : undefined,
+      dateOfBirth: dateOfBirth,
+      joinedDate: joinedDate,
       photoUrl: parsed.data.photoUrl, faceEmbedding: encryptedFaceEmbedding,
       address: parsed.data.address, city: parsed.data.city, pincode: parsed.data.pincode,
       emergencyContactName: parsed.data.emergencyContactName, emergencyContactPhone: parsed.data.emergencyContactPhone,
@@ -185,7 +189,11 @@ memberRoutes.put('/:id', requireGym, requireFeature('members'), requirePermissio
   await memberRepo.update(id, {
     firstName: parsed.data.firstName, lastName: parsed.data.lastName, phone: parsed.data.phone,
     email: parsed.data.email, gender: parsed.data.gender,
-    dateOfBirth: parsed.data.dateOfBirth ? Math.floor(new Date(parsed.data.dateOfBirth).getTime() / 1000) : undefined,
+    dateOfBirth: (() => {
+      const v = parseDateToUnixSeconds(parsed.data.dateOfBirth);
+      if (v === null) throw jsonErr('Invalid dateOfBirth', 400);
+      return v;
+    })(),
     photoUrl: parsed.data.photoUrl, faceEmbedding: encryptedFaceEmbedding,
     address: parsed.data.address, emergencyContactName: parsed.data.emergencyContactName,
     emergencyContactPhone: parsed.data.emergencyContactPhone, healthNotes: parsed.data.healthNotes,
@@ -293,9 +301,11 @@ memberRoutes.post('/:id/renew', requireGym, requireFeature('members'), requirePe
   if (!plan || plan.isActive !== 1) return jsonErr('Selected plan is inactive or no longer available', 400);
   const memberService = new MemberService(ctx.env.DB, ctx.gymId!, ctx.user!.id, tenant.gym.name);
   try {
+    const startDate = parseDateToUnixSeconds(parsed.data.startDate);
+    if (startDate === null) return jsonErr('Invalid startDate', 400);
     const result = await memberService.renewMembership({
       memberId: id, planId: parsed.data.planId,
-      startDate: parsed.data.startDate ? Math.floor(new Date(parsed.data.startDate).getTime() / 1000) : undefined,
+      startDate: startDate,
       discountPaise: parsed.data.discountPaise, paymentPaise: parsed.data.paymentPaise,
       paymentMode: parsed.data.paymentMode, referenceId: parsed.data.referenceId, notes: parsed.data.notes,
     });

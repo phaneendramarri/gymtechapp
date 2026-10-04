@@ -44,8 +44,13 @@ async function verifySession(c: Context<{ Bindings: AppEnv; Variables: AuthVars 
   if (!token) {
     throw jsonError('Missing or invalid session credential', 401);
   }
+  const secret = c.env.JWT_SECRET;
+  if (!secret || secret.length < 32) {
+    console.error('JWT_SECRET is missing or too short — rejecting all sessions');
+    throw jsonError('Server authentication is not configured', 500);
+  }
   const iss = c.env.APP_URL ?? 'gymtech';
-  const session = await verifySessionToken(token, c.env.JWT_SECRET, { iss, aud: 'gymtech-api' });
+  const session = await verifySessionToken(token, secret, { iss, aud: 'gymtech-api' });
   if (!session) throw jsonError('Invalid or expired session token', 401);
 
   // Phase 3.5c: Check jti has not been revoked server-side (DB check)
@@ -114,6 +119,69 @@ export const requireAuth: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthV
   return next();
 };
 
+interface CachedTenantEntry {
+  tenant: TenantResolution;
+  expiresAt: number;
+}
+
+const tenantCache = new Map<number, CachedTenantEntry>();
+const TENANT_CACHE_TTL_MS = 60_000;
+
+export function invalidateTenantCache(gymId?: number): void {
+  if (gymId) {
+    tenantCache.delete(gymId);
+  } else {
+    tenantCache.clear();
+  }
+}
+
+async function resolveTenant(
+  db: D1Database,
+  gymId: number
+): Promise<{ tenant?: TenantResolution; error?: Response }> {
+  const now = Date.now();
+  const cached = tenantCache.get(gymId);
+  if (cached && cached.expiresAt > now) {
+    if (
+      cached.tenant.gym.status === 'ACTIVE' &&
+      cached.tenant.license.status === 'ACTIVE' &&
+      cached.tenant.license.expiresAt >= Math.floor(now / 1000)
+    ) {
+      return { tenant: cached.tenant };
+    }
+  }
+
+  const gym = await db
+    .prepare(`SELECT * FROM gyms WHERE id = ? AND deletedAt IS NULL`)
+    .bind(gymId)
+    .first<Gym>();
+  if (!gym) {
+    return { error: jsonError('Gym tenant is not accessible. Contact the platform administrator.', 403) };
+  }
+  if (gym.status !== 'ACTIVE') {
+    return { error: jsonError(`This gym tenant is currently ${gym.status}.`, 403) };
+  }
+
+  const license = await db
+    .prepare(`SELECT * FROM licenses WHERE gymId = ?`)
+    .bind(gymId)
+    .first<License>();
+  if (!license) {
+    return { error: jsonError('No license is configured for this gym', 403) };
+  }
+  if (license.status !== 'ACTIVE') {
+    return { error: jsonError(`Gym license is ${license.status}.`, 403) };
+  }
+  if (license.expiresAt < Math.floor(Date.now() / 1000)) {
+    return { error: jsonError('Gym license has expired.', 403) };
+  }
+
+  const enabledFeatures: GymFeatureKey[] = parseEnabledFeatures(license.features);
+  const tenant: TenantResolution = { gym: { ...gym, enabledFeatures }, license, enabledFeatures };
+  tenantCache.set(gymId, { tenant, expiresAt: now + TENANT_CACHE_TTL_MS });
+  return { tenant };
+}
+
 export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVars }> = async (c, next) => {
   const ctx = getCtx(c);
 
@@ -150,9 +218,12 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
 
     // Enforce platformAdmins.authorizedGyms restriction when configured
     const adminRecord: any = await c.env.DB
-      .prepare(`SELECT authorizedGyms FROM platformAdmins WHERE id = ? AND deletedAt IS NULL LIMIT 1`)
+      .prepare(`SELECT status, deletedAt, authorizedGyms FROM platformAdmins WHERE id = ? LIMIT 1`)
       .bind(user.id)
-      .first<{ authorizedGyms: string | null }>();
+      .first<{ status: string | null; deletedAt: number | null; authorizedGyms: string | null }>();
+    if (!adminRecord || adminRecord.deletedAt !== null || adminRecord.status !== 'ACTIVE') {
+      return jsonError('Platform admin account is not active', 403);
+    }
     const authorizedGymsStr = adminRecord?.authorizedGyms;
     if (authorizedGymsStr) {
       try {
@@ -176,33 +247,42 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
 
     // Platform admins bypass all permission and feature checks but still need
     // gym resolution for the tenant object (powers feature flags, license status).
-    // These 4 DB calls are the minimum needed — role lookup is skipped because
-    // platform admins already have permissions: ['*'] hardcoded in auth.service.ts.
-    const gym = await c.env.DB
-      .prepare(`SELECT * FROM gyms WHERE id = ? AND deletedAt IS NULL`)
-      .bind(gymId)
-      .first<Gym>();
-    if (!gym) return jsonError('Gym tenant is not accessible. Contact the platform administrator.', 403);
-    if (gym.status !== 'ACTIVE') return jsonError(`This gym tenant is currently ${gym.status}.`, 403);
+    const resolved = await resolveTenant(c.env.DB, gymId);
+    if (resolved.error) return resolved.error;
 
-    const license = await c.env.DB
-      .prepare(`SELECT * FROM licenses WHERE gymId = ?`)
-      .bind(gymId)
-      .first<License>();
-    if (!license) return jsonError('No license is configured for this gym', 403);
-    if (license.status !== 'ACTIVE') return jsonError(`Gym license is ${license.status}.`, 403);
-    if (license.expiresAt < Math.floor(Date.now() / 1000)) return jsonError('Gym license has expired.', 403);
-
-    // Feature flags come from the license; an empty map means "all enabled".
-    const enabledFeatures: GymFeatureKey[] = parseEnabledFeatures(license.features);
-
-    const tenant: TenantResolution = { gym: { ...gym, enabledFeatures }, license, enabledFeatures };
-    c.set('tenant', tenant);
+    c.set('tenant', resolved.tenant!);
     return next();
   }
 
   if (!session.gymId) {
     return jsonError('User is not assigned to a gym tenant', 403);
+  }
+  // The session row was verified above, but the underlying staff/member
+  // account may have been disabled or archived since the token was minted.
+  // Re-check here (requireAuth does the same) so a stale JWT cannot bypass
+  // deactivation — every business route goes through requireGym.
+  if (session.role === 'MEMBER') {
+    const dbMember: any = await c.env.DB
+      .prepare(`SELECT status, deletedAt FROM members WHERE id = ? AND gymId = ?`)
+      .bind(session.id, session.gymId)
+      .first<{ status: string; deletedAt: number | null }>();
+    if (!dbMember || (dbMember.deletedAt ?? null) !== null) {
+      return jsonError('Member account has been archived or deleted', 401);
+    }
+    if (dbMember.status === 'BLOCKED') {
+      return jsonError('Member account is currently blocked by administrator', 403);
+    }
+  } else {
+    const dbUser: any = await c.env.DB
+      .prepare(`SELECT status, deletedAt FROM users WHERE id = ? AND gymId = ?`)
+      .bind(session.id, session.gymId)
+      .first<{ status: string; deletedAt: number | null }>();
+    if (!dbUser || (dbUser.deletedAt ?? null) !== null) {
+      return jsonError('User account has been archived or deleted', 401);
+    }
+    if (dbUser.status === 'DISABLED') {
+      return jsonError('User account is currently disabled by administrator', 403);
+    }
   }
   setUser(c, user, session.gymId);
 
@@ -212,8 +292,8 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
   if ((user as any).roleId) {
     const roleId = (user as any).roleId as number;
     const roleRow: any = await c.env.DB
-      .prepare(`SELECT permissions, isOwner FROM roles WHERE id = ? AND deletedAt IS NULL`)
-      .bind(roleId)
+      .prepare(`SELECT permissions, isOwner FROM roles WHERE id = ? AND gymId = ? AND deletedAt IS NULL`)
+      .bind(roleId, session.gymId)
       .first<{ permissions: string; isOwner: number }>();
     if (roleRow) {
       user.isOwner = Boolean(roleRow.isOwner);
@@ -247,33 +327,10 @@ export const requireGym: MiddlewareHandler<{ Bindings: AppEnv; Variables: AuthVa
     }
   }
 
-  const gym = await c.env.DB
-    .prepare(`SELECT * FROM gyms WHERE id = ? AND deletedAt IS NULL`)
-    .bind(ctx.gymId)
-    .first<Gym>();
-  if (!gym) {
-    return jsonError('Gym tenant is not accessible. Contact the platform administrator.', 403);
-  }
-  if (gym.status !== 'ACTIVE') {
-    return jsonError(`This gym tenant is currently ${gym.status}.`, 403);
-  }
+  const resolved = await resolveTenant(c.env.DB, session.gymId);
+  if (resolved.error) return resolved.error;
 
-  const license = await c.env.DB
-    .prepare(`SELECT * FROM licenses WHERE gymId = ?`)
-    .bind(ctx.gymId)
-    .first<License>();
-  if (!license) return jsonError('No license is configured for this gym', 403);
-  if (license.status !== 'ACTIVE') {
-    return jsonError(`Gym license is ${license.status}.`, 403);
-  }
-  if (license.expiresAt < Math.floor(Date.now() / 1000)) {
-    return jsonError('Gym license has expired.', 403);
-  }
-
-  const enabledFeatures: GymFeatureKey[] = parseEnabledFeatures(license.features);
-
-  const tenant: TenantResolution = { gym: { ...gym, enabledFeatures: enabledFeatures }, license, enabledFeatures };
-  c.set('tenant', tenant);
+  c.set('tenant', resolved.tenant!);
   return next();
 };
 
@@ -293,6 +350,10 @@ export async function getGymFeatures(
   db: D1Database,
   gymId: number,
 ): Promise<GymFeatureKey[]> {
+  const cached = tenantCache.get(gymId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return cached.tenant.enabledFeatures;
+  }
   const row = await db
     .prepare(`SELECT features FROM licenses WHERE gymId = ? LIMIT 1`)
     .bind(gymId)
@@ -381,10 +442,21 @@ export const requireSuperAdminMiddleware: MiddlewareHandler<{ Bindings: AppEnv; 
     return e as Response;
   }
 
-  setUser(c, payloadToSessionUser(session), session.gymId ?? undefined);
-
   if (!isPlatformAdmin(session)) {
     return jsonError('Platform Super Admin privileges required', 403);
   }
+
+  // A JWT alone is not enough: the admin row may have been disabled or
+  // archived since the token was minted. Re-check the DB on every call.
+  const adminRow: any = await c.env.DB
+    .prepare(`SELECT status, deletedAt FROM platformAdmins WHERE id = ? LIMIT 1`)
+    .bind(session.id)
+    .first<{ status: string | null; deletedAt: number | null }>();
+  if (!adminRow || adminRow.deletedAt !== null || adminRow.status !== 'ACTIVE') {
+    return jsonError('Platform admin account is not active', 403);
+  }
+
+  setUser(c, payloadToSessionUser(session), session.gymId ?? undefined);
+
   return next();
 };

@@ -24,7 +24,7 @@
 - **16 repositories** — one owner per table (Counter, Pt, PasswordReset, Settings added in Phase 0)
 - **Auth:** staff JWT-cookie login, platform-admin login, member portal login (phone + member
   code), CSRF double-submit, forgot/reset password (opaque HMAC tokens), session revocation
-  (DB + KV denylist), progressive lockout, Turnstile, rate limiting
+  (DB + KV denylist), progressive lockout, rate limiting
 - **Domain routes:** members (CRUD, bulk import, renew, freeze/unfreeze, GDPR erase/export),
   attendance (QR check-in), payments (single atomic batch path), plans, PT collections/commissions,
   custom roles + menu permissions, staff, notification settings + dispatch with credit metering,

@@ -1,6 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
-import { TurnstileWidget, type TurnstileWidgetRef } from '@/components/shared/TurnstileWidget';
+import React, { useState } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   ArrowRight,
   AlertCircle,
@@ -15,7 +14,6 @@ import {
   Dumbbell,
   Loader2,
   Shield,
-  ShieldCheck,
   Sparkles,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
@@ -38,6 +36,7 @@ type LoginMode = 'STAFF' | 'MEMBER';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, memberLogin } = useAuth();
 
   const [mode, setMode] = useState<LoginMode>('STAFF');
@@ -52,9 +51,6 @@ export const LoginPage: React.FC = () => {
 
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [turnstileToken, setTurnstileToken] = useState<string>('');
-  const [failedAttempts, setFailedAttempts] = useState(0);
-  const turnstileRef = useRef<TurnstileWidgetRef>(null);
 
   // Forgot password dialog state
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -63,6 +59,10 @@ export const LoginPage: React.FC = () => {
   const [forgotMessage, setForgotMessage] = useState<string | null>(null);
   const [forgotDevUrl, setForgotDevUrl] = useState<string | null>(null);
   const [forgotError, setForgotError] = useState<string | null>(null);
+
+  React.useEffect(() => {
+    document.title = mode === 'MEMBER' ? 'Member Portal Sign In — GymTech' : 'Staff Sign In — GymTech';
+  }, [mode]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,14 +83,9 @@ export const LoginPage: React.FC = () => {
           gymSlug: gymSlug.trim(),
           identifier: memberIdentifier.trim(),
           codeOrPin: memberCode.trim(),
-          turnstileToken: turnstileToken || undefined,
         });
-        setFailedAttempts(0);
         navigate('/portal');
       } catch (err: any) {
-        setFailedAttempts((prev) => prev + 1);
-        turnstileRef.current?.reset();
-        setTurnstileToken('');
         setError(err.message || 'Invalid member credentials. Check your phone number and member code.');
       } finally {
         setIsLoading(false);
@@ -104,19 +99,32 @@ export const LoginPage: React.FC = () => {
       const res = await login({
         email,
         password,
-        turnstileToken: turnstileToken || undefined,
       });
-      setFailedAttempts(0);
       // Server has set the session + CSRF cookies. The role is in res.user.
+      // Return to the deep link the guard stored (or the pre-expiry page),
+      // falling back to the role home. Only same-origin app paths allowed.
+      const storedReturn =
+        (location.state as any)?.from ??
+        (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('gymtech_return_to') : null);
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.removeItem('gymtech_return_to');
+      }
+      const safeReturn =
+        typeof storedReturn === 'string' &&
+        storedReturn.startsWith('/') &&
+        !storedReturn.startsWith('//') &&
+        !storedReturn.startsWith('/login') &&
+        !storedReturn.startsWith('/reset-password')
+          ? storedReturn
+          : null;
       if (res?.user?.role === 'PLATFORM_ADMIN') {
-        navigate('/admin');
+        navigate(safeReturn && safeReturn.startsWith('/admin') ? safeReturn : '/admin');
+      } else if (res?.user?.role === 'MEMBER') {
+        navigate('/portal');
       } else {
-        navigate('/dashboard');
+        navigate(safeReturn ?? '/dashboard');
       }
     } catch (err: any) {
-      setFailedAttempts((prev) => prev + 1);
-      turnstileRef.current?.reset();
-      setTurnstileToken('');
       setError(err.message || 'Failed to sign in. Please verify your email and password.');
     } finally {
       setIsLoading(false);
@@ -205,7 +213,7 @@ export const LoginPage: React.FC = () => {
             <div className="inline-flex p-1 bg-(--surface-2) rounded-full mb-8 border border-(--line)/60" role="tablist">
               <button
                 type="button"
-                onClick={() => { setMode('STAFF'); setError(null); setFailedAttempts(0); setTurnstileToken(''); setGymSlug(''); setMemberIdentifier(''); setMemberCode(''); turnstileRef.current?.reset(); }}
+                onClick={() => { setMode('STAFF'); setError(null); setGymSlug(''); setMemberIdentifier(''); setMemberCode(''); }}
                 className={`px-4 h-8 text-xs font-medium rounded-full transition-all ${mode === 'STAFF' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
                 role="tab"
                 aria-selected={mode === 'STAFF'}
@@ -214,7 +222,7 @@ export const LoginPage: React.FC = () => {
               </button>
               <button
                 type="button"
-                onClick={() => { setMode('MEMBER'); setError(null); setFailedAttempts(0); setTurnstileToken(''); setGymSlug(''); turnstileRef.current?.reset(); }}
+                onClick={() => { setMode('MEMBER'); setError(null); setGymSlug(''); }}
                 className={`px-4 h-8 text-xs font-medium rounded-full transition-all ${mode === 'MEMBER' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
                 role="tab"
                 aria-selected={mode === 'MEMBER'}
@@ -361,32 +369,6 @@ export const LoginPage: React.FC = () => {
                 </>
               )}
 
-              {/* Progressive verification: Runs invisibly in the background for normal users; reveals challenge only if repeated failed attempts occur */}
-              {failedAttempts >= 2 ? (
-                <div className="flex flex-col gap-2 p-3 rounded-lg bg-(--surface-2) border border-(--line) my-1">
-                  <p className="text-xs text-ink-2 font-medium flex items-center gap-1.5">
-                    <ShieldCheck className="h-3.5 w-3.5 text-ink" /> Please complete the security check:
-                  </p>
-                  <TurnstileWidget
-                    key={`visible-${mode}-${failedAttempts}`}
-                    ref={turnstileRef}
-                    action={mode === 'STAFF' ? 'login' : 'member_login'}
-                    onVerify={(token) => setTurnstileToken(token)}
-                    onExpire={() => setTurnstileToken('')}
-                  />
-                </div>
-              ) : (
-                <div className="hidden" aria-hidden="true">
-                  <TurnstileWidget
-                    key={`silent-${mode}`}
-                    ref={turnstileRef}
-                    action={mode === 'STAFF' ? 'login' : 'member_login'}
-                    onVerify={(token) => setTurnstileToken(token)}
-                    onExpire={() => setTurnstileToken('')}
-                  />
-                </div>
-              )}
-
               <Button
                 type="submit"
                 disabled={isLoading}
@@ -410,6 +392,13 @@ export const LoginPage: React.FC = () => {
             <p className="text-[11px] text-ink-3 mt-6 leading-relaxed">
               By continuing you agree to GymTech's <Link to="/terms" className="underline underline-offset-2 hover:text-ink-2">Terms</Link> and <Link to="/privacy" className="underline underline-offset-2 hover:text-ink-2">Privacy</Link>.
             </p>
+
+            <div className="mt-5 pt-4 border-t border-line text-center text-xs text-ink-3">
+              Looking to register a new gym?{' '}
+              <Link to="/contact" className="text-iron hover:underline font-medium">
+                Email us to start your free trial &rarr;
+              </Link>
+            </div>
           </div>
         </section>
       </main>
@@ -433,7 +422,28 @@ export const LoginPage: React.FC = () => {
                 {forgotDevUrl && (
                   <p className="text-[11px] text-ink-2 mt-2 break-all font-mono">
                     <span className="text-ink-3">Dev reset URL: </span>
-                    <a href={forgotDevUrl} className="text-(--iron) underline">{forgotDevUrl}</a>
+                    {(() => {
+                      // The dev reset URL comes from our own API (non-prod
+                      // only), but never render an unvalidated href — a
+                      // javascript: URL here would execute on click.
+                      const u = forgotDevUrl.startsWith('/')
+                        ? forgotDevUrl
+                        : (() => {
+                            try {
+                              const parsed = new URL(forgotDevUrl, window.location.origin);
+                              return parsed.origin === window.location.origin
+                                ? `${parsed.pathname}${parsed.search}${parsed.hash}`
+                                : null;
+                            } catch {
+                              return null;
+                            }
+                          })();
+                      return u ? (
+                        <a href={u} className="text-(--iron) underline">{forgotDevUrl}</a>
+                      ) : (
+                        <span>{forgotDevUrl}</span>
+                      );
+                    })()}
                   </p>
                 )}
               </div>

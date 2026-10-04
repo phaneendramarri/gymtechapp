@@ -21,6 +21,12 @@ export default defineConfig({
     viewport: { width: 1366, height: 850 },
     actionTimeout: 25000,
   },
+  webServer: {
+    command: 'npx wrangler dev -c wrangler.jsonc --port 8787',
+    url: 'http://127.0.0.1:8787/api/health',
+    reuseExistingServer: true,
+    timeout: 120000,
+  },
   projects: [
     { name: 'setup', testMatch: /auth\.setup\.ts/ },
     {

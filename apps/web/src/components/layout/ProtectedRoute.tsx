@@ -1,8 +1,9 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { GymFeatureKey } from '@gymtech/shared';
 import { useAuth } from '@/lib/auth';
 import { RouteSplash } from './RouteSplash';
+import { ErrorState } from '@/components/shared/ErrorState';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -26,6 +27,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   feature,
 }) => {
   const { user, isLoading, hasFeature } = useAuth();
+  const location = useLocation();
 
   if (isLoading) {
     return (
@@ -36,7 +38,7 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
   // Member role isolation: Member accounts can only access member portal
@@ -50,18 +52,64 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Member-only routes (currently just /portal): staff sessions landing here
+  // previously called the member API, got 401, and were logged out. Bounce
+  // non-members back to the dashboard instead.
+  if (
+    allowMember &&
+    !requireSuperAdmin &&
+    !requiredPermissions?.length &&
+    !feature &&
+    user.role !== 'MEMBER' &&
+    !isPlatformAdmin
+  ) {
+    return <Navigate to="/dashboard" replace />;
+  }
+
   // License feature gate — mirrors backend `requireFeature`. Owners are
   // gated too; only platform admins bypass. Empty array means no features enabled.
   if (feature && !isPlatformAdmin && !hasFeature(feature)) {
-    return <Navigate to={feature === 'dashboard' ? '/members' : '/dashboard'} replace />;
+    const fallback = feature === 'dashboard' ? '/members' : '/dashboard';
+    // Loop-proofing: if the fallback is the page we're already on (e.g.
+    // both modules disabled), render an explanatory state instead of
+    // ping-ponging <Navigate> forever.
+    if (fallback === location.pathname) {
+      return (
+        <div className="min-h-screen flex items-center justify-center bg-background p-4">
+          <div className="max-w-md w-full">
+            <ErrorState
+              title="Module unavailable"
+              description="This module is disabled for your gym's plan. Please contact your administrator."
+              backHref="/login"
+              backLabel="Sign in"
+            />
+          </div>
+        </div>
+      );
+    }
+    return <Navigate to={fallback} replace />;
   }
 
   // Permission guard — PLATFORM_ADMIN and gym OWNER bypass all permission checks so they have
   // full access across every gym module (members, payments, etc.)
   const isOwner = user.role === 'OWNER' || Boolean(user.isOwner);
-  if (requiredPermissions && requiredPermissions.length > 0 && !isPlatformAdmin && !isOwner) {
+  if (requiredPermissions?.length && !isPlatformAdmin && !isOwner) {
     const hasAll = requiredPermissions.every((perm) => user.permissions?.includes(perm));
     if (!hasAll) {
+      if (location.pathname === '/dashboard') {
+        return (
+          <div className="min-h-screen flex items-center justify-center bg-background p-4">
+            <div className="max-w-md w-full">
+              <ErrorState
+                title="No access"
+                description="Your account doesn't have permission to access any module. Please contact your administrator."
+                backHref="/login"
+                backLabel="Sign in"
+              />
+            </div>
+          </div>
+        );
+      }
       return <Navigate to="/dashboard" replace />;
     }
   }

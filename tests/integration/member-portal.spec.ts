@@ -29,7 +29,7 @@ async function createMember(
   client: ApiClient,
   planId: number
 ): Promise<PortalMember> {
-  const res = await client.post<{ member: PortalMember }>('/api/members', {
+  const res = await client.post<{ member: PortalMember }>('/api/v1/members', {
     firstName: `Portal ${Date.now().toString().slice(-6)}`,
     lastName: 'Member',
     phone: `9${String(Date.now()).slice(-9)}`,
@@ -45,7 +45,8 @@ async function createMember(
 async function loginAsMember(member: PortalMember): Promise<ApiClient> {
   const env = await getTestEnv();
   const client = new ApiClient(env);
-  const res = await client.post('/api/auth/member-login', {
+  await client.fetchCsrfToken();
+  const res = await client.post('/api/v1/auth/member-login', {
     gymSlug: GYM_SLUG,
     identifier: member.phone,
     codeOrPin: member.memberCode,
@@ -57,11 +58,11 @@ async function loginAsMember(member: PortalMember): Promise<ApiClient> {
 describe('Member portal — session scoping', () => {
   it('reads its own PT package and sessions, and only its own', async () => {
     const { client: owner } = await loginAsOwner();
-    const planId = (await owner.get<{ plans: Array<{ id: number }> }>('/api/plans')).body.plans[0]!.id;
+    const planId = (await owner.get<{ plans: Array<{ id: number }> }>('/api/v1/plans')).body.plans[0]!.id;
     const member = await createMember(owner, planId);
     const other = await createMember(owner, planId);
 
-    const pkg = await owner.post<{ id: number }>('/api/pt/packages', {
+    const pkg = await owner.post<{ id: number }>('/api/v1/pt/packages', {
       memberId: member.id,
       trainerId: 1,
       packageName: 'Portal Scoping Pack',
@@ -71,7 +72,7 @@ describe('Member portal — session scoping', () => {
       expiryDate: '2026-12-31',
     });
     expect(pkg.status).toBe(201);
-    await owner.post('/api/pt/sessions', {
+    await owner.post('/api/v1/pt/sessions', {
       packageId: pkg.body.id,
       sessionDate: '2026-01-10',
       sessionNotes: 'scoping baseline',
@@ -81,14 +82,14 @@ describe('Member portal — session scoping', () => {
 
     // Own data — and `?memberId=` pointing at someone else must not widen it.
     const own = await memberClient.get<{ packages: Array<{ memberId: number; packageName: string }> }>(
-      `/api/pt/packages?memberId=${other.id}`
+      `/api/v1/pt/packages?memberId=${other.id}`
     );
     expect(own.status).toBe(200);
     expect(own.body.packages.map((p) => p.packageName)).toContain('Portal Scoping Pack');
     expect(own.body.packages.every((p) => p.memberId === member.id)).toBe(true);
 
     const sessions = await memberClient.get<{ sessions: Array<{ notes: string }> }>(
-      `/api/pt/sessions?memberId=${other.id}`
+      `/api/v1/pt/sessions?memberId=${other.id}`
     );
     expect(sessions.status).toBe(200);
     expect(sessions.body.sessions.map((s) => s.notes)).toContain('scoping baseline');
@@ -96,45 +97,45 @@ describe('Member portal — session scoping', () => {
 
   it('cannot reach the gym PT ledger, member directory, attendance or invoices', async () => {
     const { client: owner } = await loginAsOwner();
-    const planId = (await owner.get<{ plans: Array<{ id: number }> }>('/api/plans')).body.plans[0]!.id;
+    const planId = (await owner.get<{ plans: Array<{ id: number }> }>('/api/v1/plans')).body.plans[0]!.id;
     const member = await createMember(owner, planId);
     const memberClient = await loginAsMember(member);
 
     // Money and staff surfaces.
-    expect((await memberClient.get('/api/pt/collections')).status).toBe(403);
-    expect((await memberClient.get('/api/pt/summary')).status).toBe(403);
-    expect((await memberClient.get('/api/members?limit=1')).status).toBe(403);
-    expect((await memberClient.get('/api/dashboard')).status).toBe(403);
+    expect((await memberClient.get('/api/v1/pt/collections')).status).toBe(403);
+    expect((await memberClient.get('/api/v1/pt/summary')).status).toBe(403);
+    expect((await memberClient.get('/api/v1/members?limit=1')).status).toBe(403);
+    expect((await memberClient.get('/api/v1/dashboard')).status).toBe(403);
 
     // Attendance is recorded by staff/kiosk terminals, never by the member.
-    const checkIn = await memberClient.post('/api/attendance/check-in', {
+    const checkIn = await memberClient.post('/api/v1/attendance/check-in', {
       memberIdOrCode: member.memberCode,
       method: 'MANUAL',
     });
     expect(checkIn.status).toBe(403);
 
     // Another member's invoice/receipt by id.
-    const payments = await owner.get<{ items: Array<{ id: number }> }>('/api/payments?limit=1');
+    const payments = await owner.get<{ items: Array<{ id: number }> }>('/api/v1/payments?limit=1');
     const paymentId = payments.body.items?.[0]?.id;
     if (paymentId) {
-      expect((await memberClient.get(`/api/payments/${paymentId}/invoice`)).status).toBe(403);
-      expect((await memberClient.get(`/api/payments/${paymentId}/receipt`)).status).toBe(403);
+      expect((await memberClient.get(`/api/v1/payments/${paymentId}/invoice`)).status).toBe(403);
+      expect((await memberClient.get(`/api/v1/payments/${paymentId}/receipt`)).status).toBe(403);
     }
   });
 
   it('sees the class timetable and books only itself', async () => {
     const { client: owner } = await loginAsOwner();
-    const planId = (await owner.get<{ plans: Array<{ id: number }> }>('/api/plans')).body.plans[0]!.id;
+    const planId = (await owner.get<{ plans: Array<{ id: number }> }>('/api/v1/plans')).body.plans[0]!.id;
     const member = await createMember(owner, planId);
     const other = await createMember(owner, planId);
 
-    const cls = await owner.post<{ id: number }>('/api/classes', {
+    const cls = await owner.post<{ id: number }>('/api/v1/classes', {
       name: `Portal Class ${Date.now().toString().slice(-6)}`,
       durationMinutes: 45,
       maxCapacity: 5,
       color: '#0ea5e9',
     });
-    const schedule = await owner.post<{ id: number }>('/api/classes/schedules', {
+    const schedule = await owner.post<{ id: number }>('/api/v1/classes/schedules', {
       classId: cls.body.id,
       dayOfWeek: 1,
       startTime: '06:00',
@@ -143,12 +144,12 @@ describe('Member portal — session scoping', () => {
     });
 
     const memberClient = await loginAsMember(member);
-    const timetable = await memberClient.get<{ schedules: Array<{ id: number }> }>('/api/classes/schedules');
+    const timetable = await memberClient.get<{ schedules: Array<{ id: number }> }>('/api/v1/classes/schedules');
     expect(timetable.status).toBe(200);
     expect(timetable.body.schedules.length).toBeGreaterThan(0);
 
     // The body asks for someone else; the session wins.
-    const booking = await memberClient.post<{ id: number; bookingStatus: string }>('/api/classes/bookings', {
+    const booking = await memberClient.post<{ id: number; bookingStatus: string }>('/api/v1/classes/bookings', {
       scheduleId: schedule.body.id,
       memberId: other.id,
       bookingDate: BOOKING_DATE,
@@ -156,7 +157,7 @@ describe('Member portal — session scoping', () => {
     expect(booking.status).toBe(201);
 
     const roster = await owner.get<{ bookings: Array<{ memberId: number }> }>(
-      `/api/classes/bookings?scheduleId=${schedule.body.id}&bookingDate=${BOOKING_DATE}`
+      `/api/v1/classes/bookings?scheduleId=${schedule.body.id}&bookingDate=${BOOKING_DATE}`
     );
     const booked = roster.body.bookings.find((b) => b.memberId);
     expect(booked?.memberId).toBe(member.id);

@@ -107,14 +107,30 @@ export class UserRepository {
    * Look up a user for authentication — the only read that returns the password
    * hash, so the result must never be serialised to a client.
    */
-  async findByEmail(email: string): Promise<(UserDto & { passwordHash: string }) | null> {
+  async findByEmail(email: string, gymId?: number): Promise<(UserDto & { passwordHash: string }) | null> {
+    const conditions = [
+      eq(users.email, email.toLowerCase().trim()),
+      isNull(users.deletedAt),
+    ];
+    if (gymId !== undefined) {
+      conditions.push(eq(users.gymId, gymId));
+    }
     const rows = await this.db
       .select({ ...userDtoColumns, passwordHash: users.passwordHash })
       .from(users)
       .leftJoin(roles, eq(roles.id, users.roleId))
-      .where(and(eq(users.email, email.toLowerCase().trim()), isNull(users.deletedAt)))
+      .where(and(...conditions))
       .limit(1);
     return rows[0] ? (projectUserRow(rows[0]) as UserDto & { passwordHash: string }) : null;
+  }
+
+  async findAllByEmail(email: string): Promise<Array<UserDto & { passwordHash: string }>> {
+    const rows = await this.db
+      .select({ ...userDtoColumns, passwordHash: users.passwordHash })
+      .from(users)
+      .leftJoin(roles, eq(roles.id, users.roleId))
+      .where(and(eq(users.email, email.toLowerCase().trim()), isNull(users.deletedAt)));
+    return rows.map((r) => projectUserRow(r) as UserDto & { passwordHash: string });
   }
 
   /** Single user by id. Safe to serialise — no password hash is selected. */
@@ -151,9 +167,15 @@ export class UserRepository {
   async listAllPlatformUsers(opts: {
     page: number; limit: number; search?: string; gymId?: number;
   }): Promise<{ users: (UserDto & { gymName: string | null })[]; total: number }> {
-    const { page, limit } = opts;
+    const { page, limit, search, gymId } = opts;
     const offset = (page - 1) * limit;
-    const baseCond = isNull(users.deletedAt);
+    const conditions: any[] = [isNull(users.deletedAt)];
+    if (gymId) conditions.push(eq(users.gymId, gymId));
+    if (search) {
+      const term = `%${search}%`;
+      conditions.push(sql`(${users.name} LIKE ${term} OR ${users.email} LIKE ${term} OR ${users.phone} LIKE ${term})`);
+    }
+    const baseCond = and(...conditions);
 
     const countRows = await this.db
       .select({ count: sql<number>`count(*)` })
@@ -187,6 +209,25 @@ export class UserRepository {
       .where(and(eq(platformAdmins.email, email.toLowerCase().trim()), isNull(platformAdmins.deletedAt)))
       .limit(1);
     return rows[0] ?? null;
+  }
+
+  async findPlatformAdminById(id: number): Promise<(typeof platformAdmins.$inferSelect) | null> {
+    const rows = await this.db
+      .select()
+      .from(platformAdmins)
+      .where(and(eq(platformAdmins.id, id), isNull(platformAdmins.deletedAt)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
+  async findByEmailInGym(email: string, gymId: number): Promise<(UserDto & { passwordHash: string }) | null> {
+    const rows = await this.db
+      .select({ ...userDtoColumns, passwordHash: users.passwordHash })
+      .from(users)
+      .leftJoin(roles, eq(roles.id, users.roleId))
+      .where(and(eq(users.email, email.toLowerCase().trim()), eq(users.gymId, gymId), isNull(users.deletedAt)))
+      .limit(1);
+    return rows[0] ? (projectUserRow(rows[0]) as UserDto & { passwordHash: string }) : null;
   }
 
   async listPlatformAdmins(): Promise<Pick<PlatformAdmin, 'id' | 'email' | 'name' | 'status' | 'createdAt'>[]> {
@@ -299,11 +340,8 @@ export class UserRepository {
     const row = await this.db
       .update(users)
       .set({
-        failedLoginCount: sql`CASE
-          WHEN ${users.lockedUntil} IS NOT NULL AND ${users.lockedUntil} > ${now}
-          THEN ${users.failedLoginCount} + 1
-          ELSE 1
-        END`,
+        // Increment on each failed attempt; reset to 0 on successful login.
+        failedLoginCount: sql`${users.failedLoginCount} + 1`,
         updatedAt: now,
       })
       .where(and(eq(users.id, id), eq(users.gymId, gymId)))
@@ -330,11 +368,8 @@ export class UserRepository {
     const row = await this.db
       .update(platformAdmins)
       .set({
-        failedLoginCount: sql`CASE
-          WHEN ${platformAdmins.lockedUntil} IS NOT NULL AND ${platformAdmins.lockedUntil} > ${now}
-          THEN ${platformAdmins.failedLoginCount} + 1
-          ELSE 1
-        END`,
+        // Increment on each failed attempt; reset to 0 on successful login.
+        failedLoginCount: sql`${platformAdmins.failedLoginCount} + 1`,
         updatedAt: now,
       })
       .where(eq(platformAdmins.id, id))

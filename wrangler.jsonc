@@ -40,7 +40,7 @@
 	// All object keys are tenant-namespaced as `${gymId}/${objectKey}` to
 	// guarantee per-tenant isolation.
 	// Non-secret config. Secrets go to `wrangler secret put`:
-	//   JWT_SECRET, TURNSTILE_SECRET_KEY, MSG91_AUTH_KEY,
+	//   JWT_SECRET, MSG91_AUTH_KEY,
 	//   FILEBASE_ACCESS_KEY_ID, FILEBASE_SECRET_ACCESS_KEY.
 	// (RESEND_API_KEY is legacy — MSG91 is the supported provider.)
 	// For multi-env deployments, prefer wrangler environments
@@ -159,7 +159,6 @@
 			// secrets:
 			//   wrangler secret put JWT_SECRET --env production
 			//   wrangler secret put RESEND_API_KEY --env production
-			//   wrangler secret put TURNSTILE_SECRET_KEY --env production
 			//   wrangler secret put FILEBASE_ACCESS_KEY_ID --env production
 			//   wrangler secret put FILEBASE_SECRET_ACCESS_KEY --env production
 		}

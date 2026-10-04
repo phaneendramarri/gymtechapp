@@ -19,9 +19,15 @@
  * fetch requests.
  */
 
+import { ACCESS_TOKEN_EXPIRY_SECONDS } from './session';
+
 const SESSION_COOKIE_NAME = 'gym_token';
 const CSRF_COOKIE_NAME = 'gym_csrf';
-const SESSION_MAX_AGE_SECONDS = 7 * 24 * 60 * 60; // matches JWT lifetime
+// The session cookie lives exactly as long as the JWT it carries (15 min).
+// A stale cookie past expiry would only earn a 401 on the next request, so
+// there is no reason to persist it longer — the /refresh flow re-issues a
+// fresh cookie with every rotation.
+const SESSION_MAX_AGE_SECONDS = ACCESS_TOKEN_EXPIRY_SECONDS;
 
 /**
  * True when the deployment should set the `Secure` flag on cookies.

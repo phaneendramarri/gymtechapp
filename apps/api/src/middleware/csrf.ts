@@ -31,7 +31,16 @@ const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 // first-time users.
 // NOTE: /api/auth/logout is NOT exempt — it's a state-changing
 // operation that must be protected against CSRF.
+// Both /api/v1/... (current) and /api/... (legacy redirect) supported.
 const CSRF_EXEMPT_PATHS = [
+  '/api/v1/auth/login',
+  '/api/v1/auth/platform-login',
+  '/api/v1/auth/member-login',
+  '/api/v1/auth/refresh',
+  '/api/v1/auth/forgot-password',
+  '/api/v1/auth/reset-password',
+  '/api/v1/auth/csrf',
+  '/api/v1/health',
   '/api/auth/login',
   '/api/auth/platform-login',
   '/api/auth/member-login',

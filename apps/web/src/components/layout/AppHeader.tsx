@@ -305,7 +305,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                   <span>Settings & Preferences</span>
                 </DropdownMenuItem>
 
-                {(user.role === 'OWNER' || user.role === 'PLATFORM_ADMIN') && (
+                {(user.role === 'PLATFORM_ADMIN') && (
                   <DropdownMenuItem
                     onClick={() => navigate('/admin')}
                     className="cursor-pointer text-xs"
@@ -386,7 +386,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
               <Sliders className="mr-2 h-4 w-4" />
               <span>Audit Logs</span>
             </CommandItem>
-            {(user?.role === 'PLATFORM_ADMIN' || user?.role === 'OWNER') && (
+            {(user?.role === 'PLATFORM_ADMIN') && (
               <CommandItem onSelect={() => handleNavigate('/admin')}>
                 <Building2 className="mr-2 h-4 w-4 text-primary" />
                 <span>Gyms & Platform Management</span>

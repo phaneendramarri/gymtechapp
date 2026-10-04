@@ -16,6 +16,7 @@ test.describe('Fresh walkthrough (live)', () => {
     try {
       // ---- Home / landing ----
       await page.goto('/');
+      await page.getByRole('link', { name: /sign in/i }).first().click();
       await expect(page).toHaveURL(/\/login/, { timeout: 30000 });
 
       // ---- Login ----

@@ -64,7 +64,7 @@ import {
   LogPtSessionRequest,
 } from '@gymtech/shared';
 
-import { ApiClientBase, API_BASE_URL, saveCsrfToken, setStoredRefreshToken } from './api-client';
+import { ApiClientBase, API_BASE_URL, readCsrfCookie, saveCsrfToken, setStoredRefreshToken } from './api-client';
 
 // Domain methods live here, grouped by resource (Auth, Dashboard, Members,
 // Plans, Payments, Attendance, Staff, Roles, Settings, Reports, PT, Admin,
@@ -75,7 +75,7 @@ class ApiClient extends ApiClientBase {
   // Auth
   async login(payload: LoginRequest): Promise<LoginResponse> {
     // Bypass the refresh interceptor on login — store refresh token from response.
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
@@ -102,11 +102,14 @@ class ApiClient extends ApiClientBase {
   }
 
   async logout(): Promise<{ success: boolean }> {
-    // Bypass interceptor — clear stored refresh token and CSRF then hit logout
+    // Send the CSRF double-submit header like every other state-changing
+    // request — the server enforces it on /logout. Read before clearing.
+    const csrf = readCsrfCookie();
     setStoredRefreshToken(null);
     saveCsrfToken(null);
-    const res = await fetch(`${API_BASE_URL}/api/auth/logout`, {
+    const res = await fetch(`${API_BASE_URL}/auth/logout`, {
       method: 'POST',
+      headers: csrf ? { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf } : { 'Content-Type': 'application/json' },
       credentials: 'include',
     });
     const data: any = await res.json().catch(() => ({}));
@@ -136,7 +139,7 @@ class ApiClient extends ApiClientBase {
     attendance: any[];
     gym: { name: string; address?: string; phone?: string };
   }> {
-    return this.request('/api/auth/portal');
+    return this.request('/auth/portal');
   }
 
   // Dashboard
@@ -378,6 +381,14 @@ class ApiClient extends ApiClientBase {
     });
   }
 
+  async deleteStaff(id: number, gymId?: number): Promise<{ success: boolean; message: string }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; message: string }>(`/api/staff/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'DELETE',
+    });
+  }
+
   // Gym Profile & Settings
   async getGymProfile(gymId?: number): Promise<any> {
     const q = this.gymParams(gymId);
@@ -411,7 +422,7 @@ class ApiClient extends ApiClientBase {
   async dispatchNotification(
     payload: SendNotificationRequest
   ): Promise<{ success: boolean; channel: string; remainingCredits: number; message: string; whatsappUrl?: string }> {
-    return this.request('/api/settings/notifications/dispatch', {
+    return this.request('/settings/notifications/dispatch', {
       method: 'POST',
       body: JSON.stringify(payload),
     });
@@ -509,7 +520,7 @@ class ApiClient extends ApiClientBase {
 
   async downloadReportExport(type: 'payments' | 'members' | 'attendance' | 'dues'): Promise<void> {
     // Session is in an httpOnly cookie; just send credentials.
-    const res = await fetch(`${API_BASE_URL}/api/reports/export?type=${type}`, {
+    const res = await fetch(`${API_BASE_URL}/reports/export?type=${type}`, {
       credentials: 'include',
     });
     if (!res.ok) {
@@ -908,7 +919,7 @@ class ApiClient extends ApiClientBase {
     });
     // The backend returns only { id, receiptNumber }; recompute the displayed
     // total from the submitted items (same math the repo uses).
-    const totalPaise = (data.items ?? []).reduce((sum, it) => sum + it.quantity * it.unitPricePaise, 0);
+    const totalPaise = (data.items ?? []).reduce((sum, it) => sum + it.quantity * (it.unitPricePaise ?? 0), 0);
     return { id: res.id, invoiceNumber: res.receiptNumber, receiptNumber: res.receiptNumber, totalPaise };
   }
 

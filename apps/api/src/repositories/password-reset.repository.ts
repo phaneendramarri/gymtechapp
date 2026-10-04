@@ -28,6 +28,14 @@ export class PasswordResetRepository {
       .run();
   }
 
+  /** Invalidate all live reset tokens for a user (single-live-token rule). */
+  async invalidatePriorTokens(gymId: number, userId: number): Promise<void> {
+    await this.d1
+      .prepare(`UPDATE userPasswordResets SET usedAt = unixepoch() WHERE gymId = ? AND userId = ? AND usedAt IS NULL`)
+      .bind(gymId, userId)
+      .run();
+  }
+
   /** Find the live reset record for an opaque token hash (unused, unexpired). */
   async findValidByTokenHash(tokenHash: string): Promise<PasswordResetRecord | null> {
     const row = await this.d1
@@ -48,8 +56,10 @@ export class PasswordResetRepository {
       this.d1
         .prepare(`UPDATE users SET passwordHash = ?, updatedAt = unixepoch() WHERE id = ? AND gymId = ?`)
         .bind(input.passwordHash, input.userId, input.gymId),
+      // Guard with usedAt IS NULL so a concurrent double-submit of the same
+      // token cannot consume it twice (TOCTOU replay).
       this.d1
-        .prepare(`UPDATE userPasswordResets SET usedAt = unixepoch() WHERE id = ? AND gymId = ?`)
+        .prepare(`UPDATE userPasswordResets SET usedAt = unixepoch() WHERE id = ? AND gymId = ? AND usedAt IS NULL`)
         .bind(input.resetId, input.gymId),
     ]);
   }

@@ -39,6 +39,21 @@ settingsRoutes.patch('/gym', requireGym, requirePermission('settings'), safeHand
   const coalesce = (v: unknown, fallback: string | null) =>
     v !== undefined ? (v ? String(v).trim() : null) : fallback;
 
+  if (name !== undefined && String(name).trim().length === 0) {
+    return jsonErr('Gym name cannot be empty', 400);
+  }
+  if (phone !== undefined && String(phone).trim().length === 0) {
+    return jsonErr('Gym phone cannot be empty', 400);
+  }
+  if (email !== undefined && email !== null && String(email).trim().length > 0) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).trim())) {
+      return jsonErr('Invalid gym email address', 400);
+    }
+  }
+  if (currency !== undefined && !['INR'].includes(String(currency).trim().toUpperCase())) {
+    return jsonErr('Unsupported currency', 400);
+  }
+
   const patch = {
     name: name !== undefined ? String(name).trim() : current.name,
     phone: phone !== undefined ? String(phone).trim() : current.phone,
@@ -82,7 +97,7 @@ settingsRoutes.get('/notifications', requireGym, safeHandler(async (c) => {
     await loadPlatformMsg91(ctx.env.DB)
   );
   const emailServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' =
-    msg91.authKey.trim().length > 0 || ctx.env.RESEND_API_KEY ? 'ACTIVE' : 'NOT_CONFIGURED';
+    msg91.authKey.trim().length > 0 ? 'ACTIVE' : 'NOT_CONFIGURED';
   const smsServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' =
     msg91.authKey.trim().length > 0 && msg91.smsFlowId.trim().length > 0 ? 'ACTIVE' : 'NOT_CONFIGURED';
   const whatsappServiceStatus: 'ACTIVE' | 'NOT_CONFIGURED' =

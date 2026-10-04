@@ -53,7 +53,7 @@ export class AuthService {
   private async _mintSession(
     sessionUser: SessionUser,
     gymId: number | null
-  ): Promise<{ token: string; refreshToken: string }> {
+  ): Promise<{ token: string; refreshToken: string; jti: string }> {
     const { token, jti: accessJti } = await this._createAccessToken(sessionUser);
     const { token: refreshToken, jti: refreshJti } = await createRefreshToken(this.jwtSecret);
     const now = Math.floor(Date.now() / 1000);
@@ -66,11 +66,38 @@ export class AuthService {
       issuedAt: now,
       expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
     });
-    return { token, refreshToken };
+    return { token, refreshToken, jti: accessJti };
   }
 
-  async login(email: string, passwordPlain: string): Promise<{ token: string; refreshToken: string; user: SessionUser; gym?: Gym | null }> {
-    const user = await this.userRepo.findByEmail(email);
+  async login(
+    email: string,
+    passwordPlain: string,
+    gymSlug?: string
+  ): Promise<{ token: string; refreshToken: string; user: SessionUser; gym?: Gym | null }> {
+    let targetGymId: number | undefined;
+    if (gymSlug) {
+      const targetGym = await this.db
+        .prepare(`SELECT id, status FROM gyms WHERE slug = ? AND deletedAt IS NULL`)
+        .bind(gymSlug.toLowerCase().trim())
+        .first<{ id: number; status: string }>();
+      if (!targetGym) {
+        throw new Error(GENERIC_INVALID_CREDENTIALS);
+      }
+      targetGymId = targetGym.id;
+    }
+
+    let user = targetGymId !== undefined
+      ? await this.userRepo.findByEmail(email, targetGymId)
+      : null;
+
+    if (!user && !targetGymId) {
+      const candidates = await this.userRepo.findAllByEmail(email);
+      if (candidates.length > 1) {
+        throw new Error('Multiple gym accounts found for this email. Please specify your gym slug to log in.');
+      }
+      user = candidates[0] ?? null;
+    }
+
     if (!user) {
       const admin = await this.userRepo.findPlatformAdminByEmail(email);
       if (admin) {
@@ -160,8 +187,43 @@ export class AuthService {
     const session = await this.sessionRepo.findActiveByRefreshTokenHash(refreshJti);
     if (!session) return null;
 
+    // Platform-admin sessions live in the same table with gymId = 0.
+    if ((session.gymId ?? 0) === 0) {
+      const admin = await this.userRepo.findPlatformAdminById(session.userId as number);
+      if (!admin || (admin as any).deletedAt !== null && (admin as any).deletedAt !== undefined) return null;
+      if (admin.status !== 'ACTIVE') return null;
+      const sessionUser: SessionUser = {
+        id: admin.id,
+        email: admin.email,
+        name: admin.name,
+        role: 'PLATFORM_ADMIN' as UserRole,
+        gymId: null,
+        isOwner: false,
+        permissions: ['*'],
+        roleId: null,
+      };
+      const { token, jti: newAccessJti } = await this._createAccessToken(sessionUser);
+      const { token: newRefreshToken, jti: newRefreshJti } = await createRefreshToken(this.jwtSecret);
+      const now = Math.floor(Date.now() / 1000);
+      await this.sessionRepo.revokeByTokenHash(session.tokenHash);
+      await this.sessionRepo.create({
+        gymId: 0, userId: admin.id, tokenHash: newAccessJti, refreshTokenHash: newRefreshJti,
+        refreshTokenExpiresAt: now + REFRESH_TOKEN_EXPIRY_SECONDS,
+        issuedAt: now, expiresAt: now + ACCESS_TOKEN_EXPIRY_SECONDS,
+      });
+      return { token, refreshToken: newRefreshToken, user: sessionUser };
+    }
+
     const userRow = await this.userRepo.findById(session.userId as number);
     if (!userRow) return null;
+    // A disabled/archived account must not be able to mint fresh tokens.
+    if ((userRow as any).status !== 'ACTIVE') return null;
+
+    // Suspended gyms and expired/suspended licenses must not refresh either.
+    const gym = await this.db.prepare(`SELECT id, status FROM gyms WHERE id = ? AND deletedAt IS NULL`).bind(userRow.gymId).first<{ id: number; status: string }>();
+    if (!gym || gym.status !== 'ACTIVE') return null;
+    const license = await this.db.prepare(`SELECT status, expiresAt FROM licenses WHERE gymId = ?`).bind(userRow.gymId).first<{ status: string; expiresAt: number }>();
+    if (!license || license.status !== 'ACTIVE' || license.expiresAt < Math.floor(Date.now() / 1000)) return null;
 
     const permissions = await this.userRepo.getPermissionsForUser(userRow.id);
     const sessionUser: SessionUser = {
@@ -227,9 +289,9 @@ export class AuthService {
       permissions: [], // Members have no dashboard permissions
       roleId: null,
     };
-    const { token, refreshToken } = await this._mintSession(sessionUser, member.gymId);
+    const { token, refreshToken, jti } = await this._mintSession(sessionUser, member.gymId);
 
-    return { token, refreshToken, jti: sessionUser.jti ?? '' };
+    return { token, refreshToken, jti };
   }
 
   async verifyToken(token: string) {

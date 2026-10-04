@@ -4,11 +4,8 @@ import { createDatabase } from '../db/client';
 import type { Attendance, AttendanceMethod, AttendanceListItem } from '@gymtech/shared';
 import { attendance, members } from '../db/schema';
 
-/** Returns today's date as YYYYMMDD integer. */
-export function todayYyyymmdd(): number {
-  const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-}
+import { todayYyyymmdd } from '../lib/dates';
+export { todayYyyymmdd };
 
 export class AttendanceRepository {
   private db: Database;
@@ -107,7 +104,7 @@ export class AttendanceRepository {
         photoUrl: members.photoUrl,
       })
       .from(attendance)
-      .innerJoin(members, eq(attendance.memberId, members.id))
+      .innerJoin(members, and(eq(attendance.memberId, members.id), eq(members.gymId, this.gymId)))
       .where(and(eq(attendance.gymId, this.gymId), eq(attendance.attendanceDate, today), isNull(attendance.deletedAt)))
       .orderBy(desc(attendance.checkInTime));
     return rows as AttendanceListItem[];
@@ -118,7 +115,7 @@ export class AttendanceRepository {
       .select()
       .from(attendance)
       .where(and(eq(attendance.gymId, this.gymId), eq(attendance.memberId, memberId), isNull(attendance.deletedAt)))
-      .orderBy(attendance.checkInTime)
+      .orderBy(desc(attendance.checkInTime))
       .limit(limit);
     return rows as Attendance[];
   }

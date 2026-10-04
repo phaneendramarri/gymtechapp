@@ -107,7 +107,7 @@ const AppRoutes: React.FC = () => {
           <Route path="/terms"          element={<PageTransition><TermsPage /></PageTransition>} />
           <Route path="/privacy"        element={<PageTransition><PrivacyPage /></PageTransition>} />
 
-          <Route path="/dashboard"              element={<PageTransition><Guarded><DashboardPage /></Guarded></PageTransition>} />
+          <Route path="/dashboard"              element={<PageTransition><Guarded feature="dashboard"><DashboardPage /></Guarded></PageTransition>} />
           <Route path="/members"                element={<PageTransition><Guarded permissions={['members']}><MembersPage /></Guarded></PageTransition>} />
           <Route path="/members/new"            element={<PageTransition><Guarded permissions={['members']}><NewMemberPage /></Guarded></PageTransition>} />
           <Route path="/members/:id"            element={<PageTransition><Guarded permissions={['members']}><MemberDetailPage /></Guarded></PageTransition>} />

@@ -23,18 +23,22 @@ roleRoutes.get('/', requireGym, requireFeature('staff'), requirePermission('staf
   const menuRepo = new MenuRepository(ctx.env.DB);
   const gymRoles = await roleRepo.findByGymId(ctx.gymId!);
 
-  const populated = await Promise.all(
-    gymRoles.map(async (r) => {
-      const menuItemIds = await menuRepo.getRoleMenuIds(ctx.gymId!, r.id);
-      const dbKeys = await menuRepo.getRoleMenuKeys(ctx.gymId!, r.id);
-      const permissions = dbKeys.length > 0 ? dbKeys : JSON.parse(r.permissions || '[]');
-      return {
-        ...r,
-        permissions,
-        menuItemIds,
-      };
-    })
+  // One query for every role's menus (not 2N per-role queries).
+  const menusByRole = await menuRepo.getRoleMenusForRoles(
+    ctx.gymId!,
+    gymRoles.map((r) => r.id)
   );
+  const populated = gymRoles.map((r) => {
+    const assigned = menusByRole.get(r.id);
+    const menuItemIds = assigned?.ids ?? [];
+    const dbKeys = assigned?.keys ?? [];
+    const permissions = dbKeys.length > 0 ? dbKeys : JSON.parse(r.permissions || '[]');
+    return {
+      ...r,
+      permissions,
+      menuItemIds,
+    };
+  });
 
   return jsonOk({ roles: populated });
 }));
@@ -94,8 +98,8 @@ roleRoutes.put('/:id', requireGym, requireFeature('staff'), requirePermission('s
 
   const roleRepo = new RoleRepository(ctx.db);
   const menuRepo = new MenuRepository(ctx.env.DB);
-  const before = await roleRepo.findById(id);
-  if (!before || before.gymId !== ctx.gymId!) return jsonErr('Role not found in your gym', 404);
+  const before = await roleRepo.findByIdInGym(id, ctx.gymId!);
+  if (!before) return jsonErr('Role not found in your gym', 404);
 
   // Prevent modifying the primary owner role
   if (before.isOwner) {
@@ -148,8 +152,8 @@ roleRoutes.delete('/:id', requireGym, requireFeature('staff'), requirePermission
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const roleRepo = new RoleRepository(ctx.db);
-  const role = await roleRepo.findById(id);
-  if (!role || role.gymId !== ctx.gymId!) return jsonErr('Role not found in your gym', 404);
+  const role = await roleRepo.findByIdInGym(id, ctx.gymId!);
+  if (!role) return jsonErr('Role not found in your gym', 404);
 
   if (role.isOwner) {
     return jsonErr('The primary Gym Owner role cannot be deleted', 403);

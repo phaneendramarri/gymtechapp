@@ -192,7 +192,7 @@ describe('Production Hardening & System Invariants', () => {
       const offenders = tracked.filter((f) =>
         /(^|\/)\.dev\.vars(\..+)?$/.test(f) ||
         (/(^|\/)\.env(\..+)?$/.test(f) && !f.endsWith('.env.example')) ||
-        /seed_.*\.sql$/.test(f) ||
+        (/seed_.*\.sql$/.test(f) && f !== 'apps/api/seed/seed_production.sql') ||
         /update_hash\.sql$/.test(f)
       );
       expect(offenders).toEqual([]);

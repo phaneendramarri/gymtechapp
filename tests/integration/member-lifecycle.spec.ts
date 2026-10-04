@@ -15,11 +15,11 @@ function phoneFromSuffix(u: string): string {
 
 /** Create a member on the first plan and return the id. */
 async function enrollMember(client: Awaited<ReturnType<typeof loginAsOwner>>['client'], suffix: string): Promise<number> {
-  const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
+  const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/v1/plans');
   expect(plans.status).toBe(200);
   const plan = plans.body.plans[0]!;
 
-  const created = await client.post<{ member: { id: number } }>('/api/members', {
+  const created = await client.post<{ member: { id: number } }>('/api/v1/members', {
     firstName: 'Life',
     lastName: `Cycle${suffix}`,
     phone: phoneFromSuffix(uniqueSuffix()),
@@ -37,29 +37,29 @@ describe('Member lifecycle E2E', () => {
     const memberId = await enrollMember(client, uniqueSuffix());
 
     // Detail read gives us the active membership end date for comparison.
-    const before = await client.get<{ member: { status: string }; memberships?: Array<{ id: number; endDate: number }> }>(`/api/members/${memberId}`);
+    const before = await client.get<{ member: { status: string }; memberships?: Array<{ id: number; endDate: number }> }>(`/api/v1/members/${memberId}`);
     expect(before.status).toBe(200);
     expect(before.body.member.status).toBe('ACTIVE');
     const membershipBefore = before.body.memberships?.find((m) => m.id != null);
     const endBefore = membershipBefore?.endDate;
 
     // Freeze.
-    const frozen = await client.post<{ status?: string; membershipId?: number }>(`/api/members/${memberId}/freeze`, {
+    const frozen = await client.post<{ status?: string; membershipId?: number }>(`/api/v1/members/${memberId}/freeze`, {
       reason: 'integration-test freeze',
     });
     expect(frozen.status).toBe(200);
     expect(frozen.body.status).toBe('FROZEN');
 
     // Freeze guard rails.
-    const refreeze = await client.post(`/api/members/${memberId}/freeze`, {});
+    const refreeze = await client.post(`/api/v1/members/${memberId}/freeze`, {});
     expect(refreeze.status).toBeGreaterThanOrEqual(400);
 
     // Unfreeze — extends end date by the frozen duration.
-    const unfrozen = await client.post<{ status?: string; extendedTo?: number | null }>(`/api/members/${memberId}/unfreeze`, {});
+    const unfrozen = await client.post<{ status?: string; extendedTo?: number | null }>(`/api/v1/members/${memberId}/unfreeze`, {});
     expect(unfrozen.status).toBe(200);
     expect(unfrozen.body.status).toBe('ACTIVE');
 
-    const after = await client.get<{ memberships?: Array<{ id: number; endDate: number }> }>(`/api/members/${memberId}`);
+    const after = await client.get<{ memberships?: Array<{ id: number; endDate: number }> }>(`/api/v1/members/${memberId}`);
     const membershipAfter = after.body.memberships?.find((m) => m.id === membershipBefore?.id);
     if (endBefore != null && membershipAfter?.endDate != null) {
       expect(membershipAfter.endDate).toBeGreaterThanOrEqual(endBefore);
@@ -71,10 +71,10 @@ describe('Member lifecycle E2E', () => {
     // Members must enroll with a plan (phone+plan required at creation), so
     // exercise the guard by cancelling/archiving first instead.
     const memberId = await enrollMember(client, uniqueSuffix());
-    const del = await client.request('DELETE', `/api/members/${memberId}`);
+    const del = await client.request('DELETE', `/api/v1/members/${memberId}`);
     expect(del.status).toBe(200);
 
-    const res = await client.post(`/api/members/${memberId}/freeze`, {});
+    const res = await client.post(`/api/v1/members/${memberId}/freeze`, {});
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
@@ -83,7 +83,7 @@ describe('Member lifecycle E2E', () => {
     const suffix = uniqueSuffix();
     const memberId = await enrollMember(client, suffix);
 
-    const erased = await client.request('DELETE', `/api/members/${memberId}/personal-data`);
+    const erased = await client.request('DELETE', `/api/v1/members/${memberId}/personal-data`);
     expect(erased.status).toBe(200);
 
     // Row must still exist, but personal fields wiped.

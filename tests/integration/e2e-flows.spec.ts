@@ -25,14 +25,14 @@ describe('E2E — member → membership → payment flow', () => {
     const { client } = await loginAsOwner();
 
     // 1. List plans (seeded), pick the first.
-    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
+    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/v1/plans');
     expect(plans.status).toBe(200);
     expect(plans.body.plans.length).toBeGreaterThan(0);
     const plan = plans.body.plans[0]!;
 
     // 2. Create member with that plan — exercises the composite-FK path that
     //    used to throw `foreign key mismatch` on insert.
-    const created = await client.post<{ member: { id: number; memberCode: string } }>('/api/members', {
+    const created = await client.post<{ member: { id: number; memberCode: string } }>('/api/v1/members', {
       firstName: 'E2E',
       lastName: `Arch${uniqueSuffix()}`,
       phone: phoneFromSuffix(uniqueSuffix()),
@@ -45,11 +45,11 @@ describe('E2E — member → membership → payment flow', () => {
     expect(memberId).toBeGreaterThan(0);
 
     // 3. Member details resolve (service read path).
-    const detail = await client.get(`/api/members/${memberId}`);
+    const detail = await client.get(`/api/v1/members/${memberId}`);
     expect(detail.status).toBe(200);
 
     // 4. Renew — the second receipt-number path (counter increment).
-    const renew = await client.post<{ receiptNumber: string }>(`/api/members/${memberId}/renew`, {
+    const renew = await client.post<{ receiptNumber: string }>(`/api/v1/members/${memberId}/renew`, {
       planId: plan.id,
       paymentPaise: plan.pricePaise,
       paymentMode: 'CASH',
@@ -58,7 +58,7 @@ describe('E2E — member → membership → payment flow', () => {
     expect(renew.body.receiptNumber).toMatch(/^RCP-\d{4}-\d{4,}$/);
 
     // 5. Payments list resolves for the gym.
-    const payments = await client.get('/api/payments');
+    const payments = await client.get('/api/v1/payments');
     expect(payments.status).toBe(200);
   });
 });
@@ -67,7 +67,7 @@ describe('E2E — roles & staff (users.role removed)', () => {
   it('lists staff with role-derived permissions', async () => {
     const { client } = await loginAsOwner();
     const res = await client.get<{ staff: Array<{ id: number; role?: string | null; permissions?: string[] }> }>(
-      '/api/staff'
+      '/api/v1/staff'
     );
     expect(res.status).toBe(200);
     const staff = res.body.staff;
@@ -87,7 +87,7 @@ describe('E2E — roles & staff (users.role removed)', () => {
     const u = uniqueSuffix();
 
     // 1. Create a custom role with a subset of permissions.
-    const role = await client.post<{ id?: number }>('/api/roles', {
+    const role = await client.post<{ id?: number }>('/api/v1/roles', {
       name: `Desk${u}`,
       description: 'Front-desk custom role',
       permissions: ['members', 'attendance'],
@@ -96,7 +96,7 @@ describe('E2E — roles & staff (users.role removed)', () => {
 
     // 2. Create a staff member assigned to it — this used to violate the
     //    users.role CHECK constraint; the column no longer exists.
-    const staff = await client.post('/api/staff', {
+    const staff = await client.post('/api/v1/staff', {
       name: `Desk Staff ${u}`,
       email: `desk.${u.toLowerCase()}@e2e.test`,
       password: 'StaffPass123!',
@@ -123,7 +123,7 @@ describe('E2E — tenant isolation probes', () => {
 
     if (!other) return; // single-gym dataset — nothing to probe
 
-    const res = await client.get(`/api/members/${other.id}`);
+    const res = await client.get(`/api/v1/members/${other.id}`);
     expect([403, 404]).toContain(res.status);
   });
 
@@ -139,7 +139,7 @@ describe('E2E — tenant isolation probes', () => {
 
     if (!other) return;
 
-    const res = await client.request('PUT', `/api/plans/${other.id}`, {
+    const res = await client.request('PUT', `/api/v1/plans/${other.id}`, {
       body: { name: 'Hijacked', pricePaise: 1, durationMonths: 1 },
     });
     expect([403, 404]).toContain(res.status);

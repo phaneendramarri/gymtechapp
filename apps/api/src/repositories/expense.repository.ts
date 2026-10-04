@@ -1,4 +1,4 @@
-import { eq, and, desc, sql } from 'drizzle-orm';
+import { eq, and, desc, isNull, sql } from 'drizzle-orm';
 import type { D1Database } from '@cloudflare/workers-types';
 import { drizzle } from 'drizzle-orm/d1';
 import { expenses, expenseCategories, payments, ptCollections, posSales } from '../db/schema';
@@ -24,6 +24,15 @@ export class ExpenseRepository {
       name: r.name,
       createdAt: r.createdAt,
     }));
+  }
+
+  async findCategoryInGym(gymId: number, id: number): Promise<{ id: number } | null> {
+    const rows = await this.db
+      .select({ id: expenseCategories.id })
+      .from(expenseCategories)
+      .where(and(eq(expenseCategories.gymId, gymId), eq(expenseCategories.id, id)))
+      .limit(1);
+    return rows[0] ?? null;
   }
 
   async createCategory(gymId: number, name: string): Promise<number> {
@@ -56,7 +65,7 @@ export class ExpenseRepository {
         createdAt: expenses.createdAt,
       })
       .from(expenses)
-      .innerJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
+      .innerJoin(expenseCategories, and(eq(expenses.categoryId, expenseCategories.id), eq(expenseCategories.gymId, gymId)))
       .where(
         and(
           eq(expenses.gymId, gymId),
@@ -127,6 +136,7 @@ export class ExpenseRepository {
         and(
           eq(payments.gymId, gymId),
           eq(payments.status, 'COMPLETED'),
+          isNull(payments.deletedAt),
           fromEpoch !== undefined ? sql`${payments.paymentDate} >= ${fromEpoch}` : sql`1=1`,
           toEpoch !== undefined ? sql`${payments.paymentDate} <= ${toEpoch}` : sql`1=1`
         )
@@ -141,6 +151,7 @@ export class ExpenseRepository {
       .where(
         and(
           eq(ptCollections.gymId, gymId),
+          isNull(ptCollections.deletedAt),
           fromEpoch !== undefined ? sql`${ptCollections.paymentDate} >= ${fromEpoch}` : sql`1=1`,
           toEpoch !== undefined ? sql`${ptCollections.paymentDate} <= ${toEpoch}` : sql`1=1`
         )
@@ -171,7 +182,7 @@ export class ExpenseRepository {
         amountPaise: sql<number>`coalesce(sum(${expenses.amountPaise}), 0)`,
       })
       .from(expenses)
-      .innerJoin(expenseCategories, eq(expenses.categoryId, expenseCategories.id))
+      .innerJoin(expenseCategories, and(eq(expenses.categoryId, expenseCategories.id), eq(expenseCategories.gymId, gymId)))
       .where(
         and(
           eq(expenses.gymId, gymId),

@@ -33,9 +33,9 @@ export class PtRepository {
              m.memberCode,
              u.name AS trainerName
       FROM ptCollections pt
-      JOIN members m ON m.id = pt.memberId
-      LEFT JOIN users u ON u.id = pt.trainerId
-      WHERE pt.gymId = ?`;
+      JOIN members m ON m.id = pt.memberId AND m.gymId = pt.gymId
+      LEFT JOIN users u ON u.id = pt.trainerId AND u.gymId = pt.gymId
+      WHERE pt.gymId = ? AND pt.deletedAt IS NULL`;
     const binds: unknown[] = [gymId];
     if (trainerId) {
       sql += ' AND pt.trainerId = ?';
@@ -76,7 +76,7 @@ export class PtRepository {
         COALESCE(SUM(CASE WHEN commissionStatus = 'PENDING' THEN commissionPaise END), 0) AS commissionPending,
         COALESCE(SUM(CASE WHEN commissionStatus = 'PAID' THEN commissionPaise END), 0) AS commissionPaid
       FROM ptCollections
-      WHERE gymId = ?`;
+      WHERE gymId = ? AND deletedAt IS NULL`;
     const binds: unknown[] = [gymId];
     if (trainerId) {
       sql += ' AND trainerId = ?';
@@ -105,8 +105,8 @@ export class PtRepository {
              COALESCE(SUM(CASE WHEN pt.commissionStatus = 'PENDING' THEN pt.commissionPaise END), 0) AS commissionPending,
              COALESCE(SUM(CASE WHEN pt.commissionStatus = 'PAID' THEN pt.commissionPaise END), 0) AS commissionPaid
       FROM ptCollections pt
-      LEFT JOIN users u ON u.id = pt.trainerId
-      WHERE pt.gymId = ?`;
+      LEFT JOIN users u ON u.id = pt.trainerId AND u.gymId = pt.gymId
+      WHERE pt.gymId = ? AND pt.deletedAt IS NULL`;
     const binds: unknown[] = [gymId];
     if (trainerId) {
       sql += ' AND pt.trainerId = ?';
@@ -201,8 +201,8 @@ export class PtRepository {
              m.memberCode,
              u.name AS trainerName
       FROM ptPackages p
-      JOIN members m ON m.id = p.memberId
-      LEFT JOIN users u ON u.id = p.trainerUserId
+      JOIN members m ON m.id = p.memberId AND m.gymId = p.gymId
+      LEFT JOIN users u ON u.id = p.trainerUserId AND u.gymId = p.gymId
       WHERE p.gymId = ?`;
     const binds: unknown[] = [gymId];
     if (memberId) {
@@ -299,8 +299,8 @@ export class PtRepository {
              s.createdAt,
              u.name AS trainerName
       FROM ptSessions s
-      JOIN ptPackages p ON p.id = s.packageId
-      LEFT JOIN users u ON u.id = s.trainerUserId
+      JOIN ptPackages p ON p.id = s.packageId AND p.gymId = s.gymId
+      LEFT JOIN users u ON u.id = s.trainerUserId AND u.gymId = s.gymId
       WHERE s.gymId = ?`;
     const binds: unknown[] = [gymId];
     if (packageId) {

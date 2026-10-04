@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'framer-motion';
-import { ArrowRight, CheckCircle2, ScanFace, KeySquare, Activity, Users } from 'lucide-react';
+import { ArrowRight, CheckCircle2, ScanFace, KeySquare, Activity, Users, Tablet } from 'lucide-react';
 import { CheckInPanel } from '@/components/attendance/CheckInPanel';
 import { AppShell } from '@/components/layout/AppShell';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -118,6 +118,12 @@ export const AttendancePage: React.FC = () => {
             <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
             {logs.length} on floor
           </Badge>
+          <Button variant="outline" size="sm" asChild className="h-8 gap-1.5 text-xs">
+            <Link to="/kiosk">
+              <Tablet className="size-3.5 text-primary" />
+              <span>Kiosk Mode</span>
+            </Link>
+          </Button>
           <Button variant="ghost" size="sm" asChild>
             <Link to="/members" className="gap-1 text-xs">
               Member directory <ArrowRight className="h-3 w-3" />
@@ -229,7 +235,7 @@ export const AttendancePage: React.FC = () => {
                     {log.method === 'FACE_ID' ? 'Face ID' : log.method === 'QR' ? 'QR' : 'Desk'}
                   </Badge>
                   <Link
-                    to={`/members/${log.member_id || log.memberId}`}
+                    to={log.member_id || log.memberId ? `/members/${log.member_id || log.memberId}` : '/members'}
                     className="text-muted-foreground hover:text-foreground p-1"
                     aria-label="View profile"
                   >

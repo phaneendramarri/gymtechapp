@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
-import { jsonOk, jsonValidationErr, parsePageParams } from './helpers';
+import { jsonOk, jsonErr, jsonValidationErr, parsePageParams } from './helpers';
 import { PosRepository } from '../repositories/pos.repository';
 import { CreateProductRequestSchema, UpdateProductRequestSchema, CreatePosSaleRequestSchema } from '@gymtech/shared';
 
@@ -47,7 +47,14 @@ posRoutes.delete('/products/:id', requireGym, requireFeature('pos'), requirePerm
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const repo = new PosRepository(ctx.env.DB);
-  await repo.deleteProduct(ctx.gymId!, id);
+  try {
+    await repo.deleteProduct(ctx.gymId!, id);
+  } catch (e: any) {
+    if (/past sales reference it/i.test(e instanceof Error ? e.message : String(e ?? ''))) {
+      return jsonErr('Product cannot be deleted because past sales reference it. Deactivate it instead.', 409);
+    }
+    throw e;
+  }
   return jsonOk({ success: true });
 }));
 
@@ -58,16 +65,31 @@ posRoutes.post('/sales', requireGym, requireFeature('pos'), requirePermission('p
   const parsed = CreatePosSaleRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid sale payload');
 
+  // The member (when given) must belong to this gym.
+  if (parsed.data.memberId !== undefined && parsed.data.memberId !== null) {
+    const { MemberRepository } = await import('../repositories/member.repository');
+    const member = await new MemberRepository(ctx.env.DB, ctx.gymId!).findById(parsed.data.memberId);
+    if (!member) return jsonErr('Member not found in this gym', 404);
+  }
+
   const repo = new PosRepository(ctx.env.DB);
-  const result = await repo.recordSale(ctx.gymId!, parsed.data);
-  return jsonOk(result, 201);
+  try {
+    const result = await repo.recordSale(ctx.gymId!, parsed.data);
+    return jsonOk(result, 201);
+  } catch (e: any) {
+    const msg = e instanceof Error ? e.message : String(e ?? '');
+    if (/not found in this gym|not active|Insufficient stock/i.test(msg)) {
+      return jsonErr(msg, 400);
+    }
+    throw e;
+  }
 }));
 
 // GET /api/pos/sales — list sales history
 posRoutes.get('/sales', requireGym, requireFeature('pos'), requirePermission('pos'), safeHandler(async (c) => {
   const ctx = getCtx(c);
-  const { limit } = parsePageParams(c.req.query('limit'), undefined, 'default');
+  const { limit, offset } = parsePageParams(c.req.query('limit'), c.req.query('offset'), 'default');
   const repo = new PosRepository(ctx.env.DB);
-  const sales = await repo.listSales(ctx.gymId!, limit);
+  const sales = await repo.listSales(ctx.gymId!, limit, offset);
   return jsonOk({ sales });
 }));

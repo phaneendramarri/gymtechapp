@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   hashPassword,
   verifyPassword,
@@ -6,7 +6,6 @@ import {
   verifySessionToken,
   payloadToSessionUser,
 } from '../../apps/api/src/lib/session';
-import { verifyTurnstileToken } from '../../apps/api/src/lib/turnstile';
 
 describe('Authentication, Password & Cryptographic Security Invariants', () => {
   const SECRET_A = 'test_jwt_secret_key_very_long_and_secure_1234567890';
@@ -133,114 +132,6 @@ describe('Authentication, Password & Cryptographic Security Invariants', () => {
         jti: undefined,
       });
       expect((sessionUser as any).exp).toBeUndefined();
-    });
-  });
-
-  describe('Cloudflare Turnstile Verification', () => {
-    it('rejects missing or empty token', async () => {
-      const res = await verifyTurnstileToken(null, undefined, undefined, 'production');
-      expect(res.success).toBe(false);
-      expect(res.error).toBeDefined();
-
-      const res2 = await verifyTurnstileToken('', undefined, undefined, 'production');
-      expect(res2.success).toBe(false);
-    });
-
-    it('allows dev bypass tokens in non-production environments', async () => {
-      const res1 = await verifyTurnstileToken('cf_turnstile_dev_test_token', undefined, undefined, 'development');
-      expect(res1.success).toBe(true);
-      expect(res1.devBypass).toBe(true);
-
-      const res2 = await verifyTurnstileToken('XXXX.DUMMY.TOKEN.XXXX', undefined, undefined, 'staging');
-      expect(res2.success).toBe(true);
-      expect(res2.devBypass).toBe(true);
-    });
-
-    it('REFUSES dev bypass tokens in production (security)', async () => {
-      const res1 = await verifyTurnstileToken('cf_turnstile_dev_test_token', undefined, undefined, 'production');
-      expect(res1.success).toBe(false);
-      expect(res1.devBypass).toBeUndefined();
-
-      const res2 = await verifyTurnstileToken('XXXX.DUMMY.TOKEN.XXXX', undefined, undefined, 'production');
-      expect(res2.success).toBe(false);
-    });
-
-    it('THROWS when production is missing the secret key', async () => {
-      await expect(
-        verifyTurnstileToken('real-token', undefined, '1.2.3.4', 'production')
-      ).rejects.toThrow(/TURNSTILE_SECRET_KEY/);
-    });
-
-    it('THROWS when production uses the Cloudflare public test secret', async () => {
-      await expect(
-        verifyTurnstileToken('real-token', '1x0000000000000000000000000000000AA', '1.2.3.4', 'production')
-      ).rejects.toThrow(/test secret/);
-    });
-
-    it('fails CLOSED on non-200 response from siteverify', async () => {
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn(async () =>
-        new Response('{}', { status: 503, headers: { 'content-type': 'application/json' } })
-      ) as unknown as typeof fetch;
-
-      try {
-        const res = await verifyTurnstileToken('real-token', 'real-secret', '1.2.3.4', 'development');
-        expect(res.success).toBe(false);
-        expect(res.error).toMatch(/unavailable/i);
-      } finally {
-        globalThis.fetch = originalFetch;
-      }
-    });
-
-    it('fails CLOSED on network error (not open)', async () => {
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn(async () => {
-        throw new Error('Network unreachable');
-      }) as unknown as typeof fetch;
-
-      try {
-        const res = await verifyTurnstileToken('real-token', 'real-secret', '1.2.3.4', 'development');
-        // Hardening: this used to be `success: true` (fail-open). Now closed.
-        expect(res.success).toBe(false);
-        expect(res.error).toMatch(/unavailable/i);
-      } finally {
-        globalThis.fetch = originalFetch;
-      }
-    });
-
-    it('rejects when siteverify returns success:false', async () => {
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn(async () =>
-        new Response(JSON.stringify({ success: false, 'error-codes': ['invalid-input-response'] }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      ) as unknown as typeof fetch;
-
-      try {
-        const res = await verifyTurnstileToken('bad-token', 'real-secret', '1.2.3.4', 'development');
-        expect(res.success).toBe(false);
-      } finally {
-        globalThis.fetch = originalFetch;
-      }
-    });
-
-    it('accepts a real token when siteverify returns success:true', async () => {
-      const originalFetch = globalThis.fetch;
-      globalThis.fetch = vi.fn(async () =>
-        new Response(JSON.stringify({ success: true }), {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        })
-      ) as unknown as typeof fetch;
-
-      try {
-        const res = await verifyTurnstileToken('real-token', 'real-secret', '1.2.3.4', 'development');
-        expect(res.success).toBe(true);
-        expect(res.devBypass).toBeUndefined();
-      } finally {
-        globalThis.fetch = originalFetch;
-      }
     });
   });
 });

@@ -51,6 +51,7 @@ test.describe('Entire app (live)', () => {
       // ---- Archive via directory, verify gone, restore via API, verify back ----
       await page.goto('/members');
       await page.getByPlaceholder(/search by name/i).fill(name);
+      await page.waitForTimeout(500);
       const row = page.locator('tr', { hasText: memberCode }).first();
       await expect(row).toBeVisible({ timeout: 30000 });
       await row.getByRole('button').last().click();
@@ -66,6 +67,7 @@ test.describe('Entire app (live)', () => {
       if (!restoreRes.ok()) throw new Error(`restore failed: ${restoreRes.status()} ${await restoreRes.text()}`);
       await page.goto('/members');
       await page.getByPlaceholder(/search by name/i).fill(name);
+      await page.waitForTimeout(500);
       await expect(page.getByText(memberCode).first()).toBeVisible({ timeout: 30000 });
 
       // ---- Validation: bad phone is blocked natively ----

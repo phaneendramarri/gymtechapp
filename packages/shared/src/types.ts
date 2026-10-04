@@ -53,44 +53,9 @@ export type {
   LockerAllocationStatus,
 };
 
-export interface GymFeature {
-  gymId: number;
-  featureKey: GymFeatureKey;
-  isEnabled: boolean;
-  updatedAt: number;
-}
-
-export interface CommunicationLog {
-  id: number;
-  gymId: number;
-  channel: 'SMS' | 'WHATSAPP' | 'EMAIL';
-  recipientPhone: string | null;
-  recipientName: string | null;
-  messageType: string;
-  creditsDeducted: number;
-  remainingBalance: number;
-  dispatchedById: number | null;
-  ip: string | null;
-  createdAt: number;
-}
-
 // =====================================================
 // Wire types (mirror the D1 row shape exactly)
 // =====================================================
-
-export interface PlatformAdmin {
-  id: number
-  email: string
-  passwordHash: string
-  name: string
-  status: 'ACTIVE' | 'DISABLED'
-  lastLoginAt: number | null
-  failedLoginCount: number
-  lockedUntil: number | null
-  createdAt: number
-  updatedAt: number
-  deletedAt: number | null
-}
 
 export interface Gym {
   id: number
@@ -170,13 +135,6 @@ export interface User {
   deletedAt: number | null
 }
 
-export interface GymSettings {
-  gymId: number
-  settings: string
-  updatedByUserId: number | null
-  updatedAt: number
-}
-
 export interface Role {
   id: number
   gymId: number
@@ -204,14 +162,6 @@ export interface MenuItem {
   isActive: boolean
   createdAt?: number
   updatedAt?: number
-}
-
-export interface RoleMenu {
-  id: number
-  gymId: number
-  roleId: number
-  menuItemId: number
-  createdAt: number
 }
 
 export interface GymMembershipPlan {

@@ -18,7 +18,7 @@ describe('Roles & staff E2E', () => {
     const { client } = await loginAsOwner();
     const u = uniqueSuffix();
 
-    const role = await client.post<{ id: number }>('/api/roles', {
+    const role = await client.post<{ id: number }>('/api/v1/roles', {
       name: `Trainer${u}`,
       description: 'PT-only role',
       permissions: ['members', 'attendance', 'pt_collections'],
@@ -27,16 +27,16 @@ describe('Roles & staff E2E', () => {
     const roleId = (role.body as { id?: number }).id;
     expect(roleId).toBeGreaterThan(0);
 
-    const updated = await client.request('PUT', `/api/roles/${roleId}`, {
+    const updated = await client.request('PUT', `/api/v1/roles/${roleId}`, {
       body: { name: `TrainerX${u}`, permissions: ['members'] },
     });
     expect(updated.status).toBe(200);
 
-    const list = await client.get<{ roles?: Array<{ id: number }> }>('/api/roles');
+    const list = await client.get<{ roles?: Array<{ id: number }> }>('/api/v1/roles');
     expect(list.status).toBe(200);
     expect((list.body.roles ?? []).some((r) => r.id === roleId)).toBe(true);
 
-    const del = await client.request('DELETE', `/api/roles/${roleId}`);
+    const del = await client.request('DELETE', `/api/v1/roles/${roleId}`);
     expect(del.status).toBe(200);
   });
 
@@ -47,7 +47,7 @@ describe('Roles & staff E2E', () => {
     ).first<{ id: number }>();
     if (!ownerRole) return; // dataset without built-ins — skip
 
-    const res = await client.request('DELETE', `/api/roles/${ownerRole.id}`);
+    const res = await client.request('DELETE', `/api/v1/roles/${ownerRole.id}`);
     expect([400, 403, 409]).toContain(res.status);
   });
 
@@ -55,13 +55,13 @@ describe('Roles & staff E2E', () => {
     const { client } = await loginAsOwner();
     const u = uniqueSuffix();
 
-    const role = await client.post<{ id: number }>('/api/roles', {
+    const role = await client.post<{ id: number }>('/api/v1/roles', {
       name: `Desk${u}`,
       permissions: ['members', 'attendance'],
     });
     const roleId = role.body.id;
 
-    const staff = await client.post('/api/staff', {
+    const staff = await client.post('/api/v1/staff', {
       name: `Desk Staff ${u}`,
       email: `desk.${u.toLowerCase()}@roles-e2e.test`,
       password: 'StaffPass123!',
@@ -71,7 +71,7 @@ describe('Roles & staff E2E', () => {
     expect([200, 201]).toContain(staff.status);
 
     // Role is in use → delete must be refused, not silently detach+delete.
-    const del = await client.request('DELETE', `/api/roles/${roleId}`);
+    const del = await client.request('DELETE', `/api/v1/roles/${roleId}`);
     expect([200, 400, 403, 409]).toContain(del.status);
   });
 });

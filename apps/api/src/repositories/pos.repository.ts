@@ -85,6 +85,16 @@ export class PosRepository {
   }
 
   async deleteProduct(gymId: number, id: number): Promise<void> {
+    // Hard-deleting a product cascades to posSaleItems (receipt lines) and
+    // corrupts past receipts. Refuse while any sale references it instead.
+    const refs = await this.db
+      .select({ id: posSaleItems.id })
+      .from(posSaleItems)
+      .where(and(eq(posSaleItems.gymId, gymId), eq(posSaleItems.productId, id)))
+      .limit(1);
+    if (refs.length > 0) {
+      throw new Error('Product cannot be deleted because past sales reference it. Deactivate it instead.');
+    }
     await this.db.delete(products).where(and(eq(products.gymId, gymId), eq(products.id, id)));
   }
 
@@ -97,16 +107,37 @@ export class PosRepository {
 
   async recordSale(
     gymId: number,
-    data: { memberId?: number | null; paymentMode: any; notes?: string | null; items: Array<{ productId: number; quantity: number; unitPricePaise: number }> }
+    data: { memberId?: number | null; paymentMode: any; notes?: string | null; items: Array<{ productId: number; quantity: number; unitPricePaise?: number }> }
   ): Promise<{ id: number; receiptNumber: string }> {
     const receiptNumber = await this.nextPosReceiptNumber(gymId);
     const now = Math.floor(Date.now() / 1000);
 
-    let subtotalPaise = 0;
+    // Validate products: existence, active status, gym ownership.
+    // Stock check is now ATOMIC in the UPDATE below (no separate check-then-update race).
+    const ids = data.items.map((i) => i.productId);
+    const productRows = await this.db
+      .select()
+      .from(products)
+      .where(and(eq(products.gymId, gymId), sql`${products.id} IN (${sql.join(ids, sql`, `)})`));
+    const byId = new Map(productRows.map((p) => [p.id, p]));
     for (const item of data.items) {
-      subtotalPaise += item.quantity * item.unitPricePaise;
+      const product = byId.get(item.productId);
+      if (!product) throw new Error('Product not found in this gym');
+      if (!product.isActive) throw new Error(`Product "${product.name}" is not active`);
     }
-    const taxPaise = 0;
+
+    let subtotalPaise = 0;
+    let taxPaise = 0;
+    for (const item of data.items) {
+      const product = byId.get(item.productId)!;
+      // SECURITY: Use the product's ACTUAL price from DB, not client-supplied unitPricePaise.
+      // This prevents price manipulation by malicious clients.
+      const actualPricePaise = product.pricePaise;
+      const line = item.quantity * actualPricePaise;
+      subtotalPaise += line;
+      const rate = Number(product.taxRate ?? 0);
+      if (rate > 0) taxPaise += Math.round((line * rate) / 100);
+    }
     const totalPaise = subtotalPaise + taxPaise;
 
     const [sale] = await this.db
@@ -124,26 +155,46 @@ export class PosRepository {
       })
       .returning({ id: posSales.id });
 
-    // Insert sale items and deduct stock
+    // Insert sale items and ATOMICALLY deduct stock.
+    // The UPDATE's WHERE clause includes stockQuantity >= quantity,
+    // so concurrent sales cannot oversell: the second will affect 0 rows
+    // and we can detect it by checking the returned rows (via a SELECT).
     for (const item of data.items) {
-      const lineTotal = item.quantity * item.unitPricePaise;
+      const product = byId.get(item.productId)!;
+      const actualPricePaise = product.pricePaise;
+      const lineTotal = item.quantity * actualPricePaise;
       await this.db.insert(posSaleItems).values({
         gymId,
         saleId: sale.id,
         productId: item.productId,
         quantity: item.quantity,
-        unitPricePaise: item.unitPricePaise,
+        unitPricePaise: actualPricePaise,
         totalPaise: lineTotal,
       });
 
-      // Deduct product stock
-      await this.db
+      // ATOMIC stock deduction: only succeeds if sufficient stock exists.
+      // Returns number of rows changed; 0 = insufficient stock (race lost).
+      const result = await this.db
         .update(products)
         .set({
-          stockQuantity: sql`max(0, ${products.stockQuantity} - ${item.quantity})`,
+          stockQuantity: sql`${products.stockQuantity} - ${item.quantity}`,
           updatedAt: now,
         })
-        .where(and(eq(products.gymId, gymId), eq(products.id, item.productId)));
+        .where(
+          and(
+            eq(products.gymId, gymId),
+            eq(products.id, item.productId),
+            // Guard: only decrement if stock covers the quantity
+            sql`${products.stockQuantity} >= ${item.quantity}`
+          )
+        );
+
+      // SQLite returns changes in meta; if 0 rows updated, stock was insufficient.
+      if ((result.meta?.changes ?? 0) === 0) {
+        // Roll back: delete the sale and any previously inserted items for this sale.
+        await this.db.delete(posSales).where(eq(posSales.id, sale.id));
+        throw new Error(`Insufficient stock for "${product.name}" (concurrent sale)`);
+      }
     }
 
     return { id: sale.id, receiptNumber };
@@ -165,7 +216,7 @@ export class PosRepository {
         createdAt: posSales.createdAt,
       })
       .from(posSales)
-      .leftJoin(members, eq(posSales.memberId, members.id))
+      .leftJoin(members, and(eq(posSales.memberId, members.id), eq(members.gymId, gymId)))
       .where(eq(posSales.gymId, gymId))
       .orderBy(desc(posSales.createdAt))
       .limit(limit)

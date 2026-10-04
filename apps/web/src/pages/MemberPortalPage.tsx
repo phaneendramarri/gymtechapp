@@ -1,5 +1,4 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Dumbbell,
@@ -31,7 +30,6 @@ import { Logo } from '@/components/shared/Logo';
 import { ErrorState } from '@/components/shared/ErrorState';
 
 export const MemberPortalPage: React.FC = () => {
-  const navigate = useNavigate();
   const { logout } = useAuth();
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -42,8 +40,9 @@ export const MemberPortalPage: React.FC = () => {
   });
 
   const handleLogout = () => {
+    // auth.logout() hard-redirects to /login itself — a second SPA
+    // navigate() here would race it. Just call logout.
     logout();
-    navigate('/login');
   };
 
   const member = data?.member;
@@ -51,6 +50,11 @@ export const MemberPortalPage: React.FC = () => {
   const payments = data?.payments || [];
   const attendance = data?.attendance || [];
   const gym = data?.gym;
+
+  useEffect(() => {
+    const memberName = member ? `${member.firstName} ${member.lastName || ''}`.trim() : '';
+    document.title = memberName ? `${memberName} — Member Portal — GymTech` : 'Member Portal — GymTech';
+  }, [member?.firstName, member?.lastName]);
 
   const nowSec = Math.floor(Date.now() / 1000);
   const isExpired = activeMembership ? activeMembership.endDate < nowSec : true;
@@ -78,10 +82,14 @@ export const MemberPortalPage: React.FC = () => {
   const bookClassMutation = useMutation({
     mutationFn: (scheduleId: number) => {
       if (!member?.id) throw new Error('No member session');
+      // Local calendar date (not UTC): toISOString() shifts IST mornings to
+      // the previous UTC day and would book the wrong occurrence.
+      const now = new Date();
+      const bookingDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
       return api.bookClass({
         scheduleId,
         memberId: member.id,
-        bookingDate: new Date().toISOString().slice(0, 10),
+        bookingDate,
       });
     },
     onSuccess: () => {

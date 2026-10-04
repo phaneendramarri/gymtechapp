@@ -43,6 +43,7 @@ export const platformSettings = sqliteTable('platformSettings', {
   key: text('key').primaryKey(),
   valueJson: text('valueJson').notNull(),
   updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
 });
 
 // ============================================================
@@ -319,6 +320,7 @@ export const memberships = sqliteTable('memberships', {
     foreignColumns: [membershipPlans.gymId, membershipPlans.id],
   }).onDelete('restrict'),
   memberIdx: index('idxMembershipsGymMember').on(t.gymId, t.memberId),
+  memberActiveEndIdx: index('idxMembershipsGymMemberActiveEnd').on(t.gymId, t.memberId, t.deletedAt, t.endDate),
   statusDatesIdx: index('idxMembershipsGymStatusDates').on(t.gymId, t.status, t.endDate),
   endDateIdx: index('idxMembershipsGymEndDate').on(t.gymId, t.endDate),
 }));
@@ -471,8 +473,10 @@ export const menuItems = sqliteTable('menuItems', {
   isActive: integer('isActive', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('createdAt').notNull(),
   updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   groupOrderIdx: index('idxMenuItemsGroupOrder').on(t.groupKey, t.order),
+  deletedIdx: index('idxMenuItemsDeleted').on(t.deletedAt),
 }));
 
 // ============================================================
@@ -524,6 +528,7 @@ export const classSchedules = sqliteTable('classSchedules', {
   maxCapacity: integer('maxCapacity').notNull().default(20),
   isCancelled: integer('isCancelled', { mode: 'boolean' }).notNull().default(false),
   createdAt: integer('createdAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('classSchedulesGymIdUnique').on(t.gymId, t.id),
   classFk: foreignKey({
@@ -537,6 +542,7 @@ export const classSchedules = sqliteTable('classSchedules', {
   classIdx: index('idxClassSchedulesGymClass').on(t.gymId, t.classId),
   dayIdx: index('idxClassSchedulesGymDay').on(t.gymId, t.dayOfWeek),
   trainerIdx: index('idxClassSchedulesGymTrainer').on(t.gymId, t.trainerUserId),
+  deletedIdx: index('idxClassSchedulesGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -550,6 +556,7 @@ export const classBookings = sqliteTable('classBookings', {
   status: text('status', { enum: ['BOOKED', 'ATTENDED', 'CANCELLED', 'NO_SHOW', 'WAITLIST'] }).notNull().default('BOOKED'),
   bookedAt: integer('bookedAt').notNull(),
   attendedAt: integer('attendedAt'),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('classBookingsGymIdUnique').on(t.gymId, t.id),
   scheduleFk: foreignKey({
@@ -562,6 +569,7 @@ export const classBookings = sqliteTable('classBookings', {
   }).onDelete('cascade'),
   scheduleIdx: index('idxClassBookingsGymSchedule').on(t.gymId, t.scheduleId),
   memberIdx: index('idxClassBookingsGymMember').on(t.gymId, t.memberId),
+  deletedIdx: index('idxClassBookingsGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -609,6 +617,7 @@ export const ptSessions = sqliteTable('ptSessions', {
   trainerUserId: integer('trainerUserId').notNull(),
   signedOffByMember: integer('signedOffByMember', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('createdAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('ptSessionsGymIdUnique').on(t.gymId, t.id),
   packageFk: foreignKey({
@@ -620,6 +629,7 @@ export const ptSessions = sqliteTable('ptSessions', {
     foreignColumns: [users.gymId, users.id],
   }).onDelete('cascade'),
   packageIdx: index('idxPtSessionsGymPackage').on(t.gymId, t.packageId),
+  deletedIdx: index('idxPtSessionsGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -639,9 +649,11 @@ export const products = sqliteTable('products', {
   isActive: integer('isActive', { mode: 'boolean' }).notNull().default(true),
   createdAt: integer('createdAt').notNull(),
   updatedAt: integer('updatedAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('productsGymIdUnique').on(t.gymId, t.id),
   nameIdx: index('idxProductsGymName').on(t.gymId, t.name),
+  deletedIdx: index('idxProductsGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -660,6 +672,7 @@ export const posSales = sqliteTable('posSales', {
   }).notNull().default('CASH'),
   notes: text('notes'),
   createdAt: integer('createdAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('posSalesGymIdUnique').on(t.gymId, t.id),
   receiptUq: uniqueIndex('posSalesGymReceiptUnique').on(t.gymId, t.receiptNumber),
@@ -668,6 +681,7 @@ export const posSales = sqliteTable('posSales', {
     foreignColumns: [members.gymId, members.id],
   }).onDelete('set null'),
   memberIdx: index('idxPosSalesGymMember').on(t.gymId, t.memberId),
+  deletedIdx: index('idxPosSalesGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -681,6 +695,7 @@ export const posSaleItems = sqliteTable('posSaleItems', {
   quantity: integer('quantity').notNull(),
   unitPricePaise: integer('unitPricePaise').notNull(),
   totalPaise: integer('totalPaise').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('posSaleItemsGymIdUnique').on(t.gymId, t.id),
   saleFk: foreignKey({
@@ -692,6 +707,7 @@ export const posSaleItems = sqliteTable('posSaleItems', {
     foreignColumns: [products.gymId, products.id],
   }).onDelete('cascade'),
   saleIdx: index('idxPosSaleItemsGymSale').on(t.gymId, t.saleId),
+  deletedIdx: index('idxPosSaleItemsGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -702,9 +718,11 @@ export const expenseCategories = sqliteTable('expenseCategories', {
   gymId: integer('gymId').notNull().references(() => gyms.id, { onDelete: 'cascade' }),
   name: text('name').notNull(),
   createdAt: integer('createdAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('expenseCategoriesGymIdUnique').on(t.gymId, t.id),
   nameUq: uniqueIndex('expenseCategoriesGymNameUnique').on(t.gymId, t.name),
+  deletedIdx: index('idxExpenseCategoriesGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -724,6 +742,7 @@ export const expenses = sqliteTable('expenses', {
   receiptUrl: text('receiptUrl'),
   createdByUserId: integer('createdByUserId').references(() => users.id, { onDelete: 'set null' }),
   createdAt: integer('createdAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('expensesGymIdUnique').on(t.gymId, t.id),
   categoryFk: foreignKey({
@@ -732,6 +751,7 @@ export const expenses = sqliteTable('expenses', {
   }).onDelete('cascade'),
   dateIdx: index('idxExpensesGymDate').on(t.gymId, t.expenseDate),
   categoryIdx: index('idxExpensesGymCategory').on(t.gymId, t.categoryId),
+  deletedIdx: index('idxExpensesGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -744,9 +764,11 @@ export const lockers = sqliteTable('lockers', {
   zone: text('zone'),
   status: text('status', { enum: ['AVAILABLE', 'OCCUPIED', 'MAINTENANCE'] }).notNull().default('AVAILABLE'),
   createdAt: integer('createdAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('lockersGymIdUnique').on(t.gymId, t.id),
   numberUq: uniqueIndex('lockersGymNumberUnique').on(t.gymId, t.lockerNumber),
+  deletedIdx: index('idxLockersGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================
@@ -763,6 +785,7 @@ export const lockerAllocations = sqliteTable('lockerAllocations', {
   rentPaise: integer('rentPaise').notNull().default(0),
   status: text('status', { enum: ['ACTIVE', 'TERMINATED', 'OVERDUE'] }).notNull().default('ACTIVE'),
   createdAt: integer('createdAt').notNull(),
+  deletedAt: integer('deletedAt'),
 }, (t) => ({
   gymIdUq: uniqueIndex('lockerAllocationsGymIdUnique').on(t.gymId, t.id),
   lockerFk: foreignKey({
@@ -775,6 +798,7 @@ export const lockerAllocations = sqliteTable('lockerAllocations', {
   }).onDelete('cascade'),
   lockerIdx: index('idxLockerAllocationsGymLocker').on(t.gymId, t.lockerId),
   memberIdx: index('idxLockerAllocationsGymMember').on(t.gymId, t.memberId),
+  deletedIdx: index('idxLockerAllocationsGymDeleted').on(t.gymId, t.deletedAt),
 }));
 
 // ============================================================

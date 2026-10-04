@@ -30,7 +30,7 @@ import { createRateLimiter, type RateLimiterStore } from '../lib/ratelimit';
 // Tier configuration
 // ---------------------------------------------------------------------------
 
-export type RateLimitTier = 'auth' | 'write' | 'read';
+export type RateLimitTier = 'auth' | 'checkin' | 'write' | 'read';
 
 interface TierConfig {
   limit: number;        // max requests
@@ -38,9 +38,10 @@ interface TierConfig {
 }
 
 const TIERS: Record<RateLimitTier, TierConfig> = {
-  auth:  { limit: 10,  windowSecs: 60 },
-  write: { limit: 120, windowSecs: 60 },
-  read:  { limit: 600, windowSecs: 60 },
+  auth:    { limit: 10,  windowSecs: 60 },
+  checkin: { limit: 30,  windowSecs: 60 }, // Stricter for check-in: 30/min per IP (shared gym Wi-Fi)
+  write:   { limit: 120, windowSecs: 60 },
+  read:    { limit: 600, windowSecs: 60 },
 };
 
 export const RATELIMIT_KV = '__ratelimit_kv__' as const;

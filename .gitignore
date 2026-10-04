@@ -7,6 +7,7 @@ dist/
 build/
 .wrangler/
 *.tsbuildinfo
+AUDIT_REPORT.md
 
 # Stray transpiled emits — there is no emit step in this repo
 # (tsc --noEmit everywhere; Wrangler handles bundling). Any *.js next to
@@ -45,7 +46,7 @@ coverage/
 
 # Cloudflare Wrangler — secrets & local dev state.
 # `.dev.vars` is the Wrangler equivalent of `.env` for `wrangler dev` and
-# contains secret keys (JWT_SECRET, TURNSTILE_SECRET_KEY, etc.).
+# contains secret keys (JWT_SECRET, etc.).
 # `*.pem` / `*.key` covers ad-hoc key files used for local signing.
 .dev.vars
 .dev.vars.*
@@ -68,7 +69,9 @@ coverage/
 Thumbs.db
 
 # Database seed files & credentials
-apps/api/seed/seed_production.sql
+# NOTE: apps/api/seed/seed_production.sql is intentionally TRACKED — it
+# contains only __PLACEHOLDER__ password hashes (filled at seed time by
+# scripts/seed.mjs), no real credentials. The rules below target real dumps.
 apps/api/seed/update_hash.sql
 apps/api/seed/*prod*.sql
 apps/api/seed/*hash*.sql
@@ -76,7 +79,13 @@ seed_*.sql
 *.seed.sql
 temp_*.sql
 *.dump.sql
-wrangler.jsonc
+# Re-include the placeholder seed template (overrides the globs above —
+# later patterns win). It carries no real credentials.
+!apps/api/seed/seed_production.sql
 .freebuff/
 .kilo/
+
+# Playwright HTML report output & live auth storage state (generated, never committed)
+tests/e2e-live/report/
+tests/e2e-live/.auth/
 

@@ -27,9 +27,9 @@ describe('Cookie helpers (Phase 1.2 — JWT in httpOnly cookie)', () => {
       expect(cookie).toContain('HttpOnly');
     });
 
-    it('sets Max-Age matching the session lifetime (7 days)', () => {
+    it('sets Max-Age matching the JWT lifetime (15 minutes)', () => {
       const cookie = buildSessionCookie('jwt', 'production');
-      expect(cookie).toContain(`Max-Age=${7 * 24 * 60 * 60}`);
+      expect(cookie).toContain(`Max-Age=${15 * 60}`);
     });
   });
 

@@ -4,6 +4,7 @@ import { PaymentRepository } from '../repositories/payment.repository';
 import { AttendanceRepository } from '../repositories/attendance.repository';
 import { NotificationService } from '../lib/notifications';
 import { computeChurnRisk } from '../lib/calculations';
+import { todayYyyymmdd } from '../lib/dates';
 import type { DashboardMetrics, ExpiringMember } from '@gymtech/shared';
 
 export class DashboardService {
@@ -205,9 +206,9 @@ export class DashboardService {
            COALESCE(SUM(CASE WHEN mp.billingPeriod = 'MONTHLY' THEN p.amountPaise ELSE 0 END), 0) as monthlyAmountPaise,
            COALESCE(SUM(CASE WHEN mp.billingPeriod = 'YEARLY' THEN p.amountPaise ELSE 0 END), 0) as yearlyAmountPaise
          FROM payments p
-         LEFT JOIN memberships ms ON ms.id = p.membershipId AND ms.deletedAt IS NULL
-         LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.deletedAt IS NULL
-         WHERE p.gymId = ? AND p.status = 'COMPLETED' AND p.paymentDate >= ?
+          LEFT JOIN memberships ms ON ms.id = p.membershipId AND ms.gymId = p.gymId AND ms.deletedAt IS NULL
+          LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.gymId = p.gymId AND mp.deletedAt IS NULL
+          WHERE p.gymId = ? AND p.status = 'COMPLETED' AND p.deletedAt IS NULL AND p.paymentDate >= ?
          GROUP BY monthKey`
       )
       .bind(this.gymId, minDateTimestamp)
@@ -250,7 +251,7 @@ export class DashboardService {
            MAX(a.checkInTime) as lastCheckIn
          FROM members m
          JOIN memberships ms ON ms.memberId = m.id AND ms.gymId = m.gymId AND ms.status = 'ACTIVE' AND ms.endDate > ?
-         LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.deletedAt IS NULL
+          LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.gymId = ms.gymId AND mp.deletedAt IS NULL
          LEFT JOIN attendance a ON a.memberId = m.id AND a.gymId = m.gymId
          WHERE m.gymId = ? AND m.deletedAt IS NULL AND m.status = 'ACTIVE'
          GROUP BY m.id
@@ -319,8 +320,5 @@ export class DashboardService {
 }
 
 function todayYyyymmddFor(d: Date): number {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return y * 10000 + parseInt(m, 10) * 100 + parseInt(day, 10);
+  return todayYyyymmdd(d);
 }

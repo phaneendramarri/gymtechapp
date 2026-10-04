@@ -16,11 +16,11 @@ function phoneFromSuffix(u: string): string {
 describe('Attendance E2E', () => {
   it('checks a member in by numeric id and by identifier', async () => {
     const { client } = await loginAsOwner();
-    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
+    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/v1/plans');
     const plan = plans.body.plans[0]!;
     const suffix = uniqueSuffix();
 
-    const created = await client.post<{ member: { id: number; phone: string } }>('/api/members', {
+    const created = await client.post<{ member: { id: number; phone: string } }>('/api/v1/members', {
       firstName: 'Attend',
       lastName: `Flow${suffix}`,
       phone: phoneFromSuffix(suffix),
@@ -33,7 +33,7 @@ describe('Attendance E2E', () => {
 
     // Check in by numeric id.
     const byId = await client.post<{ success?: boolean; member?: { id: number } } | { success: false; code: string }>(
-      '/api/attendance/check-in',
+      '/api/v1/attendance/check-in',
       { memberIdOrCode: String(memberId) }
     );
     expect([200, 201]).toContain(byId.status);
@@ -47,17 +47,17 @@ describe('Attendance E2E', () => {
 
     // Check in again by phone identifier — the second attempt may succeed
     // (alreadyCheckedIn=true) or be refused; either way no 5xx is the contract.
-    const byPhone = await client.post('/api/attendance/check-in', { memberIdOrCode: created.body.member.phone });
+    const byPhone = await client.post('/api/v1/attendance/check-in', { memberIdOrCode: created.body.member.phone });
     expect(byPhone.status).toBeLessThan(500);
   });
 
   it('refuses check-in for archived members', async () => {
     const { client } = await loginAsOwner();
-    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
+    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/v1/plans');
     const plan = plans.body.plans[0]!;
     const suffix = uniqueSuffix();
 
-    const created = await client.post<{ member: { id: number } }>('/api/members', {
+    const created = await client.post<{ member: { id: number } }>('/api/v1/members', {
       firstName: 'Archived',
       lastName: `Checkin${suffix}`,
       phone: phoneFromSuffix(suffix),
@@ -68,10 +68,10 @@ describe('Attendance E2E', () => {
     expect(created.status).toBe(201);
     const memberId = created.body.member.id;
 
-    const archive = await client.post(`/api/members/${memberId}/archive`);
+    const archive = await client.post(`/api/v1/members/${memberId}/archive`);
     expect(archive.status).toBe(200);
 
-    const res = await client.post('/api/attendance/check-in', { memberIdOrCode: String(memberId) });
+    const res = await client.post('/api/v1/attendance/check-in', { memberIdOrCode: String(memberId) });
     // Archived members are invisible to the lookup → 404 (not a permission leak).
     expect([403, 404]).toContain(res.status);
   });
@@ -79,10 +79,10 @@ describe('Attendance E2E', () => {
   it('blocks check-in for an expired member without override', async () => {
     const { client, env } = await loginAsOwner();
     // Expire an enrolled member's membership directly in D1 (no time travel needed).
-    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
+    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/v1/plans');
     const plan = plans.body.plans[0]!;
     const suffix = uniqueSuffix();
-    const created = await client.post<{ member: { id: number } }>('/api/members', {
+    const created = await client.post<{ member: { id: number } }>('/api/v1/members', {
       firstName: 'Expired',
       lastName: `Checkin${suffix}`,
       phone: phoneFromSuffix(suffix),
@@ -98,7 +98,7 @@ describe('Attendance E2E', () => {
     ).bind(memberId).run();
     expect(expired.meta.changes).toBeGreaterThan(0);
 
-    const res = await client.post('/api/attendance/check-in', { memberIdOrCode: String(memberId) });
+    const res = await client.post('/api/v1/attendance/check-in', { memberIdOrCode: String(memberId) });
     // Expired → success=false with explicit MEMBERSHIP_EXPIRED code, 403.
     expect(res.status).toBe(403);
     expect((res.body as { code?: string }).code).toBe('MEMBERSHIP_EXPIRED');
@@ -106,18 +106,18 @@ describe('Attendance E2E', () => {
 
   it('lists today\'s attendance', async () => {
     const { client } = await loginAsOwner();
-    const res = await client.get<{ logs: unknown[] }>('/api/attendance');
+    const res = await client.get<{ logs: unknown[] }>('/api/v1/attendance');
     expect(res.status).toBe(200);
     expect(Array.isArray(res.body.logs)).toBe(true);
   });
 
   it('concurrent double check-ins collapse to a single row', async () => {
     const { client } = await loginAsOwner();
-    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
+    const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/v1/plans');
     const plan = plans.body.plans[0]!;
     const suffix = uniqueSuffix();
 
-    const created = await client.post<{ member: { id: number; memberCode: string } }>('/api/members', {
+    const created = await client.post<{ member: { id: number; memberCode: string } }>('/api/v1/members', {
       firstName: 'Racy',
       lastName: `Checkin${suffix}`,
       phone: phoneFromSuffix(suffix),
@@ -134,12 +134,12 @@ describe('Attendance E2E', () => {
     // duplicate rows for the same member/day.
     const attempts = await Promise.all(
       Array.from({ length: 10 }, () =>
-        client.post('/api/attendance/check-in', { memberIdOrCode: String(memberId) })
+        client.post('/api/v1/attendance/check-in', { memberIdOrCode: String(memberId) })
       )
     );
     for (const a of attempts) expect(a.status).toBeLessThan(500);
 
-    const list = await client.get<{ logs: Array<{ memberCode?: string }> }>('/api/attendance');
+    const list = await client.get<{ logs: Array<{ memberCode?: string }> }>('/api/v1/attendance');
     expect(list.status).toBe(200);
     const mine = list.body.logs.filter((l) => l.memberCode === memberCode);
     expect(mine.length).toBe(1);

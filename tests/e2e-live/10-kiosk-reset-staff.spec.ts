@@ -54,7 +54,7 @@ test.describe('Staff lifecycle + password reset (live)', () => {
     try {
       await mgr.page.goto('/staff');
       await expect(mgr.page.getByText(email).first()).toBeVisible({ timeout: 30000 });
-      const row = mgr.page.locator('li', { hasText: email }).first();
+      const row = mgr.page.locator('li, tr', { hasText: email }).first();
       await row.getByRole('button', { name: /deactivate/i }).click();
       await expect(mgr.page.getByText(/deactivated|disabled/i).first()).toBeVisible({ timeout: 30000 });
     } finally {
@@ -80,9 +80,12 @@ test.describe('Staff lifecycle + password reset (live)', () => {
     try {
       await mgr2.page.goto('/staff');
       await expect(mgr2.page.getByText(email).first()).toBeVisible({ timeout: 30000 });
-      const row = mgr2.page.locator('li', { hasText: email }).first();
+      const row = mgr2.page.locator('li, tr', { hasText: email }).first();
       const toggle = row.getByRole('button', { name: /activate|enable/i });
-      if ((await toggle.count()) > 0) await toggle.first().click();
+      if ((await toggle.count()) > 0) {
+        await toggle.first().click();
+        await expect(mgr2.page.getByText(/activated/i).first()).toBeVisible({ timeout: 15000 });
+      }
     } finally {
       await mgr2.context.close();
     }

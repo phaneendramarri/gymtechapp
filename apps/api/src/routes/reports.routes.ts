@@ -35,7 +35,7 @@ reportRoutes.get('/', requireGym, requireFeature('reports'), requirePermission('
 
   const periodRevenueRes = await ctx.env.DB.prepare(`
     SELECT COALESCE(SUM(amountPaise), 0) as revenue, COUNT(*) as paymentCount
-    FROM payments WHERE gymId = ? AND status = 'COMPLETED' AND paymentDate >= ?
+    FROM payments WHERE gymId = ? AND status = 'COMPLETED' AND deletedAt IS NULL AND paymentDate >= ?
   `).bind(ctx.gymId!, periodStart).first<{ revenue: number; paymentCount: number }>();
 
   const planBreakdownRes = await ctx.env.DB.prepare(`
@@ -66,8 +66,8 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
       SELECT p.receiptNumber, p.paymentDate, m.firstName, m.lastName, m.memberCode,
              p.amountPaise, p.paymentMode, p.referenceId, p.status, u.name as recordedBy
       FROM payments p
-      JOIN members m ON m.id = p.memberId AND m.deletedAt IS NULL
-      LEFT JOIN users u ON u.id = p.recordedByUserId
+      JOIN members m ON m.id = p.memberId AND m.gymId = p.gymId AND m.deletedAt IS NULL
+      LEFT JOIN users u ON u.id = p.recordedByUserId AND u.gymId = p.gymId
       WHERE p.gymId = ? AND p.deletedAt IS NULL
       ORDER BY p.paymentDate DESC LIMIT 2000
     `).bind(ctx.gymId!).all();
@@ -85,8 +85,8 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
              mp.name as planName, ms.endDate, ms.dueAmountPaise
       FROM members m
       LEFT JOIN memberships ms ON ms.memberId = m.id AND ms.gymId = m.gymId AND ms.deletedAt IS NULL
-        AND ms.id = (SELECT id FROM memberships WHERE memberId = m.id AND deletedAt IS NULL ORDER BY endDate DESC LIMIT 1)
-      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.deletedAt IS NULL
+        AND ms.id = (SELECT id FROM memberships WHERE memberId = m.id AND gymId = m.gymId AND deletedAt IS NULL ORDER BY endDate DESC LIMIT 1)
+      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.gymId = m.gymId AND mp.deletedAt IS NULL
       WHERE m.gymId = ? AND m.deletedAt IS NULL
       GROUP BY m.id ORDER BY m.firstName ASC LIMIT 2000
     `).bind(ctx.gymId!).all();
@@ -104,7 +104,7 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
     const rows = await ctx.env.DB.prepare(`
       SELECT a.attendanceDate, a.checkInTime, a.method, m.firstName, m.lastName, m.memberCode
       FROM attendance a
-      JOIN members m ON m.id = a.memberId AND m.deletedAt IS NULL
+      JOIN members m ON m.id = a.memberId AND m.gymId = a.gymId AND m.deletedAt IS NULL
       WHERE a.gymId = ? AND a.deletedAt IS NULL
       ORDER BY a.checkInTime DESC LIMIT 5000
     `).bind(ctx.gymId!).all();
@@ -120,8 +120,8 @@ reportRoutes.get('/export', requireGym, requireFeature('reports'), requirePermis
       SELECT m.memberCode, m.firstName, m.lastName, m.phone, mp.name as planName,
              ms.endDate, ms.finalAmountPaise, ms.paidAmountPaise, ms.dueAmountPaise
       FROM memberships ms
-      JOIN members m ON m.id = ms.memberId AND m.deletedAt IS NULL
-      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.deletedAt IS NULL
+      JOIN members m ON m.id = ms.memberId AND m.gymId = ms.gymId AND m.deletedAt IS NULL
+      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.gymId = ms.gymId AND mp.deletedAt IS NULL
       WHERE ms.gymId = ? AND ms.dueAmountPaise > 0 AND ms.deletedAt IS NULL
       ORDER BY ms.dueAmountPaise DESC LIMIT 2000
     `).bind(ctx.gymId!).all();

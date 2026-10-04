@@ -154,6 +154,18 @@ export function queryId(raw: string | undefined, name: string): number | undefin
 }
 
 /**
+ * Parse a free-text date into unix seconds. Returns undefined when absent so
+ * callers can fall back to their default; returns null when present but
+ * unparseable so callers can 400 instead of storing NaN in the DB.
+ */
+export function parseDateToUnixSeconds(raw: string | undefined | null): number | undefined | null {
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  const ms = new Date(raw).getTime();
+  if (!Number.isFinite(ms)) return null;
+  return Math.floor(ms / 1000);
+}
+
+/**
  * Sanitize a caught error into a client-safe message.
  *
  * Service-layer business errors (validation, not-found, state conflicts)

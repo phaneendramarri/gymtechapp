@@ -322,6 +322,9 @@ export class MemberService {
     if (!member) throw new Error('Member not found');
     if (member.status === 'FROZEN') throw new Error('Membership is already frozen');
     if (member.status === 'CANCELLED') throw new Error('Cancelled memberships cannot be frozen');
+    if (member.status === 'BLOCKED' || member.status === 'INACTIVE') {
+      throw new Error('Only members with an active membership can be frozen');
+    }
 
     const activeMs: any = await this.membershipRepo.findActiveByMemberId(memberId);
     if (!activeMs) throw new Error('Only members with an active membership can be frozen');

@@ -17,7 +17,7 @@
  * layer (`fetchForGym` / `presignForGym`).
  */
 import { Hono } from 'hono';
-import { requireGym } from '../middleware/auth';
+import { requireGym, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
 import {
@@ -38,8 +38,22 @@ export const mediaRoutes = new Hono();
  * Upload. Accepts either `multipart/form-data` (with a `file` field) or
  * `application/octet-stream` (raw body). The session identifies the
  * tenant; the body carries the bytes.
+ *
+ * Gated on the `members` permission (staff photo flows): without this, any
+ * member-portal session could upload arbitrary 10 MB objects and burn
+ * storage/billing. Only images and PDFs are accepted — SVG/HTML/XML can
+ * carry scripts and must never be stored as renderable media.
  */
-mediaRoutes.post('/upload', requireGym, safeHandler(async (c) => {
+const ALLOWED_UPLOAD_MIMES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/gif',
+  'image/avif',
+  'application/pdf',
+]);
+
+mediaRoutes.post('/upload', requireGym, requirePermission('members'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   try {
     const contentType = c.req.header('Content-Type') || '';
@@ -61,6 +75,10 @@ mediaRoutes.post('/upload', requireGym, safeHandler(async (c) => {
     if (!fileBuffer || fileBuffer.byteLength === 0) return jsonErr('Empty file upload', 400);
     if (fileBuffer.byteLength > MAX_UPLOAD_BYTES) {
       return jsonErr(`File too large; maximum is ${MAX_UPLOAD_BYTES} bytes`, 413);
+    }
+    const normalizedMime = fileMime.split(';')[0].trim().toLowerCase();
+    if (!ALLOWED_UPLOAD_MIMES.has(normalizedMime)) {
+      return jsonErr('Unsupported file type. Upload a JPG, PNG, WebP, GIF, AVIF image or a PDF.', 415);
     }
 
     const result = await uploadMedia(

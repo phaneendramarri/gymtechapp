@@ -21,11 +21,12 @@ import { RenewMembershipResponse } from '@gymtech/shared';
 export const RenewMemberPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const queryClient = useQueryClient();
+  const memberId = /^\d+$/.test(id ?? '') ? parseInt(id!, 10) : NaN;
 
   const { data: memberData } = useQuery({
     queryKey: ['member', id],
-    queryFn: () => api.getMemberDetail(parseInt(id!, 10)),
-    enabled: !!id,
+    queryFn: () => api.getMemberDetail(memberId),
+    enabled: Number.isFinite(memberId) && memberId > 0,
   });
 
   const { data: plansData } = useQuery({

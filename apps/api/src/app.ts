@@ -46,8 +46,6 @@ export interface AppEnv {
   CORS_ORIGINS?: string;
   /** @deprecated R2 binding — kept for backward compat, not used by current routes. */
   MEDIA_BUCKET?: R2Bucket;
-  /** @deprecated Resend is legacy — MSG91 is the supported email provider. Kept so old deploys keep reporting email ACTIVE. */
-  RESEND_API_KEY?: string;
   // MSG91 — Email + SMS + WhatsApp through one account. Only AUTH_KEY is
   // secret (wrangler secret put); the rest can be env vars or platform
   // settings (Admin → Communications), which override env when set.
@@ -60,7 +58,6 @@ export interface AppEnv {
   MSG91_WHATSAPP_LANGUAGE?: string;
   EMAIL_FROM?: string;
   APP_URL?: string;
-  TURNSTILE_SECRET_KEY?: string;
   // Filebase (S3-compatible) — see apps/api/src/lib/filebase.ts
   FILEBASE_ENDPOINT?: string;
   FILEBASE_REGION?: string;
@@ -109,11 +106,33 @@ app.use(
     credentials: true,
   })
 );
+
+// Security headers — apply to all responses
+app.use('*', async (c, next) => {
+  await next();
+  // HSTS (only in production with HTTPS)
+  if (c.env.APP_ENV === 'production') {
+    c.header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  }
+  // Prevent clickjacking
+  c.header('X-Frame-Options', 'DENY');
+  // Prevent MIME type sniffing
+  c.header('X-Content-Type-Options', 'nosniff');
+  // Referrer policy
+  c.header('Referrer-Policy', 'strict-origin-when-cross-origin');
+  // Basic CSP — adjust as needed for your inline styles/scripts
+  c.header('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+});
+
 app.use('*', contextMiddleware as unknown as MiddlewareHandler<{ Bindings: AppEnv; Variables: AppVars }>);
 // Request body size limit — prevent DoS via large payloads (Cloudflare Workers limit: 128MB)
+// Media uploads permit up to 10MB (see apps/api/src/lib/media.ts MAX_UPLOAD_BYTES); standard routes cap at 1MB.
 app.use('/api/*', async (c, next) => {
+  const path = c.req.path;
+  const isMediaUpload = path.startsWith('/api/v1/media/upload') || path.startsWith('/api/media/upload');
+  const maxBytes = isMediaUpload ? 10 * 1024 * 1024 : 1024 * 1024;
   const contentLength = c.req.header('content-length');
-  if (contentLength && parseInt(contentLength, 10) > 1024 * 1024) { // 1MB
+  if (contentLength && parseInt(contentLength, 10) > maxBytes) {
     return c.json({ error: 'Payload too large', code: 'PAYLOAD_TOO_LARGE' }, 413);
   }
   await next();
@@ -136,7 +155,14 @@ app.use('/api/*', (c, next) => {
     const path = cc.req.path;
     const method = cc.req.method.toUpperCase();
     // Auth routes get the stricter 'auth' tier (10 req/min).
-    if (path.startsWith('/api/auth/login') ||
+    // Both /api/v1/... (current) and /api/... (legacy redirect) supported.
+    if (path.startsWith('/api/v1/auth/login') ||
+        path.startsWith('/api/v1/auth/member-login') ||
+        path.startsWith('/api/v1/auth/platform-login') ||
+        path.startsWith('/api/v1/auth/forgot-password') ||
+        path.startsWith('/api/v1/auth/reset-password') ||
+        path.startsWith('/api/v1/auth/phone-login') ||
+        path.startsWith('/api/auth/login') ||
         path.startsWith('/api/auth/member-login') ||
         path.startsWith('/api/auth/platform-login') ||
         path.startsWith('/api/auth/forgot-password') ||
@@ -144,9 +170,16 @@ app.use('/api/*', (c, next) => {
         path.startsWith('/api/auth/phone-login')) {
       return 'auth';
     }
+    // Check-in endpoints get a dedicated stricter tier (30 req/min).
+    // Shared gym Wi-Fi = single public IP; this prevents a single user
+    // or script from exhausting the write budget for all staff/members.
+    if (path.startsWith('/api/v1/attendance/check-in') ||
+        path.startsWith('/api/attendance/check-in')) {
+      return 'checkin';
+    }
     // Safe methods are reads; everything else is a write. Each tier keeps its
     // own bucket (see middleware/ratelimit.ts), so this is what the TIERS
-    // table documents: auth 10/min, write 120/min, read 600/min.
+    // table documents: auth 10/min, checkin 30/min, write 120/min, read 600/min.
     if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return 'read';
     return 'write';
   };
@@ -154,34 +187,51 @@ app.use('/api/*', (c, next) => {
   return mw(c, next);
 });
 
-app.get('/api/health', (c) =>
-  c.json({ status: 'ok', service: 'gym-saas-api', runtime: 'cloudflare-pages-hono' })
+// API Versioning: all routes now under /api/v1/
+// Legacy /api/* paths redirect to /api/v1/* for backward compatibility.
+const v1 = new Hono<{ Bindings: AppEnv; Variables: AppVars }>();
+
+v1.get('/health', (c) =>
+  c.json({ status: 'ok', service: 'gym-saas-api', version: 'v1', runtime: 'cloudflare-pages-hono' })
 );
-app.get('/api', (c) =>
-  c.json({ name: 'Gym SaaS API', status: 'online', runtime: 'Cloudflare Pages + Hono' })
+v1.get('/', (c) =>
+  c.json({ name: 'Gym SaaS API', version: 'v1', status: 'online', runtime: 'Cloudflare Pages + Hono' })
 );
 
-app.route('/api/auth', authRoutes);
-app.route('/api/dashboard', dashboardRoutes);
-app.route('/api/members', memberRoutes);
-app.route('/api/attendance', attendanceRoutes);
-app.route('/api/payments', paymentRoutes);
-app.route('/api/plans', planRoutes);
-app.route('/api/staff', staffRoutes);
-app.route('/api/roles', roleRoutes);
-app.route('/api/menus', menuRoutes);
-app.route('/api/settings', settingsRoutes);
-app.route('/api/pt', ptRoutes);
-app.route('/api/reports', reportRoutes);
-app.route('/api/v1/media', mediaRoutes);
-app.route('/api/admin', adminRoutes);
-app.route('/api/admin/roles', adminRoleRoutes);
-app.route('/api/admin/users', adminUserRoutes);
-app.route('/api/audit-logs', auditRoutes);
-app.route('/api/classes', classesRoutes);
-app.route('/api/pos', posRoutes);
-app.route('/api/expenses', expensesRoutes);
-app.route('/api/lockers', lockersRoutes);
+v1.route('/auth', authRoutes);
+v1.route('/dashboard', dashboardRoutes);
+v1.route('/members', memberRoutes);
+v1.route('/attendance', attendanceRoutes);
+v1.route('/payments', paymentRoutes);
+v1.route('/plans', planRoutes);
+v1.route('/staff', staffRoutes);
+v1.route('/roles', roleRoutes);
+v1.route('/menus', menuRoutes);
+v1.route('/settings', settingsRoutes);
+v1.route('/pt', ptRoutes);
+v1.route('/reports', reportRoutes);
+v1.route('/media', mediaRoutes);
+v1.route('/admin', adminRoutes);
+v1.route('/admin/roles', adminRoleRoutes);
+v1.route('/admin/users', adminUserRoutes);
+v1.route('/audit-logs', auditRoutes);
+v1.route('/classes', classesRoutes);
+v1.route('/pos', posRoutes);
+v1.route('/expenses', expensesRoutes);
+v1.route('/lockers', lockersRoutes);
+
+app.route('/api/v1', v1);
+
+// Legacy redirects: /api/* → /api/v1/* (using 308 Permanent Redirect to preserve HTTP method & body)
+app.all('/api/*', async (c, next) => {
+  const legacyPath = c.req.path.replace(/^\/api/, '/api/v1');
+  const url = new URL(c.req.url);
+  url.pathname = legacyPath;
+  return c.redirect(url.toString(), 308);
+});
+
+app.get('/api/health', (c) => c.redirect('/api/v1/health', 308));
+app.get('/api', (c) => c.redirect('/api/v1', 308));
 
 // SPA catch-all — fetch and serve index.html from Workers Static Assets (ASSETS)
 // so that BrowserRouter clean URLs (e.g. /login, /dashboard) work correctly.

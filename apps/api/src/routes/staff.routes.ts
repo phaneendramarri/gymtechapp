@@ -27,8 +27,17 @@ staffRoutes.post('/', requireGym, requireFeature('staff'), requirePermission('st
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid staff payload');
 
   const userRepo = new UserRepository(ctx.env.DB);
-  const existing = await userRepo.findByEmail(parsed.data.email);
-  if (existing) return jsonErr('A user with this email already exists', 409);
+  const existing = await userRepo.findByEmailInGym(parsed.data.email, ctx.gymId!);
+  if (existing) return jsonErr('A user with this email already exists in this gym', 409);
+
+  // The assigned role must belong to this gym — otherwise a role id from
+  // another gym (or a typo) would silently detach permissions.
+  if (parsed.data.roleId !== undefined && parsed.data.roleId !== null) {
+    const { RoleRepository } = await import('../repositories/role.repository');
+    const roleRepo = new RoleRepository(ctx.env.DB);
+    const role = await roleRepo.findByIdInGym(parsed.data.roleId, ctx.gymId!);
+    if (!role) return jsonErr('Role not found in this gym', 400);
+  }
 
   // Enforce staff limit before creating
   const licenseService = new LicenseService(ctx.env.DB, ctx.gymId!);
@@ -84,11 +93,34 @@ staffRoutes.patch('/:id', requireGym, requireFeature('staff'), requirePermission
   const body = await c.req.json().catch(() => ({}));
   const { name, phone, roleId, status } = body;
 
+  // Owners can only be edited by owners (or platform admins) — otherwise any
+  // staff member with the `staff` permission could demote or disable the owner.
+  if (before.isOwner && !ctx.user?.isOwner && ctx.user?.role !== 'PLATFORM_ADMIN') {
+    return jsonErr('Only the gym owner can edit the owner account', 403);
+  }
+  if (typeof name === 'string' && name.trim().length === 0) {
+    return jsonErr('Staff name cannot be empty', 400);
+  }
+
   const updateData: any = {};
   if (name !== undefined) updateData.name = String(name).trim();
   if (phone !== undefined) updateData.phone = phone ? String(phone).trim() : null;
   // Role changes are by id; assigning a role never writes a name onto the user.
-  if (roleId !== undefined) updateData.roleId = roleId ? Number(roleId) : null;
+  if (roleId !== undefined) {
+    if (roleId === null || roleId === '') {
+      updateData.roleId = null;
+    } else {
+      const parsedRoleId = Number(roleId);
+      if (!Number.isFinite(parsedRoleId) || !Number.isInteger(parsedRoleId) || parsedRoleId <= 0) {
+        return jsonErr('Invalid roleId', 400);
+      }
+      const { RoleRepository } = await import('../repositories/role.repository');
+      const roleRepo = new RoleRepository(ctx.env.DB);
+      const role = await roleRepo.findByIdInGym(parsedRoleId, ctx.gymId!);
+      if (!role) return jsonErr('Role not found in this gym', 400);
+      updateData.roleId = parsedRoleId;
+    }
+  }
   if (status !== undefined) updateData.status = status === 'DISABLED' ? 'DISABLED' : 'ACTIVE';
 
   await userRepo.updateStaff(id, ctx.gymId!, updateData);

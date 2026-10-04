@@ -27,7 +27,7 @@ describe('Class bookings — flat REST surface', () => {
     const { client } = await loginAsOwner();
     const suffix = uniqueSuffix();
 
-    const cls = await client.post<{ id: number }>('/api/classes', {
+    const cls = await client.post<{ id: number }>('/api/v1/classes', {
       name: `Contract Fix Class ${suffix}`,
       durationMinutes: 45,
       maxCapacity: 12,
@@ -36,7 +36,7 @@ describe('Class bookings — flat REST surface', () => {
     expect(cls.status).toBe(201);
 
     // Capacity 1 so the second same-day booking must land on the waitlist.
-    const schedule = await client.post<{ id: number }>('/api/classes/schedules', {
+    const schedule = await client.post<{ id: number }>('/api/v1/classes/schedules', {
       classId: cls.body.id,
       dayOfWeek: dayIndex('2026-01-05'),
       startTime: '07:00',
@@ -45,14 +45,14 @@ describe('Class bookings — flat REST surface', () => {
     });
     expect(schedule.status).toBe(201);
 
-    const membersRes = await client.get<{ members: Array<{ id: number }> }>('/api/members?limit=2');
+    const membersRes = await client.get<{ members: Array<{ id: number }> }>('/api/v1/members?limit=2');
     expect(membersRes.status).toBe(200);
     const [m1, m2] = membersRes.body.members;
     if (!m1 || !m2) return; // dataset lacks fixtures — skip
 
     const bookingDate = '2026-01-05';
 
-    const b1 = await client.post<{ id: number; bookingStatus: string }>('/api/classes/bookings', {
+    const b1 = await client.post<{ id: number; bookingStatus: string }>('/api/v1/classes/bookings', {
       scheduleId: schedule.body.id,
       memberId: m1.id,
       bookingDate,
@@ -60,7 +60,7 @@ describe('Class bookings — flat REST surface', () => {
     expect(b1.status).toBe(201);
     expect(b1.body.bookingStatus).toBe('BOOKED');
 
-    const b2 = await client.post<{ id: number; bookingStatus: string }>('/api/classes/bookings', {
+    const b2 = await client.post<{ id: number; bookingStatus: string }>('/api/v1/classes/bookings', {
       scheduleId: schedule.body.id,
       memberId: m2.id,
       bookingDate,
@@ -69,7 +69,7 @@ describe('Class bookings — flat REST surface', () => {
     expect(b2.body.bookingStatus).toBe('WAITLIST');
 
     const roster = await client.get<{ bookings: Array<{ id: number; memberId: number; status: string }> }>(
-      `/api/classes/bookings?scheduleId=${schedule.body.id}&bookingDate=${bookingDate}`
+      `/api/v1/classes/bookings?scheduleId=${schedule.body.id}&bookingDate=${bookingDate}`
     );
     expect(roster.status).toBe(200);
     const byMember = new Map(roster.body.bookings.map((b) => [b.memberId, b.status]));
@@ -78,16 +78,16 @@ describe('Class bookings — flat REST surface', () => {
 
     // A different day has no bookings for this schedule.
     const otherDay = await client.get<{ bookings: unknown[] }>(
-      `/api/classes/bookings?scheduleId=${schedule.body.id}&bookingDate=2026-01-06`
+      `/api/v1/classes/bookings?scheduleId=${schedule.body.id}&bookingDate=2026-01-06`
     );
     expect(otherDay.status).toBe(200);
     expect(otherDay.body.bookings).toHaveLength(0);
 
-    const cancel = await client.post(`/api/classes/bookings/${b1.body.id}/cancel`);
+    const cancel = await client.post(`/api/v1/classes/bookings/${b1.body.id}/cancel`);
     expect(cancel.status).toBe(200);
 
     const rosterAfter = await client.get<{ bookings: Array<{ id: number; status: string }> }>(
-      `/api/classes/bookings?scheduleId=${schedule.body.id}&bookingDate=${bookingDate}`
+      `/api/v1/classes/bookings?scheduleId=${schedule.body.id}&bookingDate=${bookingDate}`
     );
     expect(rosterAfter.status).toBe(200);
     const cancelled = rosterAfter.body.bookings.find((b) => b.id === b1.body.id);
@@ -105,13 +105,13 @@ describe('Locker release and P&L — canonical paths', () => {
     if (!member) return; // dataset lacks fixtures — skip
 
     const suffix = uniqueSuffix();
-    const locker = await client.post<{ id: number }>('/api/lockers', {
+    const locker = await client.post<{ id: number }>('/api/v1/lockers', {
       lockerNumber: `CF-${suffix}`,
       zone: 'A',
     });
     expect(locker.status).toBe(201);
 
-    const alloc = await client.post<{ id: number }>('/api/lockers/allocate', {
+    const alloc = await client.post<{ id: number }>('/api/v1/lockers/allocate', {
       lockerId: locker.body.id,
       memberId: member.id,
       startDate: '2026-01-01',
@@ -121,10 +121,10 @@ describe('Locker release and P&L — canonical paths', () => {
     });
     expect(alloc.status).toBe(201);
 
-    const release = await client.post(`/api/lockers/allocations/${alloc.body.id}/terminate`);
+    const release = await client.post(`/api/v1/lockers/allocations/${alloc.body.id}/terminate`);
     expect(release.status).toBe(200);
 
-    const lockers = await client.get<{ lockers: Array<{ id: number; status: string }> }>('/api/lockers');
+    const lockers = await client.get<{ lockers: Array<{ id: number; status: string }> }>('/api/v1/lockers');
     const released = lockers.body.lockers.find((l) => l.id === locker.body.id);
     expect(released?.status).toBe('AVAILABLE');
   });
@@ -139,12 +139,12 @@ describe('Locker release and P&L — canonical paths', () => {
     if (!row) return; // dataset lacks fixtures — skip
 
     const res = await client.get<{ member: { id: number; memberCode: string } }>(
-      `/api/members/lookup?identifier=${encodeURIComponent(row.memberCode)}`
+      `/api/v1/members/lookup?identifier=${encodeURIComponent(row.memberCode)}`
     );
     expect(res.status).toBe(200);
     expect(res.body.member.memberCode.toLowerCase()).toBe(row.memberCode.toLowerCase());
 
-    const miss = await client.get('/api/members/lookup?identifier=NOPE-404');
+    const miss = await client.get('/api/v1/members/lookup?identifier=NOPE-404');
     expect(miss.status).toBe(404);
   });
 
@@ -161,7 +161,7 @@ describe('Locker release and P&L — canonical paths', () => {
     ).bind('owner@gymtech.app').first<{ id: number }>();
     if (!member || !trainer) return; // dataset lacks fixtures — skip
 
-    const pkg = await client.post<{ id: number }>('/api/pt/packages', {
+    const pkg = await client.post<{ id: number }>('/api/v1/pt/packages', {
       memberId: member.id,
       trainerId: trainer.id,
       packageName: 'Audit Package',
@@ -171,7 +171,7 @@ describe('Locker release and P&L — canonical paths', () => {
     expect(pkg.status).toBe(201);
 
     // Listing must return the camelCase contract (no raw snake_case leak).
-    const list = await client.get<{ packages: Array<Record<string, unknown>> }>('/api/pt/packages');
+    const list = await client.get<{ packages: Array<Record<string, unknown>> }>('/api/v1/pt/packages');
     expect(list.status).toBe(200);
     const created = list.body.packages.find((p) => p.id === pkg.body.id);
     expect(created).toBeDefined();
@@ -187,7 +187,7 @@ describe('Locker release and P&L — canonical paths', () => {
        ORDER BY u.id ASC LIMIT 1`
     ).bind('owner@gymtech.app').first<{ id: number }>();
     if (otherTrainer) {
-      const cross = await client.post('/api/pt/packages', {
+      const cross = await client.post('/api/v1/pt/packages', {
         memberId: member.id,
         trainerId: otherTrainer.id,
         totalSessions: 4,
@@ -197,14 +197,14 @@ describe('Locker release and P&L — canonical paths', () => {
     }
 
     // Log sessions until completion.
-    const s1 = await client.post<{ id: number; remainingSessions: number }>('/api/pt/sessions', {
+    const s1 = await client.post<{ id: number; remainingSessions: number }>('/api/v1/pt/sessions', {
       packageId: pkg.body.id,
       sessionNotes: 'Leg day',
     });
     expect(s1.status).toBe(201);
     expect(s1.body.remainingSessions).toBe(1);
 
-    const s2 = await client.post<{ id: number; remainingSessions: number }>('/api/pt/sessions', {
+    const s2 = await client.post<{ id: number; remainingSessions: number }>('/api/v1/pt/sessions', {
       packageId: pkg.body.id,
       sessionNotes: 'Pull day',
     });
@@ -212,11 +212,11 @@ describe('Locker release and P&L — canonical paths', () => {
     expect(s2.body.remainingSessions).toBe(0);
 
     // Package is complete — a third session must be refused.
-    const s3 = await client.post('/api/pt/sessions', { packageId: pkg.body.id });
+    const s3 = await client.post('/api/v1/pt/sessions', { packageId: pkg.body.id });
     expect(s3.status).toBe(400);
 
     const after = await client.get<{ sessions: Array<Record<string, unknown>> }>(
-      `/api/pt/sessions?packageId=${pkg.body.id}`
+      `/api/v1/pt/sessions?packageId=${pkg.body.id}`
     );
     expect(after.status).toBe(200);
     expect(after.body.sessions).toHaveLength(2);
@@ -231,7 +231,7 @@ describe('Locker release and P&L — canonical paths', () => {
       revenuePaise: { memberships: number; pt: number; pos: number; total: number };
       expensesPaise: { byCategory: Array<{ category: string; amountPaise: number }>; total: number };
       netProfitPaise: number;
-    }>('/api/expenses/pnl');
+    }>('/api/v1/expenses/pnl');
     expect(res.status).toBe(200);
     expect(typeof res.body.revenuePaise.total).toBe('number');
     expect(typeof res.body.expensesPaise.total).toBe('number');
@@ -242,7 +242,7 @@ describe('Locker release and P&L — canonical paths', () => {
 
     // Period filtering must be accepted and respected (revenue cannot exceed the all-time figure).
     const windowed = await client.get<{ revenuePaise: { total: number } }>(
-      '/api/expenses/pnl?from=2026-01-01&to=2026-01-31'
+      '/api/v1/expenses/pnl?from=2026-01-01&to=2026-01-31'
     );
     expect(windowed.status).toBe(200);
     expect(windowed.body.revenuePaise.total).toBeLessThanOrEqual(res.body.revenuePaise.total);

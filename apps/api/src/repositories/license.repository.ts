@@ -3,6 +3,7 @@ import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { License } from '@gymtech/shared';
 import { licenses } from '../db/schema';
+import { invalidateTenantCache } from '../middleware/auth';
 
 export class LicenseRepository {
   private db: Database;
@@ -122,6 +123,7 @@ export class LicenseRepository {
       .update(licenses)
       .set(sets as Partial<typeof licenses.$inferInsert>)
       .where(eq(licenses.gymId, gymId));
+    invalidateTenantCache(gymId);
   }
 
   /**
@@ -159,7 +161,9 @@ export class LicenseRepository {
       .update(licenses)
       .set({ status: 'EXPIRED', updatedAt: nowUnix })
       .where(and(eq(licenses.gymId, gymId), eq(licenses.status, 'ACTIVE'), lt(licenses.expiresAt, nowUnix)));
-    return (result as unknown as { meta?: { changes?: number } }).meta?.changes ?? 0;
+    const changes = (result as unknown as { meta?: { changes?: number } }).meta?.changes ?? 0;
+    if (changes > 0) invalidateTenantCache(gymId);
+    return changes;
   }
 
   async topUpCredits(gymId: number, channel: 'sms' | 'whatsapp' | 'email', credits: number): Promise<void> {

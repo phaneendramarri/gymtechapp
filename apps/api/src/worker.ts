@@ -15,7 +15,6 @@
  * need to wire the fallback here.
  */
 import { app } from './app';
-import scheduledHandlers, { type ScheduledEvent } from './scheduled';
 
 export interface WorkerEnv {
   DB: D1Database;
@@ -25,9 +24,6 @@ export interface WorkerEnv {
   CORS_ORIGINS?: string;
   /** @deprecated R2 binding — kept for backward compat, not used by current routes. */
   MEDIA_BUCKET?: R2Bucket;
-  /** @deprecated Resend is legacy — MSG91 is the supported email provider. */
-  RESEND_API_KEY?: string;
-  EMAIL_FROM?: string;
   // MSG91 — Email + SMS + WhatsApp through one account.
   MSG91_AUTH_KEY?: string;
   MSG91_SENDER_ID?: string;
@@ -36,8 +32,8 @@ export interface WorkerEnv {
   MSG91_SMS_FLOW_ID?: string;
   MSG91_WHATSAPP_TEMPLATE?: string;
   MSG91_WHATSAPP_LANGUAGE?: string;
+  EMAIL_FROM?: string;
   APP_URL?: string;
-  TURNSTILE_SECRET_KEY?: string;
   // Filebase (S3-compatible) — media storage
   FILEBASE_ENDPOINT?: string;
   FILEBASE_REGION?: string;
@@ -76,11 +72,5 @@ export default {
     // Defensive fallback: if ASSETS somehow isn't bound (misconfigured
     // local dev), return a clear 503 instead of crashing.
     return new Response('Static assets are not configured.', { status: 503 });
-  },
-
-  // Cloudflare Workers Cron Trigger — runs hourly and daily jobs
-  // (license expiry sweep, PT-freeze expiry, comms retention purge).
-  async scheduled(event: ScheduledEvent, env: WorkerEnv, ctx: ExecutionContext): Promise<void> {
-    return scheduledHandlers.scheduled(event, env, ctx);
   },
 };

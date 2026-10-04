@@ -94,8 +94,8 @@ export const HeroSection: React.FC = () => {
             boxShadow: '0 8px 32px rgba(251,146,60,0.25)',
           }}
         >
-          <a href="/login">
-            Start free — no card needed
+          <a href="/contact">
+            Start free — email us to begin
             <ArrowRight className="h-4 w-4" />
           </a>
         </Button>

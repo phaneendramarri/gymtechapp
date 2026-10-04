@@ -4,6 +4,7 @@ import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
 import { jsonOk, jsonErr, jsonValidationErr } from './helpers';
 import { LockerRepository } from '../repositories/locker.repository';
+import { MemberRepository } from '../repositories/member.repository';
 import { CreateLockerRequestSchema, AllocateLockerRequestSchema } from '@gymtech/shared';
 
 export const lockersRoutes = new Hono();
@@ -33,7 +34,14 @@ lockersRoutes.delete('/:id', requireGym, requireFeature('lockers'), requirePermi
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const repo = new LockerRepository(ctx.env.DB);
-  await repo.deleteLocker(ctx.gymId!, id);
+  try {
+    await repo.deleteLocker(ctx.gymId!, id);
+  } catch (e: any) {
+    if (/allocations reference it/i.test(e instanceof Error ? e.message : String(e ?? ''))) {
+      return jsonErr('Locker cannot be deleted while allocations reference it. Terminate them first.', 409);
+    }
+    throw e;
+  }
   return jsonOk({ success: true });
 }));
 
@@ -47,9 +55,17 @@ lockersRoutes.post('/allocate', requireGym, requireFeature('lockers'), requirePe
   const repo = new LockerRepository(ctx.env.DB);
   let id: number;
   try {
+    // The allocated member must belong to this gym, and the rental window
+    // must not be inverted.
+    const member = await new MemberRepository(ctx.env.DB, ctx.gymId!).findById(parsed.data.memberId);
+    if (!member) return jsonErr('Member not found in this gym', 404);
+    if (parsed.data.endDate <= parsed.data.startDate) {
+      return jsonErr('Allocation endDate must be after startDate', 400);
+    }
     id = await repo.allocateLocker(ctx.gymId!, parsed.data);
   } catch (e: any) {
     if (e.message === 'Locker is already occupied') return jsonErr('This locker is already occupied', 409);
+    if (e.message === 'Locker not found') return jsonErr('Locker not found in this gym', 404);
     throw e;
   }
   return jsonOk({ id, ...parsed.data }, 201);

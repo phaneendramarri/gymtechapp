@@ -14,6 +14,7 @@ export const LandingPage: React.FC = () => {
   const [activeSection, setActiveSection] = useState('');
 
   useEffect(() => {
+    document.title = 'GymTech — Modern Gym Management Software';
     const handleScroll = () => {
       setIsScrolled(window.scrollY > 20);
     };

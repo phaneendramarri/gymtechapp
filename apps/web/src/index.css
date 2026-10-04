@@ -233,6 +233,14 @@
   --chart-3: #16A34A;          /* Emerald Green */
   --chart-4: #8B5CF6;          /* Amethyst Purple */
   --chart-5: #D97706;          /* Warm Amber */
+
+  /* Design system compatibility aliases */
+  --fg: var(--ink);
+  --border: var(--line);
+  --surface-hover: var(--surface-2);
+  --ink-4: var(--disabled-ink);
+  --accent: var(--iron-solid);
+  --white: #FFFFFF;
 }
 
 .dark {
@@ -306,6 +314,14 @@
   --chart-3: #4ADE80;
   --chart-4: #A78BFA;
   --chart-5: #FBBF24;
+
+  /* Design system compatibility aliases */
+  --fg: var(--ink);
+  --border: var(--line);
+  --surface-hover: var(--surface-2);
+  --ink-4: var(--disabled-ink);
+  --accent: var(--iron-solid);
+  --white: #FFFFFF;
 }
 
 /* =========================================================================

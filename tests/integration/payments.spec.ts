@@ -18,9 +18,9 @@ async function enroll(
   client: Awaited<ReturnType<typeof loginAsOwner>>['client'],
   suffix: string
 ): Promise<{ memberId: number; planId: number; pricePaise: number }> {
-  const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/plans');
+  const plans = await client.get<{ plans: Array<{ id: number; pricePaise: number }> }>('/api/v1/plans');
   const plan = plans.body.plans[0]!;
-  const created = await client.post<{ member: { id: number } }>('/api/members', {
+  const created = await client.post<{ member: { id: number } }>('/api/v1/members', {
     firstName: 'Pay',
     lastName: `Flow${suffix}`,
     phone: phoneFromSuffix(uniqueSuffix()),
@@ -37,7 +37,7 @@ describe('Payments E2E', () => {
     const { client } = await loginAsOwner();
     const { memberId, planId, pricePaise } = await enroll(client, uniqueSuffix());
 
-    const res = await client.post<{ receiptNumber?: string; payment?: { receiptNumber: string }; id?: number }>('/api/payments', {
+    const res = await client.post<{ receiptNumber?: string; payment?: { receiptNumber: string }; id?: number }>('/api/v1/payments', {
       memberId,
       planId,
       amountPaise: pricePaise,
@@ -59,7 +59,7 @@ describe('Payments E2E', () => {
       .first<{ id: number }>();
     if (!other) return; // single-gym dataset
 
-    const res = await client.post('/api/payments', {
+    const res = await client.post('/api/v1/payments', {
       memberId: other.id,
       planId: 1,
       amountPaise: 100000,
@@ -71,7 +71,7 @@ describe('Payments E2E', () => {
   it('rejects payments with non-positive amounts', async () => {
     const { client } = await loginAsOwner();
     const { memberId, planId } = await enroll(client, uniqueSuffix());
-    const res = await client.post('/api/payments', {
+    const res = await client.post('/api/v1/payments', {
       memberId,
       planId,
       amountPaise: 0,

@@ -107,57 +107,6 @@ export const COMMISSION_STATUSES = {
 
 
 // =====================================================
-// Display labels (for the UI)
-// =====================================================
-
-export const STATUS_BADGE_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning' | 'info'> = {
-  ACTIVE: 'success',
-  COMPLETED: 'success',
-  PAID: 'success',
-  INACTIVE: 'secondary',
-  EXPIRED: 'warning',
-  FROZEN: 'info',
-  PENDING: 'warning',
-  SUSPENDED: 'destructive',
-  BLOCKED: 'destructive',
-  CANCELLED: 'secondary',
-  REFUNDED: 'outline',
-  VOID: 'destructive',
-};
-
-export const STATUS_LABELS: Record<string, string> = {
-  ACTIVE: 'Active',
-  INACTIVE: 'Inactive',
-  BLOCKED: 'Blocked',
-  EXPIRED: 'Expired',
-  FROZEN: 'Frozen',
-  CANCELLED: 'Cancelled',
-  SUSPENDED: 'Suspended',
-  PENDING: 'Pending',
-  PAID: 'Paid',
-  COMPLETED: 'Completed',
-  REFUNDED: 'Refunded',
-  VOID: 'Void',
-};
-
-// =====================================================
-// Defaults
-// =====================================================
-
-export const DEFAULT_REMINDER_DAYS = 7;
-export const DEFAULT_PAGINATION_LIMIT = 50;
-export const MAX_PAGINATION_LIMIT = 200;
-export const DEFAULT_LICENSE_PERIOD_DAYS = 30;
-export const PT_COLLECTION_RECEIPT_PREFIX = 'PT-';
-
-// =====================================================
-// Currencies (frontend hint)
-// =====================================================
-
-export const SUPPORTED_CURRENCIES = ['INR'] as const;
-export type SupportedCurrency = (typeof SUPPORTED_CURRENCIES)[number];
-
-// =====================================================
 // String-union types (re-exported from the const objects above)
 // =====================================================
 

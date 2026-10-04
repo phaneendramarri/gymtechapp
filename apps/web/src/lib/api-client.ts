@@ -11,10 +11,10 @@
  */
 
 // The Hono API is served from the same origin as the SPA (single Cloudflare
-// Worker). Leave the base empty so all `/api/*` calls go to the same host.
+// Worker). The API is now versioned under `/api/v1/`.
 // In dev, Vite's proxy or `wrangler dev` handles the routing. Override via
 // `VITE_API_BASE_URL` only when explicitly needed.
-export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? '';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 /**
  * The session JWT is in an httpOnly cookie that the browser auto-attaches.
@@ -32,8 +32,12 @@ let _memoryCsrfToken: string | null = null;
  */
 export function readCsrfCookie(): string | null {
   if (typeof document !== 'undefined') {
-    const match = document.cookie.match(/(?:^|;\s*)gym_csrf=([^;]+)/);
-    if (match) return decodeURIComponent(match[1]);
+    try {
+      const match = document.cookie.match(/(?:^|;\s*)gym_csrf=([^;]+)/);
+      if (match) return decodeURIComponent(match[1]);
+    } catch {
+      // Malformed cookie value — fall through to the in-memory/session copies.
+    }
   }
   if (_memoryCsrfToken) return _memoryCsrfToken;
   if (typeof sessionStorage !== 'undefined') {
@@ -74,7 +78,7 @@ export function setStoredRefreshToken(token: string | null): void {
 export class ApiClientBase {
   protected async fetchCsrfToken(): Promise<string | null> {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/auth/csrf`, {
+      const res = await fetch(`${API_BASE_URL}/auth/csrf`, {
         method: 'GET',
         credentials: 'include',
       });
@@ -89,7 +93,8 @@ export class ApiClientBase {
         return data.csrfToken;
       }
       return readCsrfCookie();
-    } catch {
+    } catch (err) {
+      console.warn('[api] CSRF bootstrap failed:', (err as Error)?.message);
       return null;
     }
   }
@@ -109,8 +114,14 @@ export class ApiClientBase {
       if (csrf) headers['X-CSRF-Token'] = csrf;
     }
 
+    // Normalize endpoint so paths like '/api/dashboard', '/dashboard', or '/api/v1/dashboard'
+    // resolve cleanly to the target versioned API mount without double prefixes.
+    const normalized = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
+    const cleanPath = normalized.replace(/^\/api\/v1/, '').replace(/^\/api/, '');
+    const targetUrl = `${API_BASE_URL}${cleanPath.startsWith('/') ? cleanPath : `/${cleanPath}`}`;
+
     const doFetch = () =>
-      fetch(`${API_BASE_URL}${endpoint}`, {
+      fetch(targetUrl, {
         ...options,
         headers,
         credentials: 'include',
@@ -146,8 +157,14 @@ export class ApiClientBase {
         if (!_refreshPromise) {
           _refreshPromise = this.tryRefresh(refreshToken);
         }
-        const newToken = await _refreshPromise;
-        _refreshPromise = null;
+        let newToken: string | null = null;
+        try {
+          newToken = await _refreshPromise;
+        } catch {
+          newToken = null;
+        } finally {
+          _refreshPromise = null;
+        }
         if (newToken) {
           // Retry once with updated CSRF (cookie may have changed too)
           if (!SAFE_METHODS.has(method)) {
@@ -183,7 +200,16 @@ export class ApiClientBase {
 
         // Only force window redirect to /login if user was on a protected internal route
         // and their session truly expired. <ProtectedRoute> handles standard navigation guards.
+        // Stash the deep link so LoginPage can return there after sign-in.
         if (!isAuthCheck && !isPublicPath && typeof window !== 'undefined') {
+          try {
+            const returnTo = `${window.location.pathname}${window.location.search}`;
+            if (returnTo.startsWith('/') && !returnTo.startsWith('/login')) {
+              sessionStorage.setItem('gymtech_return_to', returnTo);
+            }
+          } catch {
+            // Storage unavailable — redirect still works, just without resume.
+          }
           window.location.href = '/login';
         }
       }
@@ -222,7 +248,8 @@ export class ApiClientBase {
       const csrf = res.headers.get('X-CSRF-Token');
       if (csrf) saveCsrfToken(csrf);
       return data.token as string;
-    } catch {
+    } catch (err) {
+      console.warn('[api] Token refresh failed:', (err as Error)?.message);
       return null;
     }
   }

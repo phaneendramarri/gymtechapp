@@ -292,6 +292,15 @@ export class ApiClient {
 
   get = <T = unknown>(path: string) => this.request<T>('GET', path);
   post = <T = unknown>(path: string, body?: unknown) => this.request<T>('POST', path, { body });
+
+  /** Fetch a CSRF token from the server and store it in the cookie jar. */
+  async fetchCsrfToken(): Promise<string | undefined> {
+    const res = await this.request<{ csrfToken: string }>('GET', '/api/v1/auth/csrf');
+    if (res.status === 200 && res.body?.csrfToken) {
+      return res.body.csrfToken;
+    }
+    return this.csrfToken;
+  }
 }
 
 /** Credentials created by `apps/api/seed/seed_production.sql`. */
@@ -325,6 +334,8 @@ async function signIn(
   let cookies = sessionCache.get(label);
   if (!cookies) {
     const seedClient = new ApiClient(env);
+    // Fetch CSRF token first (required for POST /auth/login)
+    await seedClient.fetchCsrfToken();
     const res = await seedClient.post(path, credentials);
     if (res.status !== 200) {
       throw new Error(
@@ -342,11 +353,11 @@ async function signIn(
 
 /** Sign in as a gym owner and return a CSRF-ready client. */
 export const loginAsOwner = (): Promise<Session> =>
-  signIn('/api/auth/login', SEED.owner, 'gym owner');
+  signIn('/api/v1/auth/login', SEED.owner, 'gym owner');
 
 /** Sign in as the platform super admin and return a CSRF-ready client. */
 export const loginAsPlatformAdmin = (): Promise<Session> =>
-  signIn('/api/auth/platform-login', SEED.platformAdmin, 'platform admin');
+  signIn('/api/v1/auth/platform-login', SEED.platformAdmin, 'platform admin');
 
 /** Unique-per-run suffix so reruns don't collide with unique constraints. */
 export const uniqueSuffix = (): string => Date.now().toString(36).slice(-6);

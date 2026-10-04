@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useSearchParams, useNavigate, Link } from 'react-router-dom';
 import { KeyRound, ArrowRight, CheckCircle2, AlertCircle, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,10 @@ export const ResetPasswordPage: React.FC = () => {
 
   // Extract reset token from standard query params (?token=...)
   const token = searchParams.get('token') || '';
+
+  useEffect(() => {
+    document.title = 'Reset Password — GymTech';
+  }, []);
 
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');

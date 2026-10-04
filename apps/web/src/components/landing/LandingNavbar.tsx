@@ -67,7 +67,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, active
                 <Link to="/login">Sign in</Link>
               </Button>
               <Button asChild size="sm" className="h-9 px-5 text-xs font-semibold rounded-full">
-                <Link to="/login">Start free trial</Link>
+                <Link to="/contact">Start free trial</Link>
               </Button>
             </>
           )}
@@ -113,7 +113,7 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, active
                     <Link to="/login">Sign in</Link>
                   </Button>
                   <Button asChild size="sm" className="w-full justify-center h-9">
-                    <Link to="/login">Start free trial</Link>
+                    <Link to="/contact">Start free trial</Link>
                   </Button>
                 </>
               )}

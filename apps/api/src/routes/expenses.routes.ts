@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import { requireGym, requireFeature, requirePermission } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler, paramId } from '../middleware/params';
-import { jsonOk, jsonValidationErr, queryId } from './helpers';
+import { jsonOk, jsonErr, jsonValidationErr, queryId } from './helpers';
 import { ExpenseRepository } from '../repositories/expense.repository';
 import { CreateExpenseCategoryRequestSchema, CreateExpenseRequestSchema } from '@gymtech/shared';
 
@@ -48,6 +48,10 @@ expensesRoutes.post('/', requireGym, requireFeature('expenses'), requirePermissi
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid expense payload');
 
   const repo = new ExpenseRepository(ctx.env.DB);
+  // The category must belong to this gym — the composite FK would otherwise
+  // 500 on a cross-gym id instead of 404.
+  const category = await repo.findCategoryInGym(ctx.gymId!, parsed.data.categoryId);
+  if (!category) return jsonErr('Expense category not found in this gym', 404);
   const id = await repo.createExpense(ctx.gymId!, {
     ...parsed.data,
     createdByUserId: ctx.user?.id ?? null,

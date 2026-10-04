@@ -172,7 +172,7 @@ export class AuditService {
     const query = `
       SELECT a.*, u.name as actorName, u.email as actorEmail
       FROM auditEvents a
-      LEFT JOIN users u ON u.id = a.actorUserId
+      LEFT JOIN users u ON u.id = a.actorUserId AND u.gymId = a.gymId
       ${whereClause}
       ORDER BY a.createdAt DESC
       LIMIT ? OFFSET ?

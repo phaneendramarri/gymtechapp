@@ -22,4 +22,30 @@ export default defineConfig({
     port: 5173,
     strictPort: false,
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes('node_modules')) {
+            if (id.includes('recharts') || id.includes('d3-')) {
+              return 'vendor-charts';
+            }
+            if (id.includes('@tanstack/react-query')) {
+              return 'vendor-query';
+            }
+            if (
+              id.includes('react') ||
+              id.includes('react-dom') ||
+              id.includes('react-router-dom') ||
+              id.includes('@radix-ui') ||
+              id.includes('lucide-react')
+            ) {
+              return 'vendor-core';
+            }
+          }
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
 });

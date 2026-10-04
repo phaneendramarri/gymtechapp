@@ -8,7 +8,6 @@ import {
   License,
   SessionUser,
   DashboardMetrics,
-  GymFeature,
 } from './types';
 import type { GymFeatureKey } from './constants';
 import { GYM_FEATURES } from './constants';
@@ -36,7 +35,7 @@ export const ALL_FEATURES_ENABLED_JSON = JSON.stringify(
 export const LoginRequestSchema = z.object({
   email: z.string().email(),
   password: z.string().min(6),
-  turnstileToken: z.string().optional(),
+  gymSlug: z.string().optional(),
 });
 export type LoginRequest = z.infer<typeof LoginRequestSchema>;
 
@@ -51,7 +50,6 @@ export const MemberLoginRequestSchema = z.object({
   gymSlug: z.string().min(1, 'Gym slug is required'),
   identifier: z.string().min(3, 'Phone number or member code is required'),
   codeOrPin: z.string().min(1, 'Member code or verification credential is required'),
-  turnstileToken: z.string().optional(),
 });
 export type MemberLoginRequest = z.infer<typeof MemberLoginRequestSchema>;
 
@@ -120,7 +118,7 @@ export const UpdateMemberRequestSchema = z.object({
   emergencyContactName: z.string().optional(),
   emergencyContactPhone: z.string().optional(),
   healthNotes: z.string().optional(),
-  status: z.enum(['ACTIVE', 'INACTIVE', 'BLOCKED', 'EXPIRED', 'FROZEN']).optional(),
+  status: z.enum(['ACTIVE', 'INACTIVE', 'BLOCKED', 'EXPIRED', 'FROZEN', 'CANCELLED']).optional(),
 });
 export type UpdateMemberRequest = z.infer<typeof UpdateMemberRequestSchema>;
 
@@ -593,12 +591,12 @@ export const UpdateGymFeaturesRequestSchema = z.object({
 export type UpdateGymFeaturesRequest = z.infer<typeof UpdateGymFeaturesRequestSchema>;
 
 export const UpdateLicenseLimitsRequestSchema = z.object({
-  maxMembers: z.number().int().optional(),
-  maxOwners: z.number().int().optional(),
-  maxManagers: z.number().int().optional(),
-  maxStaffTotal: z.number().int().optional(),
-  expiresAt: z.number().int().optional(),
-  pricePaise: z.number().int().optional(),
+  maxMembers: z.number().int().min(-1).optional(),
+  maxOwners: z.number().int().min(0).optional(),
+  maxManagers: z.number().int().min(0).optional(),
+  maxStaffTotal: z.number().int().min(0).optional(),
+  expiresAt: z.number().int().positive().optional(),
+  pricePaise: z.number().int().min(0).optional(),
   billingPeriod: z.enum(['MONTHLY', 'YEARLY']).optional(),
 });
 export type UpdateLicenseLimitsRequest = z.infer<typeof UpdateLicenseLimitsRequestSchema>;
@@ -618,158 +616,6 @@ export const RestoreRecordRequestSchema = z.object({
   reason: z.string().optional(),
 });
 export type RestoreRecordRequest = z.infer<typeof RestoreRecordRequestSchema>;
-
-// ==========================================
-// 15. PLATFORM ADMIN — ROLES & MENUS
-// ==========================================
-
-export const MenuGroupSchema = z.object({
-  id: z.number().int().positive(),
-  key: z.string(),
-  label: z.string(),
-  icon: z.string(),
-  order: z.number().int(),
-  isActive: z.boolean(),
-});
-export type MenuGroup = z.infer<typeof MenuGroupSchema>;
-
-export const MenuItemSchema = z.object({
-  id: z.number().int().positive(),
-  groupKey: z.string(),
-  key: z.string(),
-  label: z.string(),
-  href: z.string().nullable().optional(),
-  icon: z.string().nullable().optional(),
-  order: z.number().int(),
-  permissions: z.array(z.string()).optional(),
-  featureKey: z.string().nullable().optional(),
-  adminOnly: z.boolean().default(false),
-  isActive: z.boolean().default(true),
-  createdAt: z.number().int().positive(),
-  updatedAt: z.number().int().positive(),
-});
-export type MenuItemContract = z.infer<typeof MenuItemSchema>;
-
-export const PlatformRoleSchema = z.object({
-  id: z.number().int().positive(),
-  gymId: z.number().int().positive(),
-  name: z.string(),
-  permissions: z.array(z.string()),
-  isDefault: z.boolean(),
-  createdAt: z.number().int().positive(),
-  updatedAt: z.number().int().positive(),
-  deletedAt: z.number().int().positive().nullable(),
-});
-export type PlatformRole = z.infer<typeof PlatformRoleSchema>;
-
-export const AdminRoleListResponseSchema = z.object({
-  roles: z.array(PlatformRoleSchema),
-});
-export type AdminRoleListResponse = z.infer<typeof AdminRoleListResponseSchema>;
-
-export const AdminMenuGroupsResponseSchema = z.object({
-  groups: z.array(MenuGroupSchema),
-});
-export type AdminMenuGroupsResponse = z.infer<typeof AdminMenuGroupsResponseSchema>;
-
-export const AdminMenuItemsResponseSchema = z.object({
-  items: z.array(MenuItemSchema),
-});
-export type AdminMenuItemsResponse = z.infer<typeof AdminMenuItemsResponseSchema>;
-
-export const CreateMenuGroupRequestSchema = z.object({
-  key: z.string().min(1).max(50),
-  label: z.string().min(1).max(100),
-  icon: z.string().default('Folder'),
-  order: z.number().int().default(0),
-});
-export type CreateMenuGroupRequest = z.infer<typeof CreateMenuGroupRequestSchema>;
-
-export const UpdateMenuGroupRequestSchema = z.object({
-  label: z.string().min(1).max(100).optional(),
-  icon: z.string().optional(),
-  order: z.number().int().optional(),
-});
-export type UpdateMenuGroupRequest = z.infer<typeof UpdateMenuGroupRequestSchema>;
-
-export const CreateMenuItemRequestSchema = z.object({
-  groupKey: z.string().min(1),
-  key: z.string().min(1).max(100),
-  label: z.string().min(1).max(100),
-  href: z.string().optional(),
-  icon: z.string().optional(),
-  order: z.number().int().default(0),
-  permissions: z.array(z.string()).default([]),
-  featureKey: z.string().optional(),
-  adminOnly: z.boolean().default(false),
-});
-export type CreateMenuItemRequest = z.infer<typeof CreateMenuItemRequestSchema>;
-
-export const UpdateMenuItemRequestSchema = z.object({
-  label: z.string().min(1).max(100).optional(),
-  href: z.string().optional().nullable(),
-  icon: z.string().optional().nullable(),
-  order: z.number().int().optional(),
-  permissions: z.array(z.string()).optional(),
-  featureKey: z.string().optional().nullable(),
-  adminOnly: z.boolean().optional(),
-  isActive: z.boolean().optional(),
-});
-export type UpdateMenuItemRequest = z.infer<typeof UpdateMenuItemRequestSchema>;
-
-// Platform user management
-export const PlatformUserSchema = z.object({
-  id: z.number().int().positive(),
-  gymId: z.number().int().positive(),
-  gymName: z.string().nullable(),
-  name: z.string(),
-  email: z.string(),
-  phone: z.string().nullable(),
-  roleId: z.number().int().nullable(),
-  roleName: z.string().nullable(),
-  role: z.string(),
-  status: z.enum(['ACTIVE', 'DISABLED']),
-  isOwner: z.boolean(),
-  lastLoginAt: z.number().int().nullable(),
-  createdAt: z.number().int().positive(),
-  updatedAt: z.number().int().positive(),
-  disabledAt: z.number().int().nullable(),
-});
-export type PlatformUser = z.infer<typeof PlatformUserSchema>;
-
-export const PlatformUserListResponseSchema = z.object({
-  users: z.array(PlatformUserSchema),
-  total: z.number().int().min(0),
-});
-export type PlatformUserListResponse = z.infer<typeof PlatformUserListResponseSchema>;
-
-export const UpdateUserRoleRequestSchema = z.object({
-  roleId: z.number().int().positive().nullable(),
-});
-export type UpdateUserRoleRequest = z.infer<typeof UpdateUserRoleRequestSchema>;
-
-export const AdminRoleSchema = z.object({
-  id: z.number().int().positive(),
-  gymId: z.number().int().positive(),
-  name: z.string(),
-  permissions: z.array(z.string()),
-  isDefault: z.boolean(),
-  createdAt: z.number().int().positive(),
-  updatedAt: z.number().int().positive(),
-});
-export type AdminRole = z.infer<typeof AdminRoleSchema>;
-
-export const AdminRoleResponseSchema = z.object({
-  id: z.number().int().positive(),
-  gymId: z.number().int().positive(),
-  name: z.string(),
-  permissions: z.array(z.string()),
-  isDefault: z.boolean(),
-  createdAt: z.number().int().positive(),
-  updatedAt: z.number().int().positive(),
-  deletedAt: z.number().int().positive().nullable(),
-});
-export type AdminRoleResponse = z.infer<typeof AdminRoleResponseSchema>;
 
 // ==========================================
 // 16. GROUP FITNESS CLASSES CONTRACTS
@@ -852,7 +698,10 @@ export type UpdateProductRequest = z.infer<typeof UpdateProductRequestSchema>;
 export const PosSaleItemSchema = z.object({
   productId: z.number().int().positive(),
   quantity: z.number().int().positive(),
-  unitPricePaise: z.number().int().nonnegative(),
+  // unitPricePaise is IGNORED by the server — the actual product price
+  // from the database is used to prevent client-side price manipulation.
+  // Kept in schema for backwards compatibility only.
+  unitPricePaise: z.number().int().nonnegative().optional(),
 });
 
 export const CreatePosSaleRequestSchema = z.object({

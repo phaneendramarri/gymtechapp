@@ -40,8 +40,7 @@ export const CTASection: React.FC = () => {
             size="lg"
             className="bg-iron hover:bg-iron-hover text-white font-semibold h-12 px-7 gap-2 rounded-full shadow-[0_8px_32px_rgba(251,146,60,0.35)]"
           >
-            <a href={isDemo ? '/contact?intent=demo' : '/login'}>
-
+            <a href={isDemo ? '/contact?intent=demo' : '/contact?intent=trial'}>
               {isDemo ? <Calendar className="size-4" /> : <ArrowRight className="size-4" />}
               {isDemo ? 'Book a walkthrough' : 'Start free trial'}
             </a>

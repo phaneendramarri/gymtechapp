@@ -97,6 +97,7 @@ test.describe('Members (live)', () => {
       // ---- ARCHIVE via the directory row action ----
       await page.goto('/members');
       await page.getByPlaceholder(/search by name/i).fill(`E2E${tag}`);
+      await page.waitForTimeout(500);
       const row = page.locator('tr', { hasText: memberCode }).first();
       await expect(row).toBeVisible({ timeout: 30000 });
       await row.getByRole('button').last().click();

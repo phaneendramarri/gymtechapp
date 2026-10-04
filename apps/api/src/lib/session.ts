@@ -46,12 +46,25 @@ export {
 } from './password';
 
 /** Base64url helpers — Cloudflare Workers do not ship Node's Buffer. */
+function b64urlEncodeBytes(bytes: Uint8Array): string {
+  let bin = '';
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+function b64urlDecodeBytes(s: string): Uint8Array {
+  const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
+  const bin = atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  return bytes;
+}
+/** UTF-8-safe string encoding: btoa() throws on non-Latin1 input, so users
+ * with non-ASCII names/emails would 500 every login. */
 function b64urlEncode(s: string): string {
-  return btoa(s).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return b64urlEncodeBytes(new TextEncoder().encode(s));
 }
 function b64urlDecode(s: string): string {
-  const pad = s.length % 4 === 0 ? '' : '='.repeat(4 - (s.length % 4));
-  return atob(s.replace(/-/g, '+').replace(/_/g, '/') + pad);
+  return new TextDecoder().decode(b64urlDecodeBytes(s));
 }
 
 export async function createSessionToken(
@@ -89,10 +102,7 @@ export async function createSessionToken(
   );
 
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(dataToSign));
-  const sigBytes = new Uint8Array(signature);
-  let bin = '';
-  for (let i = 0; i < sigBytes.length; i++) bin += String.fromCharCode(sigBytes[i]);
-  const encodedSignature = btoa(bin).replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+  const encodedSignature = b64urlEncodeBytes(new Uint8Array(signature));
 
   const token = `${dataToSign}.${encodedSignature}`;
   return { token, jti };
@@ -118,11 +128,7 @@ export async function verifySessionToken(
       ['verify']
     );
 
-    const binarySignature = b64urlDecode(signatureB64);
-    const sigBytes = new Uint8Array(binarySignature.length);
-    for (let i = 0; i < binarySignature.length; i++) {
-      sigBytes[i] = binarySignature.charCodeAt(i);
-    }
+    const sigBytes = b64urlDecodeBytes(signatureB64);
 
     const isValid = await crypto.subtle.verify(
       'HMAC',

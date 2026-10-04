@@ -32,6 +32,14 @@ export const MembersPage: React.FC = () => {
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
 
+  // Debounce the search input so each keystroke doesn't fire a request —
+  // without this, fast typing causes out-of-order responses and server load.
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
   // Press / anywhere on this page to jump to search (unless typing).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -53,9 +61,9 @@ export const MembersPage: React.FC = () => {
 
   // Filtered query for the table.
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ['members', search, statusFilter],
+    queryKey: ['members', debouncedSearch, statusFilter],
     queryFn: () =>
-      api.getMembers({ search: search || undefined, status: statusFilter, limit: 200 }),
+      api.getMembers({ search: debouncedSearch || undefined, status: statusFilter, limit: 200 }),
   });
 
   const members = data?.members || [];
@@ -94,7 +102,7 @@ export const MembersPage: React.FC = () => {
       <ExcelMigrationDialog open={isMigrationOpen} onOpenChange={setIsMigrationOpen} />
 
       {/* STATUS SUMMARY — five small tiles, hairline grid dividers */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-px bg-border/70 border border-border rounded-2xl overflow-hidden shadow-2xs mb-6">
+      <div role="tablist" aria-label="Member status filters" className="grid grid-cols-2 sm:grid-cols-5 gap-px bg-border/70 border border-border rounded-2xl overflow-hidden shadow-2xs mb-6">
         <SummaryCell label="Total" value={summary.total} active={statusFilter === 'ALL'} onClick={() => setStatusFilter('ALL')} />
         <SummaryCell label="Active" value={summary.active} active={statusFilter === 'ACTIVE'} onClick={() => setStatusFilter('ACTIVE')} tone="ok" />
         <SummaryCell label="Ending soon" value={summary.expiring} active={statusFilter === 'EXPIRING'} onClick={() => setStatusFilter('EXPIRING')} tone="warn" hint="in 7 days" />
@@ -161,7 +169,9 @@ const SummaryCell: React.FC<{
   hint?: string;
 }> = ({ label, value, active, onClick, tone, hint }) => (
   <button
+    role="tab"
     onClick={onClick}
+    aria-selected={active}
     aria-pressed={active}
     className={cn(
       'text-left py-3.5 px-4 bg-card transition-colors select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring',

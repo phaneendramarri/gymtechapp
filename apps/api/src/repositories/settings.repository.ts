@@ -4,6 +4,7 @@
  * inline in routes/admin.routes.ts and routes/settings.routes.ts.
  */
 import type { D1Database } from '../db/client';
+import { invalidateTenantCache } from '../middleware/auth';
 
 /** Default gateway config used when nothing is persisted yet. */
 export const DEFAULT_COMMUNICATIONS_CONFIG = {
@@ -131,6 +132,7 @@ export class SettingsRepository {
         gymId
       )
       .run();
+    invalidateTenantCache(gymId);
   }
 
   // ---- gym notification settings (JSON column on gyms) --------------------
@@ -151,5 +153,6 @@ export class SettingsRepository {
       )
       .bind(JSON.stringify(settings), gymId)
       .run();
+    invalidateTenantCache(gymId);
   }
 }

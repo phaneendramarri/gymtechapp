@@ -35,6 +35,12 @@ export const SettingsPage: React.FC<{ defaultTab?: string }> = ({ defaultTab = '
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState(defaultTab);
 
+  // Sync when the route changes between /settings and
+  // /settings/notifications (same component instance is reused).
+  React.useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
+
   // --- GYM PROFILE DATA & MUTATION ---
   const { data: gymProfile, isLoading: isGymLoading, refetch: refetchGym } = useQuery({
     queryKey: ['gym-profile'],

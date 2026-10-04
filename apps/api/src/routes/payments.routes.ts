@@ -10,7 +10,7 @@ import { MemberRepository } from '../repositories/member.repository';
 import { MembershipRepository } from '../repositories/membership.repository';
 import { NotificationService } from '../lib/notifications';
 import { auditGymFromCtx } from '../services/audit.service';
-import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated, queryId } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, parsePageParams, jsonPaginated, queryId, parseDateToUnixSeconds } from './helpers';
 
 export const paymentRoutes = new Hono();
 
@@ -47,7 +47,10 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), requirePermissio
   }
 
   const receiptNumber = await paymentRepo.getNextReceiptNumber();
-  const paymentDate = parsed.data.paymentDate ? Math.floor(new Date(parsed.data.paymentDate).getTime() / 1000) : Math.floor(Date.now() / 1000);
+  const parsedPaymentDate = parseDateToUnixSeconds(parsed.data.paymentDate);
+  if (parsedPaymentDate === null) return jsonErr('Invalid paymentDate', 400);
+  const paymentDate = parsedPaymentDate ?? Math.floor(Date.now() / 1000);
+  if (!Number.isFinite(paymentDate)) return jsonErr('Invalid paymentDate', 400);
 
   // Single atomic path: payment insert + membership dues update are batched
   // inside the repository. No orphaned payment or stale dues on failure.
@@ -57,6 +60,15 @@ paymentRoutes.post('/', requireGym, requireFeature('payments'), requirePermissio
   const membershipId =
     parsed.data.membershipId ??
     (await new MembershipRepository(ctx.env.DB, ctx.gymId!).findDueMembershipId(member.id));
+  // An explicit membershipId must belong to this member in this gym —
+  // otherwise a payment for member A could corrupt member B's dues.
+  if (membershipId) {
+    const membershipRepo = new MembershipRepository(ctx.env.DB, ctx.gymId!);
+    const ms = await membershipRepo.findById(membershipId);
+    if (!ms || (ms as any).memberId !== member.id) {
+      return jsonErr('Membership does not belong to this member', 400);
+    }
+  }
   const paymentId = membershipId
     ? await paymentRepo.recordAndApplyToMembership({
         memberId: parsed.data.memberId,

@@ -45,7 +45,10 @@ attendanceRoutes.post('/check-in', requireGym, requireFeature('attendance'), req
 
   const nowSec = Math.floor(Date.now() / 1000);
   const isExpired = !activeMembership || activeMembership.endDate < nowSec;
-  const isOverride = Boolean(parsed.data.override && (ctx.user?.isOwner || ctx.user?.permissions?.includes('attendance')));
+  // Override bypasses the expiry block, so it must be owner-only (or '*').
+  // The route already requires the `attendance` permission, so gating on that
+  // permission here would let any desk staff override — defeating the check.
+  const isOverride = Boolean(parsed.data.override && (ctx.user?.isOwner || ctx.user?.permissions?.includes('*')));
 
   if (isExpired && !isOverride) {
     const expiryDateStr = activeMembership ? new Date(activeMembership.endDate * 1000).toLocaleDateString('en-IN') : 'No Plan';

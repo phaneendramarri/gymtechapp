@@ -26,6 +26,15 @@ export class RoleRepository {
     return rows[0] ?? null;
   }
 
+  async findByIdInGym(id: number, gymId: number): Promise<Role | null> {
+    const rows = await this.db
+      .select()
+      .from(roles)
+      .where(and(eq(roles.id, id), eq(roles.gymId, gymId), isNull(roles.deletedAt)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
   async findByGymId(gymId: number): Promise<Role[]> {
     return this.db
       .select()

@@ -74,7 +74,26 @@ export class ClassRepository {
       .where(and(eq(classes.gymId, gymId), eq(classes.id, id)));
   }
 
+  async findClassInGym(gymId: number, id: number): Promise<{ id: number } | null> {
+    const rows = await this.db
+      .select({ id: classes.id })
+      .from(classes)
+      .where(and(eq(classes.gymId, gymId), eq(classes.id, id)))
+      .limit(1);
+    return rows[0] ?? null;
+  }
+
   async deleteClass(gymId: number, id: number): Promise<void> {
+    // Schedules cascade to bookings (history). Refuse while any schedule
+    // references the class — delete schedules first.
+    const refs = await this.db
+      .select({ id: classSchedules.id })
+      .from(classSchedules)
+      .where(and(eq(classSchedules.gymId, gymId), eq(classSchedules.classId, id)))
+      .limit(1);
+    if (refs.length > 0) {
+      throw new Error('Class cannot be deleted while schedules reference it. Delete the schedules first.');
+    }
     await this.db.delete(classes).where(and(eq(classes.gymId, gymId), eq(classes.id, id)));
   }
 
@@ -97,8 +116,8 @@ export class ClassRepository {
         createdAt: classSchedules.createdAt,
       })
       .from(classSchedules)
-      .innerJoin(classes, eq(classSchedules.classId, classes.id))
-      .leftJoin(users, eq(classSchedules.trainerUserId, users.id))
+      .innerJoin(classes, and(eq(classSchedules.classId, classes.id), eq(classes.gymId, gymId)))
+      .leftJoin(users, and(eq(classSchedules.trainerUserId, users.id), eq(users.gymId, gymId)))
       .where(
         and(
           eq(classSchedules.gymId, gymId),
@@ -150,6 +169,16 @@ export class ClassRepository {
   }
 
   async deleteSchedule(gymId: number, id: number): Promise<void> {
+    // Bookings cascade (history). Refuse while any booking references the
+    // schedule — cancel them first.
+    const refs = await this.db
+      .select({ id: classBookings.id })
+      .from(classBookings)
+      .where(and(eq(classBookings.gymId, gymId), eq(classBookings.scheduleId, id)))
+      .limit(1);
+    if (refs.length > 0) {
+      throw new Error('Schedule cannot be deleted while bookings reference it. Cancel the bookings first.');
+    }
     await this.db.delete(classSchedules).where(and(eq(classSchedules.gymId, gymId), eq(classSchedules.id, id)));
   }
 
@@ -167,7 +196,7 @@ export class ClassRepository {
         attendedAt: classBookings.attendedAt,
       })
       .from(classBookings)
-      .innerJoin(members, eq(classBookings.memberId, members.id))
+      .innerJoin(members, and(eq(classBookings.memberId, members.id), eq(members.gymId, gymId)))
       .where(
         and(
           eq(classBookings.gymId, gymId),

@@ -5,6 +5,7 @@ import { isMemberSession } from '../lib/roles';
 import { safeHandler, paramId } from '../middleware/params';
 import { jsonOk, jsonErr, jsonValidationErr, queryId } from './helpers';
 import { ClassRepository } from '../repositories/class.repository';
+import { PtRepository } from '../repositories/pt.repository';
 import { CreateClassRequestSchema, UpdateClassRequestSchema, CreateScheduleRequestSchema, BookClassRequestSchema } from '@gymtech/shared';
 
 export const classesRoutes = new Hono();
@@ -47,7 +48,14 @@ classesRoutes.delete('/:id', requireGym, requireFeature('classes'), requirePermi
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const repo = new ClassRepository(ctx.env.DB);
-  await repo.deleteClass(ctx.gymId!, id);
+  try {
+    await repo.deleteClass(ctx.gymId!, id);
+  } catch (e: any) {
+    if (/schedules reference it/i.test(e instanceof Error ? e.message : String(e ?? ''))) {
+      return jsonErr('Class cannot be deleted while schedules reference it. Delete the schedules first.', 409);
+    }
+    throw e;
+  }
   return jsonOk({ success: true });
 }));
 
@@ -77,7 +85,18 @@ classesRoutes.post('/schedules', requireGym, requireFeature('classes'), requireP
   const parsed = CreateScheduleRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid schedule payload');
 
+  // The class and trainer must belong to this gym (FKs alone cannot enforce
+  // the tenant boundary), and the time window must not be inverted.
+  if (parsed.data.endTime <= parsed.data.startTime) {
+    return jsonErr('Schedule endTime must be after startTime', 400);
+  }
   const repo = new ClassRepository(ctx.env.DB);
+  const cls = await repo.findClassInGym(ctx.gymId!, parsed.data.classId);
+  if (!cls) return jsonErr('Class not found in this gym', 404);
+  if (parsed.data.trainerUserId !== undefined && parsed.data.trainerUserId !== null) {
+    const trainer = await new PtRepository(ctx.env.DB).findUserInGym(parsed.data.trainerUserId, ctx.gymId!);
+    if (!trainer) return jsonErr('Trainer not found in this gym', 404);
+  }
   const id = await repo.createSchedule(ctx.gymId!, parsed.data);
   return jsonOk({ id, ...parsed.data }, 201);
 }));
@@ -87,7 +106,14 @@ classesRoutes.delete('/schedules/:id', requireGym, requireFeature('classes'), re
   const ctx = getCtx(c);
   const id = paramId(c.req.param() as Record<string, string>);
   const repo = new ClassRepository(ctx.env.DB);
-  await repo.deleteSchedule(ctx.gymId!, id);
+  try {
+    await repo.deleteSchedule(ctx.gymId!, id);
+  } catch (e: any) {
+    if (/bookings reference it/i.test(e instanceof Error ? e.message : String(e ?? ''))) {
+      return jsonErr('Schedule cannot be deleted while bookings reference it. Cancel the bookings first.', 409);
+    }
+    throw e;
+  }
   return jsonOk({ success: true });
 }));
 
@@ -113,6 +139,9 @@ classesRoutes.post('/bookings', requireGym, requireFeature('classes'), requirePe
   const payload = isMemberSession(ctx.user) ? { ...body, memberId: ctx.user!.id } : body;
   const parsed = BookClassRequestSchema.safeParse(payload);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid booking payload');
+  if (parsed.data.bookingDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(parsed.data.bookingDate)) {
+    return jsonErr('Invalid bookingDate. Use YYYY-MM-DD.', 400);
+  }
 
   const repo = new ClassRepository(ctx.env.DB);
   let result;

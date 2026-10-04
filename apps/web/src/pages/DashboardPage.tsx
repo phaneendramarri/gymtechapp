@@ -34,6 +34,7 @@ import { CardGridSkeleton, TableSkeleton } from '@/components/shared/LoadingSkel
 import { InvoiceDialog } from '@/components/billing/InvoiceDialog';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
+import { useToast } from '@/components/ui/toast';
 import { cn, formatCurrency } from '@/lib/utils';
 import type { ExpiringMember } from '@gymtech/shared';
 
@@ -80,6 +81,7 @@ function endDateLabel(unix: number) {
 
 export const DashboardPage: React.FC = () => {
   const { user, gym } = useAuth();
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('overview');
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
 
@@ -163,7 +165,7 @@ export const DashboardPage: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => window.open('/api/reports/export?type=payments', '_blank')}
+            onClick={() => api.downloadReportExport('payments').catch((e: any) => toast('error', e.message || 'Export failed'))}
             className="h-8 gap-1.5 text-xs border-border max-sm:hidden"
           >
             <Download className="h-3.5 w-3.5" />
@@ -213,7 +215,7 @@ export const DashboardPage: React.FC = () => {
               <Button asChild size="sm" className="h-8 gap-1.5 text-xs font-semibold">
                 <Link to="/members/new">
                   <UserPlus className="h-3.5 w-3.5" />
-                  <span>Add Member</span>
+                  <span>Enroll member</span>
                 </Link>
               </Button>
             </div>
@@ -585,9 +587,9 @@ export const DashboardPage: React.FC = () => {
                           <p className="text-[10px] text-muted-foreground">{due > 0 ? 'due' : 'paid'}</p>
                         </div>
                         <a
-                          href={m.whatsappUrl || `https://wa.me/91${m.phone}`}
+                          href={m.whatsappUrl || `https://wa.me/91${String(m.phone || '').replace(/\D/g, '')}`}
                           target="_blank"
-                          rel="noreferrer"
+                          rel="noopener noreferrer"
                           className="size-8 rounded-lg text-positive hover:bg-positive-soft flex items-center justify-center shrink-0 border border-positive-border"
                           aria-label="Send WhatsApp"
                         >

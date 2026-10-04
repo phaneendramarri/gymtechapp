@@ -32,6 +32,7 @@ export const KioskPage: React.FC = () => {
 
   // Keep clock updated
   useEffect(() => {
+    document.title = 'Kiosk Check-In — GymTech';
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);

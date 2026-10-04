@@ -57,7 +57,7 @@ export const MemberDetailPage: React.FC = () => {
   const { toast } = useToast();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const canManage = user?.isOwner;
+  const canManage = user?.isOwner || user?.permissions?.includes('members');
   const canRecord = user?.isOwner || user?.permissions?.includes('members');
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -81,12 +81,16 @@ export const MemberDetailPage: React.FC = () => {
 
   // QR payload effect — declared with every other hook, above the early
   // returns. No-ops until the member query resolves.
+  const qrMemberId = data?.member?.id;
+  const qrMemberCode = data?.member?.memberCode;
+  const qrMemberGymId = data?.member?.gymId;
   useEffect(() => {
     const m = data?.member;
-    if (!m) return;
+    if (!m || !qrMemberGymId) return;
 
-    // Standard GymTech check-in QR payload
-    const payload = `gymtech://checkin/${user?.gymId || 1}/${m.id}/${m.memberCode}`;
+    // Standard GymTech check-in QR payload — scoped to the MEMBER's own gym,
+    // never the viewer's session gym (a platform admin's gymId is null).
+    const payload = `gymtech://checkin/${qrMemberGymId}/${m.id}/${m.memberCode}`;
 
     let isMounted = true;
     QRCode.toDataURL(payload, {
@@ -107,7 +111,7 @@ export const MemberDetailPage: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, [data?.member, user?.gymId]);
+  }, [qrMemberId, qrMemberCode, qrMemberGymId]);
 
   if (isLoading) {
     return (

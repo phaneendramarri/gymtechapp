@@ -19,13 +19,27 @@ export interface ReceiptData {
   gstNumber?: string;
 }
 
+/**
+ * Escape user-controlled values before interpolating them into the receipt
+ * HTML. Member names, notes, gym profile fields etc. are staff-editable, and
+ * the receipt is served as text/html from the app origin — unescaped output
+ * is a stored-XSS vector (the page shares the origin with the API cookies).
+ */
+export function escapeHtml(value: unknown): string {
+  return String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 export function generateReceiptHTML(data: ReceiptData): string {
   const date = new Date(data.paymentDate * 1000).toLocaleDateString('en-IN', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
-  });
-  const time = new Date(data.paymentDate * 1000).toLocaleTimeString('en-IN', {
+  });  const time = new Date(data.paymentDate * 1000).toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
   });
@@ -40,7 +54,7 @@ export function generateReceiptHTML(data: ReceiptData): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Payment Receipt - ${data.receiptNumber}</title>
+  <title>Payment Receipt - ${escapeHtml(data.receiptNumber)}</title>
   <style>
     * {
       margin: 0;
@@ -184,14 +198,14 @@ export function generateReceiptHTML(data: ReceiptData): string {
 <body>
   <div class="receipt">
     <div class="header">
-      <h1>${data.gymName}</h1>
-      ${data.gymAddress ? `<p>${data.gymAddress}</p>` : ''}
-      <p>Phone: ${data.gymPhone}${data.gymEmail ? ` | Email: ${data.gymEmail}` : ''}</p>
-      ${data.gstNumber ? `<p>GST No: ${data.gstNumber}</p>` : ''}
+      <h1>${escapeHtml(data.gymName)}</h1>
+      ${data.gymAddress ? `<p>${escapeHtml(data.gymAddress)}</p>` : ''}
+      <p>Phone: ${escapeHtml(data.gymPhone)}${data.gymEmail ? ` | Email: ${escapeHtml(data.gymEmail)}` : ''}</p>
+      ${data.gstNumber ? `<p>GST No: ${escapeHtml(data.gstNumber)}</p>` : ''}
     </div>
 
     <div class="receipt-number">
-      Receipt No: ${data.receiptNumber}
+      Receipt No: ${escapeHtml(data.receiptNumber)}
     </div>
 
     <div class="section">
@@ -199,15 +213,15 @@ export function generateReceiptHTML(data: ReceiptData): string {
       <div class="info-grid">
         <div class="info-item">
           <div class="info-label">Member Name</div>
-          <div class="info-value">${data.memberName}</div>
+          <div class="info-value">${escapeHtml(data.memberName)}</div>
         </div>
         <div class="info-item">
           <div class="info-label">Member Code</div>
-          <div class="info-value">${data.memberCode}</div>
+          <div class="info-value">${escapeHtml(data.memberCode)}</div>
         </div>
         <div class="info-item">
           <div class="info-label">Phone</div>
-          <div class="info-value">${data.phone}</div>
+          <div class="info-value">${escapeHtml(data.phone)}</div>
         </div>
         <div class="info-item">
           <div class="info-label">Payment Date</div>
@@ -226,24 +240,24 @@ export function generateReceiptHTML(data: ReceiptData): string {
       <div class="payment-details">
         <div class="payment-row">
           <span>Payment Mode</span>
-          <strong>${data.paymentMode}</strong>
+          <strong>${escapeHtml(data.paymentMode)}</strong>
         </div>
         ${data.referenceId ? `
         <div class="payment-row">
           <span>Reference ID</span>
-          <strong>${data.referenceId}</strong>
+          <strong>${escapeHtml(data.referenceId)}</strong>
         </div>
         ` : ''}
         ${data.planName ? `
         <div class="payment-row">
           <span>Plan</span>
-          <strong>${data.planName}</strong>
+          <strong>${escapeHtml(data.planName)}</strong>
         </div>
         ` : ''}
         ${data.notes ? `
         <div class="payment-row">
           <span>Notes</span>
-          <strong>${data.notes}</strong>
+          <strong>${escapeHtml(data.notes)}</strong>
         </div>
         ` : ''}
       </div>
@@ -251,7 +265,7 @@ export function generateReceiptHTML(data: ReceiptData): string {
 
     <div class="footer">
       <p>Thank you for being a valued member!</p>
-      <p>For any queries, please contact us at ${data.gymPhone}</p>
+      <p>For any queries, please contact us at ${escapeHtml(data.gymPhone)}</p>
       <div class="footer-note">
         This is a computer-generated receipt. Please keep it for your records.
       </div>

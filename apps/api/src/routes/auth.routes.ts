@@ -11,8 +11,6 @@ import { GymRepository } from '../repositories/gym.repository';
 import { AuthService } from '../services/auth.service';
 import { EmailService } from '../services/email.service';
 import { AuditService, extractClientInfo } from '../services/audit.service';
-import { verifyTurnstileToken, type TurnstileAppEnv } from '../lib/turnstile';
-import type { AppEnv } from '../app';
 import { hashPassword, hashOpaqueToken, verifyOpaqueToken } from '../lib/session';
 import {
   buildSessionCookie,
@@ -27,43 +25,12 @@ import { requireAuth } from '../middleware/auth';
 import { getCtx } from '../middleware/context';
 import { safeHandler } from '../middleware/params';
 import { PasswordResetRepository } from '../repositories/password-reset.repository';
+import { SessionRepository } from '../repositories/session.repository';
 import { jsonErr, jsonOk, jsonValidationErr, toSafeErrorMessage } from './helpers';
 import { GENERIC_INVALID_CREDENTIALS } from '../lib/lockout';
 import { loadPlatformMsg91 } from '../lib/msg91';
 
 export const authRoutes = new Hono();
-
-/**
- * Run the Turnstile check for a password login and return the rejection
- * `Response`, or `null` to continue.
- *
- * Development is exempt on purpose. The SPA is built in production mode — even
- * for `pnpm dev` on the single Worker — so its widget carries the real site key,
- * which a developer's local secret cannot verify. A strict check therefore
- * rejected every local sign-in with "Bot verification failed", which reads as a
- * wrong password and is impossible to diagnose from the UI. Staging and
- * production always verify (and `verifyTurnstileToken` fails closed there).
- */
-async function rejectFailedBotCheck(
-  env: AppEnv,
-  token: string | undefined,
-  ip: string | undefined,
-  action: string
-): Promise<Response | null> {
-  if (!token || !env.TURNSTILE_SECRET_KEY) return null;
-
-  const appEnv = (env.APP_ENV ?? 'production') as TurnstileAppEnv;
-  if (appEnv === 'development') {
-    console.warn('[turnstile] development environment — skipping bot verification');
-    return null;
-  }
-
-  const result = await verifyTurnstileToken(token, env.TURNSTILE_SECRET_KEY, ip, appEnv, {
-    expectedAction: action,
-    expectedHostnames: ['localhost', '127.0.0.1', 'gymtech.ap-fitapp.workers.dev', 'gymtech.app'],
-  });
-  return result.success ? null : jsonErr('Bot verification failed. Please try again.', 403);
-}
 
 authRoutes.post('/login', safeHandler(async (c) => {
   const ctx = getCtx(c);
@@ -71,18 +38,10 @@ authRoutes.post('/login', safeHandler(async (c) => {
   const parsed = LoginRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid credentials payload');
 
-  const botCheck = await rejectFailedBotCheck(
-    ctx.env,
-    parsed.data.turnstileToken,
-    c.req.header('cf-connecting-ip'),
-    'login'
-  );
-  if (botCheck) return botCheck;
-
   const authService = new AuthService(ctx.env.DB, ctx.env.JWT_SECRET, ctx.env.APP_URL);
   const client = extractClientInfo(c.req.raw);
   try {
-    const res = await authService.login(parsed.data.email, parsed.data.password);
+    const res = await authService.login(parsed.data.email, parsed.data.password, parsed.data.gymSlug);
     const audit = new AuditService(ctx.env.DB);
     await audit.recordGymEvent({
       gymId: res.user.gymId ?? 0,
@@ -266,7 +225,11 @@ authRoutes.post('/forgot-password', safeHandler(async (c) => {
   const tokenHash = await hashOpaqueToken(token, ctx.env.JWT_SECRET);
   const expiresAt = Math.floor(Date.now() / 1000) + 3600;
 
-  await new PasswordResetRepository(ctx.env.DB).create({
+  const resetRepo = new PasswordResetRepository(ctx.env.DB);
+  // Single-live-token rule: requesting a new link voids older ones so only
+  // the latest email can be used.
+  await resetRepo.invalidatePriorTokens(user.gymId, user.id);
+  await resetRepo.create({
     gymId: user.gymId,
     userId: user.id,
     tokenHash,
@@ -318,6 +281,14 @@ authRoutes.post('/reset-password', safeHandler(async (c) => {
     passwordHash: newHash,
   });
 
+  // A password change must invalidate existing sessions — otherwise a stolen
+  // session survives the reset. Revoke all live sessions for this user.
+  try {
+    await new SessionRepository(ctx.env.DB).revokeAllForUser(resetGymId, resetUserId);
+  } catch (e) {
+    console.error('Failed to revoke sessions after password reset:', (e as Error)?.message);
+  }
+
   const emailService = new EmailService(
     ctx.env,
     await loadPlatformMsg91(ctx.env.DB)
@@ -332,14 +303,6 @@ authRoutes.post('/member-login', safeHandler(async (c) => {
   const body = await c.req.json().catch(() => ({}));
   const parsed = MemberLoginRequestSchema.safeParse(body);
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid login details');
-
-  const botCheck = await rejectFailedBotCheck(
-    ctx.env,
-    parsed.data.turnstileToken,
-    c.req.header('cf-connecting-ip'),
-    'member_login'
-  );
-  if (botCheck) return botCheck;
 
   const { gymSlug, identifier: ident, codeOrPin: code } = parsed.data;
   const trimIdent = ident.trim();
@@ -431,6 +394,9 @@ authRoutes.get('/portal', safeHandler(async (c) => {
     session.gymId as number
   ).getPortalRows(session.userId as number);
   if (!member) return jsonErr('Member record not found', 404);
+  // Defense in depth: the repository query is gym-scoped, but a stale token
+  // from a transferred/deleted gym must never leak the member's new gym.
+  if (member.gymId !== session.gymId) return jsonErr('Member record not found', 404);
 
   // Map raw rows onto the camelCase contracts the portal renders
   const ms = (memberships as any[]).map((m: any) => ({

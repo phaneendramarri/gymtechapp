@@ -168,7 +168,7 @@ export const PricingSection: React.FC = () => {
                     : 'bg-surface-2 hover:bg-ink text-ink hover:text-ink-inverse border border-line hover:-translate-y-0.5'
                 }`}
               >
-                <a href="/login">
+                <a href={`/contact?plan=${encodeURIComponent(p.name)}`}>
                   {p.cta}
                   <ArrowRight className="h-4 w-4" />
                 </a>

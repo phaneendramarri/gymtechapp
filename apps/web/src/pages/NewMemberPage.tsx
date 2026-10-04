@@ -52,6 +52,7 @@ export const NewMemberPage: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [faceWarning, setFaceWarning] = useState<string | null>(null);
   const [createdResult, setCreatedResult] = useState<CreateMemberResponse | null>(null);
 
   // Auto-set default plan when loaded
@@ -118,12 +119,15 @@ export const NewMemberPage: React.FC = () => {
       }
 
       let finalFaceEmbedding = faceEmbedding;
+      setFaceWarning(null);
       if (!finalFaceEmbedding && photoUrl) {
         try {
           const desc = await extractDescriptorFromImageUrl(photoUrl);
           if (desc) finalFaceEmbedding = serializeDescriptor(desc);
+          else setFaceWarning('No clear face detected in the photo — Face ID check-in was not enrolled for this member.');
         } catch (err) {
           console.warn('Face embedding generation fallback skipped:', err);
+          setFaceWarning('Face ID enrollment failed for this photo — the member was created without Face ID check-in.');
         }
       }
 
@@ -218,6 +222,12 @@ export const NewMemberPage: React.FC = () => {
                   <span className="font-mono text-ink">+91 {createdResult.member.phone}</span>
                 </div>
               </div>
+              {faceWarning && (
+                <Alert className="max-w-md w-full">
+                  <AlertCircle className="size-4" />
+                  <AlertDescription className="text-sm">{faceWarning}</AlertDescription>
+                </Alert>
+              )}
             </div>
 
             <div className="flex flex-col sm:flex-row gap-3 mt-4 w-full max-w-md">

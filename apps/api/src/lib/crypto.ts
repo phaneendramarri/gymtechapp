@@ -74,7 +74,9 @@ export async function encryptFaceEmbedding(embedding: string, env: Record<string
  */
 export async function decryptFaceEmbedding(encrypted: string, env: Record<string, string | undefined>): Promise<string> {
   const kek = await getFaceEmbeddingKey(env);
-  const binary = atob(encrypted.replace(/-/g, '+').replace(/_/g, '/'));
+  // Padding-aware decode: encrypt() strips base64 padding, and bare atob()
+  // rejects some unpadded lengths — use the helper instead.
+  const binary = b64urlDecode(encrypted);
   const combined = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) combined[i] = binary.charCodeAt(i);
   const iv = combined.slice(0, IV_LENGTH);

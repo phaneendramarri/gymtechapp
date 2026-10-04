@@ -1,7 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { SessionUser, Gym, GymFeatureKey, LoginRequest, MemberLoginRequest } from '@gymtech/shared';
-import { GYM_FEATURES } from '@gymtech/shared';
 import { api } from './api';
 
 interface AuthContextType {
@@ -45,23 +44,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
+    let mounted = true;
     const initAuth = async () => {
       try {
         const meData = await api.getMe();
+        if (!mounted) return;
         setUser(meData.user);
         if (meData.gym) setGym(meData.gym);
-        setEnabledFeatures(meData.enabledFeatures ?? [...GYM_FEATURES]);
+        setEnabledFeatures(meData.enabledFeatures ?? []);
       } catch (err) {
+        if (!mounted) return;
         // No valid session — cookie expired or absent. Stay logged out.
         setUser(null);
         setGym(null);
         setEnabledFeatures(null);
       } finally {
-        setIsLoading(false);
+        if (mounted) setIsLoading(false);
       }
     };
 
     initAuth();
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   /** Rehydrate license flags after a credential change (login responses
@@ -69,15 +74,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const refreshFeatures = async () => {
     try {
       const meData = await api.getMe();
-      setEnabledFeatures(meData.enabledFeatures ?? [...GYM_FEATURES]);
+      setEnabledFeatures(meData.enabledFeatures ?? []);
     } catch {
       setEnabledFeatures(null);
     }
   };
 
   const login = async (credentials: LoginRequest) => {
-    queryClient.clear();
     const res = await api.login(credentials);
+    // Only clear cached gym data after a successful sign-in — clearing
+    // before the request wipes a still-valid session's cache on failure.
+    queryClient.clear();
     setUser(res.user);
     setGym(res.gym || null);
     await refreshFeatures();
@@ -90,8 +97,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // immediately. A refresh rehydrates the same shape via /api/auth/me.
   // Without this, `user` stayed null and /portal bounced back to /login.
   const memberLogin = async (credentials: MemberLoginRequest) => {
-    queryClient.clear();
     const res = await api.memberLogin(credentials);
+    // Only clear cached data after a successful sign-in.
+    queryClient.clear();
     const m: any = res.member;
     const sessionUser: SessionUser = {
       id: m.id,

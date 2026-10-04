@@ -64,7 +64,9 @@ apps/web/src (React 18 + Vite + TanStack Query + Tailwind v4)
   components/     ui/ (design system) · layout/ (AppShell/AdminShell) ·
                   shared/ (EmptyState/ErrorState/StatCard) · feature folders
   lib/api.ts      single ApiClient facade (cookie session + CSRF retry +
-                  401 refresh). Split into modules, re-exported as `api`.
+                  401 refresh, domain methods grouped by resource). Transport
+                  primitives (base URL, CSRF/refresh storage, request
+                  pipeline) live in lib/api-client.ts as ApiClientBase.
   lib/auth.tsx    session state via GET /api/auth/me, never reads the JWT.
         │ fetch + CSRF cookie (same origin)
         ▼
@@ -85,12 +87,11 @@ repositories/          ONLY layer that touches its table(s). One file per
 D1 (apps/api/migrations/*.sql, mirrored by db/schema.ts)
   0000_init.sql  core: gyms, licenses, roles, users, plans, members,
                  memberships, payments, pt_collections, attendance,
-                 sessions, resets, audit, counters, settings, comms, menus
-  0001_menu_items.sql  menu catalog seed
-  0002_new_modules.sql classes, pt_packages/sessions, products/pos,
-                 expenses, lockers, referrals
-  0003_feature_backfill.sql  enables classes/pos/expenses/lockers on
-                 licenses written before those feature flags existed
+                 sessions, resets, audit, counters, settings, comms, menus,
+                 classes, pt_packages/sessions, products/pos,
+                 expenses, lockers
+  0001_attendance_unique_checkin.sql  one check-in per member per day
+                 (unique index so concurrent taps collapse to a single row)
 ```
 
 Rules: routes never contain SQL (move queries to repositories/services);

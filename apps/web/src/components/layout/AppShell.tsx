@@ -55,21 +55,38 @@ export const AppShell: React.FC<AppShellProps> = ({
   const location = useLocation();
   const { gym } = useAuth();
   const [collapsed, setCollapsed] = React.useState<boolean>(() => {
-    return localStorage.getItem('gym_rail_collapsed') === 'true';
+    try {
+      return localStorage.getItem('gym_rail_collapsed') === 'true';
+    } catch {
+      // Private mode / disabled storage — default to expanded.
+      return false;
+    }
   });
   const [mobileOpen, setMobileOpen] = React.useState(false);
-  const [titleKey, setTitleKey] = React.useState(location.pathname);
+  // Key the title animation on the title + path directly (no state/effect):
+  // the previous setState-in-effect rendered one stale frame per navigation,
+  // and with AnimatePresence mode="wait" that stale frame became a blank gap.
+  const titleKey = `${location.pathname}::${title}`;
+
+  React.useEffect(() => {
+    if (title) {
+      document.title = `${title} — GymTech`;
+    }
+  }, [title]);
 
   const toggle = () => {
     const next = !collapsed;
     setCollapsed(next);
-    localStorage.setItem('gym_rail_collapsed', String(next));
+    try {
+      localStorage.setItem('gym_rail_collapsed', String(next));
+    } catch {
+      // Non-fatal: sidebar state just won't persist.
+    }
   };
 
   // Close mobile drawer on route change.
   React.useEffect(() => {
     setMobileOpen(false);
-    setTitleKey(location.pathname);
   }, [location.pathname]);
 
   const crumbs: BreadcrumbItem[] = Array.isArray(breadcrumb)

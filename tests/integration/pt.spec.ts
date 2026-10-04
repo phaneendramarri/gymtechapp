@@ -32,7 +32,7 @@ describe('PT collections E2E', () => {
     if (!member || !trainer) return; // dataset lacks the fixtures — skip
 
     const suffix = uniqueSuffix();
-    const record = await client.post<{ id: number; receiptNumber?: string }>('/api/pt/collections', {
+    const record = await client.post<{ id: number; receiptNumber?: string }>('/api/v1/pt/collections', {
       memberId: member.id,
       trainerId: trainer.id,
       sessions: 8,
@@ -49,7 +49,7 @@ describe('PT collections E2E', () => {
       totalCollected: number;
       totalCommissionPending: number;
       totalCommissionPaid: number;
-    }>('/api/pt/summary');
+    }>('/api/v1/pt/summary');
     expect(summary.status).toBe(200);
     expect(summary.body.totalCollected).toBeGreaterThan(0);
     expect(summary.body.totalCommissionPending).toBeGreaterThan(0);
@@ -58,7 +58,7 @@ describe('PT collections E2E', () => {
     const settle = await client.post(`/api/pt/collections/${collectionId}/settle`, { status: 'PAID' });
     expect(settle.status).toBe(200);
 
-    const after = await client.get<{ totalCommissionPaid: number }>('/api/pt/summary');
+    const after = await client.get<{ totalCommissionPaid: number }>('/api/v1/pt/summary');
     expect(after.status).toBe(200);
     expect(after.body.totalCommissionPaid).toBeGreaterThan(0);
   });
@@ -78,7 +78,7 @@ describe('PT collections E2E', () => {
       .first<{ id: number }>();
     if (!member || !otherTrainer) return;
 
-    const res = await client.post('/api/pt/collections', {
+    const res = await client.post('/api/v1/pt/collections', {
       memberId: member.id,
       trainerId: otherTrainer.id,
       sessions: 1,

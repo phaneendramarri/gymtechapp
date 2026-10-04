@@ -54,8 +54,8 @@ export class PaymentRepository {
         recordedByName: users.name,
       })
       .from(payments)
-      .innerJoin(members, eq(payments.memberId, members.id))
-      .leftJoin(users, eq(payments.recordedByUserId, users.id))
+      .innerJoin(members, and(eq(payments.memberId, members.id), eq(members.gymId, this.gymId)))
+      .leftJoin(users, and(eq(payments.recordedByUserId, users.id), eq(users.gymId, this.gymId)))
       .where(and(...conditions))
       .orderBy(desc(payments.paymentDate), desc(payments.createdAt))
       .limit(params.limit ?? 50)
@@ -65,9 +65,13 @@ export class PaymentRepository {
   }
 
   async count(params: { memberId?: number } = {}): Promise<number> {
+    // Mirror list() semantics: only count payments whose member row is live,
+    // so `total`/`hasMore` agree with the returned page.
     const conditions = [
       eq(payments.gymId, this.gymId),
       isNull(payments.deletedAt),
+      isNull(members.deletedAt),
+      eq(members.gymId, this.gymId),
     ];
     if (params.memberId) {
       conditions.push(eq(payments.memberId, params.memberId));
@@ -76,6 +80,7 @@ export class PaymentRepository {
     const [{ count }] = await this.db
       .select({ count: sql<number>`count(*)` })
       .from(payments)
+      .innerJoin(members, and(eq(payments.memberId, members.id), eq(members.gymId, this.gymId)))
       .where(and(...conditions));
     return count ?? 0;
   }
@@ -250,9 +255,9 @@ export class PaymentRepository {
       SELECT p.*, m.firstName, m.lastName, m.phone, m.phone as memberPhone, m.memberCode,
              mp.name as planName, mp.taxPercentage as planTaxPercentage
       FROM payments p
-      JOIN members m ON m.id = p.memberId
-      LEFT JOIN memberships ms ON ms.id = p.membershipId
-      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+      JOIN members m ON m.id = p.memberId AND m.gymId = p.gymId
+      LEFT JOIN memberships ms ON ms.id = p.membershipId AND ms.gymId = p.gymId
+      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.gymId = p.gymId
       WHERE p.id = ? AND p.gymId = ?
     `).bind(paymentId, this.gymId).first<any>();
     return row ?? null;

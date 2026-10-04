@@ -34,6 +34,36 @@ export class MenuRepository {
   }
 
   /**
+   * Return menu assignments for many roles in one query (avoids 2N queries
+   * when listing roles). Maps roleId → { ids, keys }.
+   */
+  async getRoleMenusForRoles(gymId: number, roleIds: number[]): Promise<Map<number, { ids: number[]; keys: string[] }>> {
+    const out = new Map<number, { ids: number[]; keys: string[] }>();
+    if (roleIds.length === 0) return out;
+    const rows = await this.db
+      .select({ roleId: roleMenus.roleId, menuItemId: roleMenus.menuItemId, key: menuItems.key })
+      .from(roleMenus)
+      .innerJoin(menuItems, eq(roleMenus.menuItemId, menuItems.id))
+      .where(
+        and(
+          eq(roleMenus.gymId, gymId),
+          inArray(roleMenus.roleId, roleIds),
+          eq(menuItems.isActive, true)
+        )
+      );
+    for (const r of rows) {
+      let entry = out.get(r.roleId);
+      if (!entry) {
+        entry = { ids: [], keys: [] };
+        out.set(r.roleId, entry);
+      }
+      entry.ids.push(r.menuItemId);
+      entry.keys.push(r.key);
+    }
+    return out;
+  }
+
+  /**
    * Return the string permission/menu keys assigned to a role.
    */
   async getRoleMenuKeys(gymId: number, roleId: number): Promise<string[]> {

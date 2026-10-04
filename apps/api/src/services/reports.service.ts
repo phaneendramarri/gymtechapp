@@ -39,7 +39,7 @@ export class ReportsService {
           COALESCE(SUM(CASE WHEN paymentMode = 'CARD' THEN amountPaise ELSE 0 END), 0) as cardPaise,
           COALESCE(SUM(CASE WHEN paymentMode = 'BANK_TRANSFER' THEN amountPaise ELSE 0 END), 0) as bankPaise
          FROM payments
-         WHERE gymId = ? AND status = 'COMPLETED'
+         WHERE gymId = ? AND status = 'COMPLETED' AND deletedAt IS NULL
          AND paymentDate >= ? AND paymentDate <= ?`
       )
       .bind(this.gymId, startDate, endDate)
@@ -53,10 +53,10 @@ export class ReportsService {
           COUNT(DISTINCT p.id) as paymentCount,
           COUNT(DISTINCT m.id) as memberCount
          FROM payments p
-         LEFT JOIN memberships ms ON p.membershipId = ms.id
-         LEFT JOIN membershipPlans mp ON ms.membershipPlanId = mp.id
-         LEFT JOIN members m ON p.memberId = m.id
-         WHERE p.gymId = ? AND p.status = 'COMPLETED'
+         LEFT JOIN memberships ms ON p.membershipId = ms.id AND ms.gymId = p.gymId
+         LEFT JOIN membershipPlans mp ON ms.membershipPlanId = mp.id AND mp.gymId = p.gymId
+         LEFT JOIN members m ON p.memberId = m.id AND m.gymId = p.gymId
+         WHERE p.gymId = ? AND p.status = 'COMPLETED' AND p.deletedAt IS NULL
          AND p.paymentDate >= ? AND p.paymentDate <= ?
          GROUP BY mp.id, mp.name
          ORDER BY revenuePaise DESC`
@@ -81,7 +81,7 @@ export class ReportsService {
           COALESCE(SUM(amountPaise), 0) as revenuePaise,
           COUNT(*) as paymentCount
          FROM payments
-         WHERE gymId = ? AND status = 'COMPLETED'
+         WHERE gymId = ? AND status = 'COMPLETED' AND deletedAt IS NULL
          AND paymentDate >= ? AND paymentDate <= ?
          GROUP BY period
          ORDER BY period`
@@ -148,7 +148,7 @@ export class ReportsService {
           COUNT(DISTINCT ms.id) as activeCount,
           COALESCE(SUM(CASE WHEN ms.endDate BETWEEN ? AND ? + 7 * 86400 THEN 1 ELSE 0 END), 0) as expiringSoon
          FROM memberships ms
-         JOIN membershipPlans mp ON ms.membershipPlanId = mp.id
+         JOIN membershipPlans mp ON ms.membershipPlanId = mp.id AND mp.gymId = ms.gymId
          WHERE ms.gymId = ? AND ms.deletedAt IS NULL AND ms.status = 'ACTIVE'
          GROUP BY mp.id, mp.name
          ORDER BY activeCount DESC`
@@ -165,8 +165,8 @@ export class ReportsService {
                 mp.name as planName,
                 ms.endDate
          FROM memberships ms
-         JOIN members m ON m.id = ms.memberId AND m.deletedAt IS NULL
-         LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+         JOIN members m ON m.id = ms.memberId AND m.gymId = ms.gymId AND m.deletedAt IS NULL
+         LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.gymId = ms.gymId
          WHERE ms.gymId = ? AND ms.deletedAt IS NULL AND ms.status = 'ACTIVE'
            AND ms.endDate BETWEEN ? AND ? + 7 * 86400
          ORDER BY ms.endDate ASC

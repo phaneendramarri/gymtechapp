@@ -89,8 +89,17 @@ export const FooterSection: React.FC = () => {
             <h4 className="font-mono text-xs font-bold uppercase tracking-wider text-ink mb-3">Contact</h4>
             <ul className="space-y-2 text-xs text-ink-3">
               <li><a href="/contact" className="hover:text-iron transition-colors">Contact us</a></li>
-              <li><a href="mailto:hello@gymtech.app" className="hover:text-iron transition-colors">hello@gymtech.app</a></li>
-              <li><a href="https://wa.me/919876543210" target="_blank" rel="noreferrer" className="hover:text-iron transition-colors">WhatsApp</a></li>
+              <li>
+                <a
+                  href="https://mail.google.com/mail/?view=cm&fs=1&to=ap.fitapp@gmail.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-iron transition-colors font-mono"
+                  title="Send email via Gmail"
+                >
+                  ap.fitapp@gmail.com
+                </a>
+              </li>
             </ul>
           </div>
 

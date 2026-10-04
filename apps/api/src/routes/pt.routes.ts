@@ -22,7 +22,7 @@ import { MemberRepository } from '../repositories/member.repository';
 import { PtRepository } from '../repositories/pt.repository';
 import { PaymentRepository } from '../repositories/payment.repository';
 import { auditGymFromCtx } from '../services/audit.service';
-import { jsonErr, jsonOk, jsonValidationErr, parseQueryInt, queryId } from './helpers';
+import { jsonErr, jsonOk, jsonValidationErr, parseQueryInt, queryId, parseDateToUnixSeconds } from './helpers';
 
 export const ptRoutes = new Hono();
 
@@ -42,7 +42,7 @@ function ledgerTrainerId(user: SessionUser, query?: string): number | null {
 ptRoutes.get('/collections', requireGym, requireFeature('pt_collections'), requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const trainerId = ledgerTrainerId(ctx.user!, c.req.query('trainerId'));
-  const limit = Math.min(parseQueryInt(c.req.query('limit'), 100), 500);
+  const limit = Math.min(parseQueryInt(c.req.query('limit'), 100), 100);
 
   const ptRepo = new PtRepository(ctx.env.DB);
   const collections = await ptRepo.listForGym(ctx.gymId!, trainerId, limit);
@@ -73,7 +73,7 @@ ptRoutes.get('/summary', requireGym, requireFeature('pt_collections'), requirePe
   });
 }));
 
-ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safeHandler(async (c) => {
+ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), requirePermission('pt_collections'), safeHandler(async (c) => {
   const ctx = getCtx(c);
   const body = await c.req.json().catch(() => ({}));
   const parsed = RecordPtCollectionRequestSchema.safeParse(body);
@@ -91,9 +91,9 @@ ptRoutes.post('/collections', requireGym, requireFeature('pt_collections'), safe
   if (!trainer) return jsonErr('Trainer not found in this gym', 404);
 
   const commissionPaise = calculatePtCommission(parsed.data.amountPaise, parsed.data.commissionPercentage);
-  const paymentDate = parsed.data.paymentDate
-    ? Math.floor(new Date(parsed.data.paymentDate).getTime() / 1000)
-    : Math.floor(Date.now() / 1000);
+  const parsedPaymentDate = parseDateToUnixSeconds(parsed.data.paymentDate);
+  if (parsedPaymentDate === null) return jsonErr('Invalid paymentDate', 400);
+  const paymentDate = parsedPaymentDate ?? Math.floor(Date.now() / 1000);
   const receiptNumber = await new PaymentRepository(ctx.env.DB, ctx.gymId!).getNextReceiptNumber();
 
   const id = await ptRepo.create({
@@ -184,6 +184,20 @@ ptRoutes.post('/packages', requireGym, requireFeature('pt_collections'), require
   const trainer = await ptRepo.findUserInGym(parsed.data.trainerId, ctx.gymId!);
   if (!trainer) return jsonErr('Trainer not found in this gym', 404);
 
+  // expiryDate is optional in the contract but NOT NULL in the DB — default
+  // to 180 days after the start date instead of 500ing on null. When both
+  // are given, the window must not be inverted.
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const effectiveStart = parsed.data.startDate ?? todayStr;
+  let effectiveExpiry = parsed.data.expiryDate ?? null;
+  if (!effectiveExpiry) {
+    const startMs = new Date(`${effectiveStart}T00:00:00Z`).getTime();
+    if (!Number.isFinite(startMs)) return jsonErr('Invalid startDate', 400);
+    effectiveExpiry = new Date(startMs + 180 * 86400 * 1000).toISOString().slice(0, 10);
+  } else if (effectiveExpiry <= effectiveStart) {
+    return jsonErr('PT package expiryDate must be after startDate', 400);
+  }
+
   const id = await ptRepo.createPackage({
     gymId: ctx.gymId!,
     memberId: parsed.data.memberId,
@@ -191,8 +205,8 @@ ptRoutes.post('/packages', requireGym, requireFeature('pt_collections'), require
     packageName: parsed.data.packageName,
     totalSessions: parsed.data.totalSessions,
     amountPaise: parsed.data.amountPaise,
-    startDate: parsed.data.startDate,
-    expiryDate: parsed.data.expiryDate,
+    startDate: effectiveStart,
+    expiryDate: effectiveExpiry,
     notes: parsed.data.notes,
   });
 

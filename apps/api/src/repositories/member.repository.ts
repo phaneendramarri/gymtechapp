@@ -13,11 +13,8 @@ import { members, memberships, membershipPlans, counters, attendance } from '../
 import { CommunicationRepository } from './communication.repository';
 import { CounterRepository } from './counter.repository';
 
-/** Returns today's date as YYYYMMDD integer. */
-export function todayYyyymmdd(): number {
-  const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-}
+import { todayYyyymmdd } from '../lib/dates';
+export { todayYyyymmdd };
 
 export class MemberRepository {
   private db: Database;
@@ -81,10 +78,10 @@ export class MemberRepository {
              ms.dueAmountPaise as membershipDueAmountPaise,
              mp.name as planName
       FROM members m
-      LEFT JOIN memberships ms ON ms.memberId = m.id AND ms.id = (
-        SELECT id FROM memberships WHERE memberId = m.id ORDER BY endDate DESC LIMIT 1
+      LEFT JOIN memberships ms ON ms.memberId = m.id AND ms.gymId = m.gymId AND ms.deletedAt IS NULL AND ms.id = (
+        SELECT id FROM memberships WHERE memberId = m.id AND gymId = m.gymId AND deletedAt IS NULL ORDER BY endDate DESC LIMIT 1
       )
-      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+      LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.gymId = m.gymId
       WHERE ${whereClause}
       ORDER BY m.createdAt DESC
       LIMIT ${limit} OFFSET ${offset}
@@ -180,10 +177,10 @@ export class MemberRepository {
     // L8: Single-query summary counts using current membership status.
     // gymId is bound, not interpolated.
     const base = `FROM members m
-      LEFT JOIN memberships ms ON ms.memberId = m.id AND ms.deletedAt IS NULL
+      LEFT JOIN memberships ms ON ms.memberId = m.id AND ms.gymId = m.gymId AND ms.deletedAt IS NULL
       AND ms.id = (
         SELECT ms2.id FROM memberships ms2
-        WHERE ms2.memberId = m.id AND ms2.deletedAt IS NULL
+        WHERE ms2.memberId = m.id AND ms2.gymId = m.gymId AND ms2.deletedAt IS NULL
         ORDER BY ms2.createdAt DESC LIMIT 1
       )
       WHERE m.gymId = ? AND m.deletedAt IS NULL`;
@@ -487,15 +484,16 @@ export class MemberRepository {
       .prepare(`
         SELECT ms.*, mp.name as planName
         FROM memberships ms
-        LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId
+        LEFT JOIN membershipPlans mp ON mp.id = ms.membershipPlanId AND mp.gymId = ms.gymId
         WHERE ms.memberId = ?
+          AND ms.gymId = ?
           AND ms.deletedAt IS NULL
           AND ms.status IN ('ACTIVE', 'FROZEN')
           AND ms.endDate >= unixepoch()
         ORDER BY ms.endDate DESC
         LIMIT 1
       `)
-      .bind(memberId)
+      .bind(memberId, this.gymId)
       .first();
     return row ?? null;
   }
@@ -533,9 +531,9 @@ export class MemberRepository {
       .prepare(`
         SELECT m.*, g.name as gymName, g.address as gymAddress, g.phone as gymPhone
         FROM members m JOIN gyms g ON g.id = m.gymId
-        WHERE m.id = ? AND m.deletedAt IS NULL
+        WHERE m.id = ? AND m.gymId = ? AND m.deletedAt IS NULL
       `)
-      .bind(memberId)
+      .bind(memberId, this.gymId)
       .first();
     if (!member) return { member: null, memberships: [], payments: [], attendance: [] };
     const gymId = (member as any).gymId;
