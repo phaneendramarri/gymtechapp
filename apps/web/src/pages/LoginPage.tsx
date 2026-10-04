@@ -210,11 +210,15 @@ export const LoginPage: React.FC = () => {
         <section className="flex flex-col justify-center px-6 sm:px-10 lg:px-16 py-12">
           <div className="max-w-sm w-full mx-auto">
             {/* Mode switcher */}
-            <div className="inline-flex p-1 bg-(--surface-2) rounded-full mb-8 border border-(--line)/60" role="tablist">
+            <div className="inline-flex p-1 bg-muted rounded-full mb-8 border border-border" role="tablist">
               <button
                 type="button"
                 onClick={() => { setMode('STAFF'); setError(null); setGymSlug(''); setMemberIdentifier(''); setMemberCode(''); }}
-                className={`px-4 h-8 text-xs font-medium rounded-full transition-all ${mode === 'STAFF' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
+                className={`px-4 h-8 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                  mode === 'STAFF'
+                    ? 'bg-background text-foreground shadow-xs dark:bg-card dark:text-foreground dark:border dark:border-border'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
                 role="tab"
                 aria-selected={mode === 'STAFF'}
               >
@@ -223,7 +227,11 @@ export const LoginPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => { setMode('MEMBER'); setError(null); setGymSlug(''); }}
-                className={`px-4 h-8 text-xs font-medium rounded-full transition-all ${mode === 'MEMBER' ? 'bg-(--surface) text-ink shadow-sm' : 'text-ink-3 hover:text-ink-2'}`}
+                className={`px-4 h-8 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                  mode === 'MEMBER'
+                    ? 'bg-background text-foreground shadow-xs dark:bg-card dark:text-foreground dark:border dark:border-border'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
                 role="tab"
                 aria-selected={mode === 'MEMBER'}
               >

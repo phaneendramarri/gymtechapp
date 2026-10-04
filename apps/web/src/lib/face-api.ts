@@ -126,14 +126,22 @@ export function computeEuclideanDistance(desc1: Float32Array, desc2: Float32Arra
  *   distance = 0.55  -> 70% (typical matching threshold)
  *   distance >= 0.80 -> 0% (unregistered / no similarity)
  */
+/**
+ * Converts a Euclidean distance into a human-friendly confidence percentage (0-100%).
+ * Standard face-api 128-D Euclidean distance:
+ *   distance <= 0.20 -> ~95-100% (extremely confident)
+ *   distance = 0.35  -> ~88%
+ *   distance = 0.60  -> ~70% (typical real-world matching threshold)
+ *   distance >= 0.80 -> 0% (unregistered / no similarity)
+ */
 export function distanceToConfidence(distance: number): number {
   if (distance <= 0) return 100;
-  if (distance >= 0.8) return 0;
-  if (distance <= 0.55) {
-    const factor = distance / 0.55;
+  if (distance >= 0.85) return 0;
+  if (distance <= 0.60) {
+    const factor = distance / 0.60;
     return Math.round(100 - factor * factor * 30);
   }
-  const factor = (distance - 0.55) / 0.25;
+  const factor = (distance - 0.60) / 0.25;
   return Math.max(0, Math.round(70 * (1 - factor)));
 }
 
@@ -171,6 +179,7 @@ export function deserializeDescriptor(raw: string | null | undefined): Float32Ar
 
 /**
  * Detect a single face in a video, image, or canvas and extract its 128-D descriptor.
+ * Safely converts video frames to stable offscreen canvas bitmaps to prevent WebGL/texture frame tearing.
  */
 export async function extractFaceDescriptor(
   source: HTMLImageElement | HTMLVideoElement | HTMLCanvasElement
@@ -181,14 +190,31 @@ export async function extractFaceDescriptor(
   try {
     const api = await getFaceApi();
 
-    // Use TinyFaceDetector with 320px input size and 0.45 score threshold for fast edge detection
+    // If source is a video element, snapshot current frame into a canvas to ensure
+    // a clean, stable pixel bitmap and prevent readyState/tearing issues.
+    let inputSource: HTMLImageElement | HTMLCanvasElement | HTMLVideoElement = source;
+    if (source instanceof HTMLVideoElement) {
+      if (source.readyState < 2 || !source.videoWidth || !source.videoHeight) {
+        return null;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = source.videoWidth;
+      canvas.height = source.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return null;
+      ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+      inputSource = canvas;
+    }
+
+    // Step 1: Detect with TinyFaceDetector using 320px input size and 0.22 threshold
+    // (0.22 is the optimal threshold for natural indoor webcam lighting).
     const options = new api.TinyFaceDetectorOptions({
       inputSize: 320,
-      scoreThreshold: 0.45,
+      scoreThreshold: 0.22,
     });
 
     const detection = await api
-      .detectSingleFace(source, options)
+      .detectSingleFace(inputSource, options)
       .withFaceLandmarks(true)
       .withFaceDescriptor();
 
@@ -196,20 +222,19 @@ export async function extractFaceDescriptor(
       return detection.descriptor;
     }
 
-    // Fallback for still photos with lower score threshold if not immediately detected
-    if (source instanceof HTMLImageElement || source instanceof HTMLCanvasElement) {
-      const relaxedOptions = new api.TinyFaceDetectorOptions({
-        inputSize: 416,
-        scoreThreshold: 0.3,
-      });
-      const fallbackDetection = await api
-        .detectSingleFace(source, relaxedOptions)
-        .withFaceLandmarks(true)
-        .withFaceDescriptor();
+    // Step 2: Fallback with 416px input size and relaxed 0.18 threshold
+    // for subtle angles, darker rooms, or smaller face captures.
+    const relaxedOptions = new api.TinyFaceDetectorOptions({
+      inputSize: 416,
+      scoreThreshold: 0.18,
+    });
+    const fallbackDetection = await api
+      .detectSingleFace(inputSource, relaxedOptions)
+      .withFaceLandmarks(true)
+      .withFaceDescriptor();
 
-      if (fallbackDetection && fallbackDetection.descriptor) {
-        return fallbackDetection.descriptor;
-      }
+    if (fallbackDetection && fallbackDetection.descriptor && fallbackDetection.descriptor.length === 128) {
+      return fallbackDetection.descriptor;
     }
 
     return null;
@@ -247,12 +272,12 @@ export async function extractDescriptorFromImageUrl(url: string): Promise<Float3
  *
  * @param liveDescriptor - The 128-D descriptor of the face in front of the camera
  * @param enrolled - Array of enrolled members with their pre-loaded 128-D descriptors
- * @param maxDistanceThreshold - Maximum Euclidean distance for a match (default: 0.55)
+ * @param maxDistanceThreshold - Maximum Euclidean distance for a match (default: 0.60)
  */
 export function findBestFaceMatch(
   liveDescriptor: Float32Array,
   enrolled: EnrolledFaceRecord[],
-  maxDistanceThreshold = 0.55
+  maxDistanceThreshold = 0.60
 ): FaceMatch | null {
   if (!enrolled || enrolled.length === 0) return null;
 

@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { compressAndConvertToBase64 } from '@/lib/image';
-import { extractFaceDescriptor, serializeDescriptor, loadFaceApiModels } from '@/lib/face-api';
+import { extractFaceDescriptor, extractDescriptorFromImageUrl, serializeDescriptor, loadFaceApiModels } from '@/lib/face-api';
 import { cn } from '@/lib/utils';
 
 interface PhotoCaptureUploadProps {
@@ -83,9 +83,14 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
       onChange(result.base64);
       setFileSizeKb(Math.round(result.sizeBytes / 1024));
 
-      if (descriptor) {
+      let finalDescriptor = descriptor;
+      if (!finalDescriptor && result.base64) {
+        finalDescriptor = await extractDescriptorFromImageUrl(result.base64);
+      }
+
+      if (finalDescriptor) {
         setFaceStatus('detected');
-        const serialized = serializeDescriptor(descriptor);
+        const serialized = serializeDescriptor(finalDescriptor);
         if (onFaceDescriptorGenerated) {
           onFaceDescriptorGenerated(serialized);
         }
@@ -133,13 +138,14 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
     setFileSizeKb(Math.round((base64.length * 3) / 4096));
     setImgDims({ w: canvas.width, h: canvas.height });
 
-    stopWebcam();
-
     // Extract descriptor from the captured canvas
     setIsProcessing(true);
     setFaceStatus('detecting');
     try {
-      const descriptor = await extractFaceDescriptor(canvas);
+      let descriptor = await extractFaceDescriptor(canvas);
+      if (!descriptor && base64) {
+        descriptor = await extractDescriptorFromImageUrl(base64);
+      }
       if (descriptor) {
         setFaceStatus('detected');
         const serialized = serializeDescriptor(descriptor);
@@ -156,6 +162,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
       setFaceStatus('idle');
     } finally {
       setIsProcessing(false);
+      stopWebcam();
     }
   };
 

@@ -161,10 +161,8 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           </span>
         )}
         {active && !collapsedMode && (
-          <motion.div
-            layoutId="sidebar-active-indicator"
+          <div
             className="absolute left-0 top-1.5 bottom-1.5 w-1 rounded-r-full bg-primary"
-            transition={{ type: 'spring', stiffness: 500, damping: 30 }}
           />
         )}
       </Link>

@@ -229,9 +229,14 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
       const loaded = await loadFaceApiModels();
       setModelsReady(loaded);
 
-      // 2. Fetch active members
+      // 2. Fetch active members (with fallback to all members if none returned)
       const res = await api.getMembers({ limit: 200, status: 'ACTIVE' });
-      const eligibleMembers = (res.members || []).filter((m: any) => Boolean(m.faceEmbedding || m.photoUrl));
+      let membersList = res.members || [];
+      if (membersList.length === 0) {
+        const fallbackRes = await api.getMembers({ limit: 200 });
+        membersList = fallbackRes.members || [];
+      }
+      const eligibleMembers = membersList.filter((m: any) => Boolean(m.faceEmbedding || m.photoUrl));
 
       const enrolledArr: EnrolledFaceRecord[] = [];
 
@@ -285,8 +290,9 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
       const liveDescriptor = await extractFaceDescriptor(videoRef.current);
 
       if (liveDescriptor) {
-        // 2. Compare using Euclidean distance against all enrolled members
-        const match = findBestFaceMatch(liveDescriptor, enrolledCacheRef.current, 0.55);
+        // 2. Compare using Euclidean distance against enrolled members (adaptive 0.60-0.62 threshold)
+        const matchThreshold = enrolledCacheRef.current.length <= 3 ? 0.62 : 0.60;
+        const match = findBestFaceMatch(liveDescriptor, enrolledCacheRef.current, matchThreshold);
 
         if (match && match.isConfidentMatch) {
           setCurrentMatch(match);
