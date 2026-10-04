@@ -84,11 +84,11 @@ const PLATFORM_ADMIN_NAV: NavItem[] = [
 
 /** Sidebar sections in display order. Desktop rail and mobile drawer both
  * render from this single definition, so they can never drift apart. */
-const NAV_SECTIONS: { label: string; items: NavItem[]; platformOnly?: boolean }[] = [
-  { label: 'Train', items: TRAIN_NAV },
-  { label: 'Sell', items: SELL_NAV },
-  { label: 'Run', items: RUN_NAV },
-  { label: 'Manage', items: ADMIN_NAV },
+const NAV_SECTIONS: { label: string; items: NavItem[]; platformOnly?: boolean; gymOnly?: boolean }[] = [
+  { label: 'Train', items: TRAIN_NAV, gymOnly: true },
+  { label: 'Sell', items: SELL_NAV, gymOnly: true },
+  { label: 'Run', items: RUN_NAV, gymOnly: true },
+  { label: 'Manage', items: ADMIN_NAV, gymOnly: true },
   { label: 'Platform', items: PLATFORM_ADMIN_NAV, platformOnly: true },
 ];
 
@@ -191,10 +191,10 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           <Logo size="sm" showText={false} className="shrink-0" />
           <div className="flex flex-col min-w-0">
             <span className="font-bold text-sm text-foreground truncate">
-              {gym?.name || 'GymTech'}
+              {isSuperAdmin ? 'GymTech Platform' : gym?.name || 'GymTech'}
             </span>
             <span className="text-[10px] text-muted-foreground font-mono leading-none">
-              Gym Management
+              {isSuperAdmin ? 'SaaS Administration' : 'Gym Management'}
             </span>
           </div>
         </div>
@@ -211,6 +211,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
       <div className="flex-1 overflow-y-auto p-3 space-y-4">
         {NAV_SECTIONS.map((section) => {
           if (section.platformOnly && !showPlatformNav) return null;
+          if (section.gymOnly && isSuperAdmin) return null;
           const visible = section.items.filter(hasAccess);
           if (visible.length === 0) return null;
           return (
@@ -284,7 +285,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
           )}
         >
           <Link
-            to="/dashboard"
+            to={isSuperAdmin ? '/admin' : '/dashboard'}
             className={cn(
               'flex items-center gap-2.5 min-w-0 group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md',
               collapsed ? 'justify-center' : ''
@@ -295,14 +296,14 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
               <div className="flex flex-col min-w-0">
                 <div className="flex items-center gap-1.5">
                   <span className="font-bold text-sm text-foreground truncate max-w-[130px]">
-                    {gym?.name || 'GymTech'}
+                    {isSuperAdmin ? 'GymTech Platform' : gym?.name || 'GymTech'}
                   </span>
                   <Badge variant="outline" className="text-[9px] font-mono px-1 py-0 h-4 border-border bg-secondary/50">
-                    Live
+                    {isSuperAdmin ? 'Super Admin' : 'Live'}
                   </Badge>
                 </div>
                 <span className="text-[10px] text-muted-foreground font-mono leading-none">
-                  Admin Console
+                  {isSuperAdmin ? 'SaaS Console' : 'Admin Console'}
                 </span>
               </div>
             )}
@@ -313,6 +314,7 @@ export const AppSidebar: React.FC<AppSidebarProps> = ({
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-4">
           {NAV_SECTIONS.map((section) => {
             if (section.platformOnly && !showPlatformNav) return null;
+            if (section.gymOnly && isSuperAdmin) return null;
             const visible = section.items.filter(hasAccess);
             if (visible.length === 0) return null;
             return (

@@ -509,11 +509,11 @@ export const AdminPage: React.FC = () => {
           </TabsTrigger>
           <TabsTrigger value="gateways" className="gap-2 text-xs font-semibold">
             <Radio className="h-4 w-4 text-primary" />
-            Gateways &amp; Messaging (Super Admin Only)
+            Gateways &amp; Messaging
           </TabsTrigger>
           <TabsTrigger value="gym-ops" className="gap-2 text-xs font-semibold">
             <UserCog className="h-4 w-4 text-primary" />
-            Gym Operations
+            Tenant Operations
           </TabsTrigger>
           <TabsTrigger value="audit" className="gap-2 text-xs font-semibold">
             <History className="h-4 w-4 text-primary" />
@@ -570,8 +570,8 @@ export const AdminPage: React.FC = () => {
                     {gyms.length} Tenants
                   </Badge>
                 </CardHeader>
-                <CardContent className="p-0">
-                  <Table>
+                <CardContent className="p-0 overflow-x-auto">
+                  <Table className="min-w-[620px]">
                     <TableHeader>
                       <TableRow className="bg-surface-2 hover:bg-surface-2">
                         <TableHead className="font-mono text-[10px] uppercase">Gym Name &amp; City</TableHead>
@@ -1350,9 +1350,6 @@ export const AdminPage: React.FC = () => {
         destructive={pendingToggle?.currentStatus === 'ACTIVE'}
         onConfirm={handleToggleStatus}
       />
-
-      {/* Gym Operations Selector */}
-      <GymOpsSelector gyms={gyms} gymsLoading={gymsLoading} />
     </AdminShell>
   );
 };

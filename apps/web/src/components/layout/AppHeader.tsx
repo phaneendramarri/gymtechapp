@@ -121,19 +121,24 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
   // Derive breadcrumbs if not explicitly passed
   const activeRouteInfo = ROUTE_LABELS[location.pathname];
+  const isSuperAdmin = user?.role === 'PLATFORM_ADMIN';
+  const defaultRoot = isSuperAdmin
+    ? { label: 'Platform Console', href: '/admin' }
+    : { label: 'Gym Console', href: '/dashboard' };
+
   const derivedCrumbs: BreadcrumbCrumb[] = breadcrumbs || (
     activeRouteInfo?.parent
       ? [
-          { label: 'Gym Console', href: '/dashboard' },
+          defaultRoot,
           { label: activeRouteInfo.parent.label, href: activeRouteInfo.parent.href },
           { label: activeRouteInfo.label },
         ]
       : activeRouteInfo
         ? [
-            { label: 'Gym Console', href: '/dashboard' },
+            defaultRoot,
             { label: activeRouteInfo.label },
           ]
-        : [{ label: 'Gym Console', href: '/dashboard' }]
+        : [defaultRoot]
   );
 
   const initials = user?.name
@@ -197,7 +202,9 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
           >
             <span className="flex items-center gap-2 truncate">
               <Search className="h-3.5 w-3.5 text-muted-foreground group-hover:text-foreground transition-colors shrink-0" />
-              <span className="truncate">Search members, actions, records...</span>
+              <span className="truncate">
+                {isSuperAdmin ? 'Search gyms, platform users, logs...' : 'Search members, actions, records...'}
+              </span>
             </span>
             <kbd className="pointer-events-none inline-flex h-4.5 select-none items-center gap-0.5 rounded-full border border-border bg-background px-1.5 font-mono text-[10px] font-medium text-muted-foreground shrink-0">
               <span className="text-[10px]">⌘</span>K
@@ -251,8 +258,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </AnimatePresence>
           </Button>
 
-          {/* Quick action: Add Member */}
-          {user && user.role !== 'MEMBER' && (
+          {/* Quick action: Add Member for Gym staff/owner */}
+          {user && user.role !== 'MEMBER' && !isSuperAdmin && (
             <Button
               size="sm"
               onClick={() => navigate('/members/new')}
@@ -260,6 +267,18 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             >
               <Plus className="h-3.5 w-3.5" />
               <span>New member</span>
+            </Button>
+          )}
+
+          {/* Quick action: New Gym for Super Admin */}
+          {isSuperAdmin && (
+            <Button
+              size="sm"
+              onClick={() => navigate('/admin')}
+              className="hidden lg:inline-flex gap-1.5 h-8 px-2.5 rounded-lg text-xs font-semibold shadow-2xs"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              <span>New gym</span>
             </Button>
           )}
 
@@ -291,28 +310,46 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     <p className="text-xs font-semibold leading-none text-foreground">{user.name}</p>
                     <p className="text-[11px] leading-none text-muted-foreground font-mono truncate">{user.email}</p>
                     <span className="text-[10px] text-primary font-medium capitalize mt-0.5">
-                      {user.role?.toLowerCase().replace('_', ' ') || 'Staff'}
+                      {isSuperAdmin ? 'Platform Super Admin' : user.role?.toLowerCase().replace('_', ' ') || 'Staff'}
                     </span>
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
 
-                <DropdownMenuItem
-                  onClick={() => navigate('/settings/notifications')}
-                  className="cursor-pointer text-xs"
-                >
-                  <Settings className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-                  <span>Settings & Preferences</span>
-                </DropdownMenuItem>
-
-                {(user.role === 'PLATFORM_ADMIN') && (
+                {!isSuperAdmin && (
                   <DropdownMenuItem
-                    onClick={() => navigate('/admin')}
+                    onClick={() => navigate('/settings/notifications')}
                     className="cursor-pointer text-xs"
                   >
-                    <Shield className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
-                    <span>Platform Admin</span>
+                    <Settings className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                    <span>Settings & Preferences</span>
                   </DropdownMenuItem>
+                )}
+
+                {isSuperAdmin && (
+                  <>
+                    <DropdownMenuItem
+                      onClick={() => navigate('/admin')}
+                      className="cursor-pointer text-xs"
+                    >
+                      <Building2 className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Gyms & Tenants</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => navigate('/platform/users')}
+                      className="cursor-pointer text-xs"
+                    >
+                      <Users className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Platform Users</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onClick={() => navigate('/platform/roles')}
+                      className="cursor-pointer text-xs"
+                    >
+                      <Shield className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                      <span>Roles & Governance</span>
+                    </DropdownMenuItem>
+                  </>
                 )}
 
                 <DropdownMenuSeparator />
@@ -336,63 +373,76 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <CommandInput placeholder="Type a command or search section..." />
         <CommandList>
           <CommandEmpty>No results found.</CommandEmpty>
-          <CommandGroup heading="Operations">
-            <CommandItem onSelect={() => handleNavigate('/dashboard')}>
-              <LayoutDashboard className="mr-2 h-4 w-4" />
-              <span>Dashboard Overview</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/members')}>
-              <Users className="mr-2 h-4 w-4" />
-              <span>Members Directory</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/attendance')}>
-              <CalendarCheck className="mr-2 h-4 w-4" />
-              <span>Live Attendance & Floor</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/payments')}>
-              <CreditCard className="mr-2 h-4 w-4" />
-              <span>Payments & Ledger</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/pt-collections')}>
-              <Trophy className="mr-2 h-4 w-4" />
-              <span>Personal Training Collections</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/plans')}>
-              <Tag className="mr-2 h-4 w-4" />
-              <span>Membership Plans</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/reports')}>
-              <BarChart3 className="mr-2 h-4 w-4" />
-              <span>Reports & Analytics</span>
-            </CommandItem>
-          </CommandGroup>
-
-          <CommandSeparator />
-
-          <CommandGroup heading="Management & Platform">
-            <CommandItem onSelect={() => handleNavigate('/members/new')}>
-              <Plus className="mr-2 h-4 w-4 text-primary" />
-              <span>Add New Member</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/staff')}>
-              <UserCog className="mr-2 h-4 w-4" />
-              <span>Manage Staff Team</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/settings/notifications')}>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings & Notifications</span>
-            </CommandItem>
-            <CommandItem onSelect={() => handleNavigate('/audit-logs')}>
-              <Sliders className="mr-2 h-4 w-4" />
-              <span>Audit Logs</span>
-            </CommandItem>
-            {(user?.role === 'PLATFORM_ADMIN') && (
+          {isSuperAdmin ? (
+            <CommandGroup heading="Platform Administration">
               <CommandItem onSelect={() => handleNavigate('/admin')}>
                 <Building2 className="mr-2 h-4 w-4 text-primary" />
-                <span>Gyms & Platform Management</span>
+                <span>Gyms & Tenants Directory</span>
               </CommandItem>
-            )}
-          </CommandGroup>
+              <CommandItem onSelect={() => handleNavigate('/platform/users')}>
+                <Users className="mr-2 h-4 w-4" />
+                <span>Platform Users Management</span>
+              </CommandItem>
+              <CommandItem onSelect={() => handleNavigate('/platform/roles')}>
+                <Shield className="mr-2 h-4 w-4" />
+                <span>Roles & Governance</span>
+              </CommandItem>
+            </CommandGroup>
+          ) : (
+            <>
+              <CommandGroup heading="Operations">
+                <CommandItem onSelect={() => handleNavigate('/dashboard')}>
+                  <LayoutDashboard className="mr-2 h-4 w-4" />
+                  <span>Dashboard Overview</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/members')}>
+                  <Users className="mr-2 h-4 w-4" />
+                  <span>Members Directory</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/attendance')}>
+                  <CalendarCheck className="mr-2 h-4 w-4" />
+                  <span>Live Attendance & Floor</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/payments')}>
+                  <CreditCard className="mr-2 h-4 w-4" />
+                  <span>Payments & Ledger</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/pt-collections')}>
+                  <Trophy className="mr-2 h-4 w-4" />
+                  <span>Personal Training Collections</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/plans')}>
+                  <Tag className="mr-2 h-4 w-4" />
+                  <span>Membership Plans</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/reports')}>
+                  <BarChart3 className="mr-2 h-4 w-4" />
+                  <span>Reports & Analytics</span>
+                </CommandItem>
+              </CommandGroup>
+
+              <CommandSeparator />
+
+              <CommandGroup heading="Management">
+                <CommandItem onSelect={() => handleNavigate('/members/new')}>
+                  <Plus className="mr-2 h-4 w-4 text-primary" />
+                  <span>Add New Member</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/staff')}>
+                  <UserCog className="mr-2 h-4 w-4" />
+                  <span>Manage Staff Team</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/settings/notifications')}>
+                  <Settings className="mr-2 h-4 w-4" />
+                  <span>Settings & Notifications</span>
+                </CommandItem>
+                <CommandItem onSelect={() => handleNavigate('/audit-logs')}>
+                  <Sliders className="mr-2 h-4 w-4" />
+                  <span>Audit Logs</span>
+                </CommandItem>
+              </CommandGroup>
+            </>
+          )}
         </CommandList>
       </CommandDialog>
     </>

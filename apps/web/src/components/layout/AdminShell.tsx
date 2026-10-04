@@ -1,8 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
-import { LayoutDashboard } from 'lucide-react';
 import { AppShell } from './AppShell';
-import { Button } from '@/components/ui/button';
 
 interface AdminShellProps {
   title: string;
@@ -28,22 +25,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         { label: title },
       ];
 
-  const headerActions = (
-    <>
-      <Button
-        variant="outline"
-        size="sm"
-        asChild
-        className="hidden sm:inline-flex gap-1.5 text-xs font-medium border-border hover:bg-secondary shadow-2xs h-8"
-      >
-        <Link to="/dashboard">
-          <LayoutDashboard className="size-3.5 text-primary" />
-          <span>Gym Console</span>
-        </Link>
-      </Button>
-      {actions}
-    </>
-  );
+  const headerActions = actions ? <>{actions}</> : null;
 
   return (
     <AppShell

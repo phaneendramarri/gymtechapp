@@ -52,6 +52,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to="/dashboard" replace />;
   }
 
+  // Platform admin role isolation: Platform admins manage SaaS tenants and platform governance
+  // (/admin, /platform/*) with no local gym context. Bounce to /admin if accessing gym desk routes.
+  if (isPlatformAdmin && !requireSuperAdmin && !allowMember) {
+    return <Navigate to="/admin" replace />;
+  }
+
   // Member-only routes (currently just /portal): staff sessions landing here
   // previously called the member API, got 401, and were logged out. Bounce
   // non-members back to the dashboard instead.
