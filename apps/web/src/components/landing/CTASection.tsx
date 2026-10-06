@@ -23,6 +23,10 @@ export const CTASection: React.FC = () => {
           }}
         />
         <div className="relative">
+        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-[11px] font-mono font-bold mb-4 shadow-xs">
+          <span className="size-2 rounded-full bg-emerald-400 animate-ping" />
+          <span>FREE ONBOARDING & EXCEL MIGRATION AVAILABLE TODAY</span>
+        </div>
         <p className="text-xs font-semibold uppercase tracking-widest opacity-60">{isDemo ? 'See it on your data' : 'Ready when you are'}</p>
         <h2 className="text-display-serif-sm sm:text-display-serif mt-4">
           {isDemo

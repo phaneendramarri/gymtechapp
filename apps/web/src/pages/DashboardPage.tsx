@@ -459,7 +459,7 @@ export const DashboardPage: React.FC = () => {
 
                 {atRisk.length > 0 && (
                   <Link
-                    to="/members"
+                    to="/members?status=AT_RISK"
                     className="p-4 rounded-xl border border-border bg-card hover:bg-muted/40 transition-colors group flex items-start gap-3"
                   >
                     <div className="p-2 rounded-lg bg-muted text-muted-foreground shrink-0">

@@ -24,10 +24,13 @@ import {
   Download,
   AlertTriangle,
   Loader2,
+  Trophy,
+  Dumbbell,
+  Plus,
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { EditMemberDialog } from '@/components/members/EditMemberDialog';
 import { PaymentDialog } from '@/components/payments/PaymentDialog';
 import { useToast } from '@/components/ui/toast';
@@ -35,9 +38,13 @@ import { useAuth } from '@/lib/auth';
 import { api } from '@/lib/api';
 import { cn, formatCurrency } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { ErrorState } from '@/components/shared/ErrorState';
 import { DetailSkeleton } from '@/components/shared/LoadingSkeleton';
+import { CreatePtPackageDialog } from '@/components/pt/CreatePtPackageDialog';
+import { LogPtSessionDialog } from '@/components/pt/LogPtSessionDialog';
+import type { PtPackage } from '@gymtech/shared';
 
 import QRCode from 'qrcode';
 import { InvoiceDialog } from '@/components/billing/InvoiceDialog';
@@ -48,6 +55,9 @@ export const MemberDetailPage: React.FC = () => {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [invoicePaymentId, setInvoicePaymentId] = useState<number | null>(null);
+  const [isPtPackageOpen, setIsPtPackageOpen] = useState(false);
+  const [isLogPtSessionOpen, setIsLogPtSessionOpen] = useState(false);
+  const [selectedPtPackage, setSelectedPtPackage] = useState<PtPackage | null>(null);
   // All hooks must run on every render, including the loading/error states
   // below — calling useState/useEffect after an early return changes the
   // hook order between renders (React error #310) and crashes the page.
@@ -63,6 +73,18 @@ export const MemberDetailPage: React.FC = () => {
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['member', id],
     queryFn: () => api.getMemberDetail(memberId),
+    enabled: !!memberId,
+  });
+
+  const { data: ptPackagesData } = useQuery({
+    queryKey: ['memberPtPackages', memberId],
+    queryFn: () => (memberId ? api.getPtPackages({ memberId }) : Promise.resolve({ packages: [] })),
+    enabled: !!memberId,
+  });
+
+  const { data: ptSessionsData } = useQuery({
+    queryKey: ['memberPtSessions', memberId],
+    queryFn: () => (memberId ? api.getPtSessions({ memberId }) : Promise.resolve({ sessions: [] })),
     enabled: !!memberId,
   });
 
@@ -212,7 +234,7 @@ export const MemberDetailPage: React.FC = () => {
         { label: fullName },
       ]}
       title={fullName}
-      description={`Member since ${new Date(member.joinedDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })} · ${member.memberCode}`}
+      description={`Member since ${member.joinedDate ? new Date(member.joinedDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'} · ${member.memberCode}`}
       actions={
         <div className="flex items-center gap-2 flex-wrap">
           <Button
@@ -296,7 +318,7 @@ export const MemberDetailPage: React.FC = () => {
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground font-mono mt-1">
-                    ID: {member.memberCode} · Joined {new Date(member.joinedDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                    ID: {member.memberCode} · Joined {member.joinedDate ? new Date(member.joinedDate * 1000).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}
                   </p>
                 </div>
               </div>
@@ -469,6 +491,147 @@ export const MemberDetailPage: React.FC = () => {
                     <DetailItem icon={<User className="h-3.5 w-3.5 text-muted-foreground" />} label="Health notes / injuries" value={member.healthNotes} />
                   )}
                 </dl>
+              </CardContent>
+            </Card>
+
+            {/* Personal Training (PT) Packages & Workout Sessions */}
+            <Card className="border-border shadow-xs">
+              <CardHeader className="pb-3 border-b border-border">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle className="text-base font-bold text-foreground flex items-center gap-2">
+                      <Trophy className="h-4 w-4 text-primary" /> Personal Training
+                      <span className="text-xs font-normal text-muted-foreground font-mono">
+                        ({(ptPackagesData?.packages || []).length} package{(ptPackagesData?.packages || []).length === 1 ? '' : 's'})
+                      </span>
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      1-on-1 coach packages, sessions progress, and workout history
+                    </CardDescription>
+                  </div>
+                  {canManage && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setIsPtPackageOpen(true)}
+                      className="h-7 text-xs gap-1 font-semibold"
+                    >
+                      <Plus className="size-3" /> Enroll in PT
+                    </Button>
+                  )}
+                </div>
+              </CardHeader>
+              <CardContent className="p-4 space-y-4">
+                {(ptPackagesData?.packages || []).length === 0 ? (
+                  <div className="py-6 text-center">
+                    <Dumbbell className="size-8 text-muted-foreground/30 mx-auto mb-2" />
+                    <p className="text-xs font-medium text-foreground">No personal training package</p>
+                    <p className="text-[11px] text-muted-foreground mt-0.5">
+                      This member is currently not enrolled in personal training.
+                    </p>
+                    {canManage && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setIsPtPackageOpen(true)}
+                        className="mt-3 text-xs h-7 gap-1 font-semibold"
+                      >
+                        <Plus className="size-3" /> Enroll in PT
+                      </Button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {ptPackagesData!.packages.map((pkg) => {
+                      const comp = pkg.completedSessions || 0;
+                      const tot = pkg.totalSessions || 1;
+                      const pct = Math.min(100, Math.round((comp / tot) * 100));
+                      const rem = Math.max(0, tot - comp);
+                      const isFin = comp >= tot;
+
+                      return (
+                        <div key={pkg.id} className="p-3.5 rounded-xl border border-border bg-card/60 space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs font-bold text-foreground">{pkg.packageName}</span>
+                                <Badge
+                                  variant={isFin ? 'secondary' : 'default'}
+                                  className={`text-[10px] py-0 px-1.5 ${
+                                    isFin ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20' : ''
+                                  }`}
+                                >
+                                  {isFin ? 'COMPLETED' : 'ACTIVE'}
+                                </Badge>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-0.5">
+                                Coach: <strong className="text-foreground">{pkg.trainerName || 'Assigned Coach'}</strong> · {pkg.startDate} → {pkg.expiryDate || 'No expiry'}
+                              </p>
+                            </div>
+                            {canManage && !isFin && (
+                              <Button
+                                size="sm"
+                                onClick={() => {
+                                  setSelectedPtPackage(pkg);
+                                  setIsLogPtSessionOpen(true);
+                                }}
+                                className="h-7 text-xs gap-1 font-semibold"
+                              >
+                                <Dumbbell className="size-3" /> Log Session
+                              </Button>
+                            )}
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-xs font-mono">
+                              <span className="text-muted-foreground">
+                                {comp} of {tot} sessions completed ({pct}%)
+                              </span>
+                              <span className={isFin ? 'text-emerald-500 font-bold' : 'text-primary font-bold'}>
+                                {isFin ? 'All Completed' : `${rem} sessions left`}
+                              </span>
+                            </div>
+                            <Progress value={pct} className="h-2" />
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {/* Member's logged sessions history */}
+                    {(ptSessionsData?.sessions || []).length > 0 && (
+                      <div className="pt-2">
+                        <p className="text-xs font-semibold text-foreground mb-2 flex items-center gap-1.5">
+                          <Activity className="size-3.5 text-primary" /> Logged Sessions History ({ptSessionsData!.sessions.length})
+                        </p>
+                        <div className="divide-y divide-border/60 border border-border/60 rounded-xl overflow-hidden bg-muted/10">
+                          {ptSessionsData!.sessions.slice(0, 5).map((s) => (
+                            <div key={s.id} className="p-2.5 px-3.5 text-xs flex items-center justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-2">
+                                  <Badge variant="outline" className="text-[10px] font-mono py-0 px-1 bg-background">
+                                    #{s.sessionNumber}
+                                  </Badge>
+                                  <span className="text-[11px] font-semibold text-foreground">{s.sessionDate}</span>
+                                  <span className="text-[11px] text-muted-foreground">by {s.trainerName || 'Coach'}</span>
+                                </div>
+                                {s.notes && (
+                                  <p className="text-[11px] font-mono text-muted-foreground truncate mt-0.5">
+                                    {s.notes}
+                                  </p>
+                                )}
+                              </div>
+                              {s.signedOffByMember && (
+                                <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 shrink-0 border-emerald-500/20">
+                                  Signed
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </CardContent>
             </Card>
 
@@ -667,6 +830,29 @@ export const MemberDetailPage: React.FC = () => {
         paymentId={invoicePaymentId}
         open={!!invoicePaymentId}
         onOpenChange={(open) => !open && setInvoicePaymentId(null)}
+      />
+
+      <CreatePtPackageDialog
+        open={isPtPackageOpen}
+        onOpenChange={setIsPtPackageOpen}
+        initialMemberId={memberId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['memberPtPackages', memberId] });
+        }}
+      />
+
+      <LogPtSessionDialog
+        open={isLogPtSessionOpen}
+        onOpenChange={(open) => {
+          setIsLogPtSessionOpen(open);
+          if (!open) setSelectedPtPackage(null);
+        }}
+        selectedPackage={selectedPtPackage}
+        memberId={memberId}
+        onSuccess={() => {
+          queryClient.invalidateQueries({ queryKey: ['memberPtPackages', memberId] });
+          queryClient.invalidateQueries({ queryKey: ['memberPtSessions', memberId] });
+        }}
       />
     </AppShell>
   );

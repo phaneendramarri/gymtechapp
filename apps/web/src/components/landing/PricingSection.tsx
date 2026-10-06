@@ -91,27 +91,27 @@ export const PricingSection: React.FC = () => {
 
           {/* Toggle */}
           <motion.div {...fadeUp(0.08)} className="flex items-center justify-center gap-3 mt-8">
-            <span className={`text-sm font-medium transition-colors ${!yearly ? 'text-ink' : 'text-ink-3'}`}>
-              Monthly
+            <span className={`text-sm font-semibold transition-colors ${!yearly ? 'text-ink' : 'text-ink-3'}`}>
+              Billed Monthly
             </span>
             <button
               type="button"
               role="switch"
               aria-checked={yearly}
               onClick={() => setYearly(!yearly)}
-              className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors bg-line"
+              className="relative inline-flex h-7 w-13 items-center rounded-full transition-colors bg-surface-2 border border-line p-1 cursor-pointer"
             >
-              <span
-                className={`inline-block size-4 rounded-full bg-surface shadow-sm transition-transform ${
-                  yearly ? 'translate-x-6' : 'translate-x-1'
-                }`}
+              <motion.span
+                animate={{ x: yearly ? 24 : 2 }}
+                transition={{ type: 'spring', stiffness: 500, damping: 30 }}
+                className="inline-block size-5 rounded-full bg-iron shadow-sm"
               />
             </button>
-            <span className={`text-sm font-medium transition-colors ${yearly ? 'text-ink' : 'text-ink-3'}`}>
-              Yearly
+            <span className={`text-sm font-semibold transition-colors ${yearly ? 'text-ink' : 'text-ink-3'}`}>
+              Annual Billing
             </span>
-            <span className="ml-1 text-[11px] font-mono px-2 py-0.5 rounded-full bg-positive-soft text-positive">
-              Save 2 months
+            <span className="ml-1 text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+              ⚡ 2 MONTHS FREE (17% OFF)
             </span>
           </motion.div>
         </motion.div>

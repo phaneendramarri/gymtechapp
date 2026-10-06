@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Check } from 'lucide-react';
+import { ArrowRight, Check, Dumbbell, Zap, Flame, Activity } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { HeroProductDemo } from '@/components/landing/HeroProductDemo';
 
@@ -15,6 +15,12 @@ const TRUST_ITEMS = [
   'No credit card required',
   'Setup in under 30 min',
   'Free member import',
+];
+
+const GYM_LIVE_HIGHLIGHTS = [
+  { icon: Zap, label: '0.8s QR & Face Turnstile Pass' },
+  { icon: Dumbbell, label: 'Live Workout & PT Quota Tracking' },
+  { icon: Flame, label: 'Automated WhatsApp Renewals' },
 ];
 
 export const HeroSection: React.FC = () => {
@@ -47,13 +53,13 @@ export const HeroSection: React.FC = () => {
       </div>
 
       {/* ── Eyebrow ── */}
-      <motion.div {...fadeUp(0)} className="relative mb-8">
-        <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-line bg-surface text-[11px] font-semibold text-ink-2 tracking-wide shadow-sm">
+      <motion.div {...fadeUp(0)} className="relative mb-6">
+        <span className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 text-[11px] font-mono font-bold text-orange-500 tracking-wide shadow-xs">
           <span className="relative flex size-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-iron opacity-75" />
-            <span className="relative inline-flex size-2 rounded-full bg-iron shadow-[0_0_0_2px_var(--iron-soft)]" />
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-500 opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-orange-500" />
           </span>
-          Built for gyms across India
+          #1 GYM MANAGEMENT SAAS · BUILT FOR HIGH-VOLUME INDIAN GYMS
         </span>
       </motion.div>
 
@@ -63,21 +69,42 @@ export const HeroSection: React.FC = () => {
           className="font-display text-5xl sm:text-6xl lg:text-7xl font-semibold tracking-tight leading-[1.02] text-ink"
           style={{ letterSpacing: '-0.025em' }}
         >
-          The gym OS that{' '}
+          The Gym Management SaaS that{' '}
           <span style={{ color: 'var(--iron)' }}>runs your gym</span>.
           <br />
-          Not another app to ignore.
+          Not another spreadsheet to ignore.
         </h1>
       </motion.div>
 
       {/* ── Sub-headline ── */}
       <motion.p
         {...fadeUp(0.16)}
-        className="relative text-center text-base sm:text-lg text-ink-2 max-w-2xl mx-auto leading-relaxed mt-7 px-4"
+        className="relative text-center text-base sm:text-lg text-ink-2 max-w-2xl mx-auto leading-relaxed mt-6 px-4"
       >
-        Members, memberships, payments, QR check-ins, GST invoices, PT commissions —
-        all in one dashboard your staff will actually open every morning.
+        Biometric turnstiles, automated WhatsApp fee renewals, 18% GST invoices, personal training quotas, and member self-service passes —
+        all in one unified cloud operating system your staff will actually open every morning.
       </motion.p>
+
+      {/* ── Real Gym Live Activity Strip ── */}
+      <motion.div
+        {...fadeUp(0.20)}
+        className="relative flex flex-wrap items-center justify-center gap-3 mt-6 px-4"
+      >
+        {GYM_LIVE_HIGHLIGHTS.map((item, idx) => {
+          const Icon = item.icon;
+          return (
+            <div
+              key={idx}
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-2/80 border border-border text-xs font-medium text-ink shadow-xs backdrop-blur-sm"
+            >
+              <span className="size-5 rounded-full bg-orange-500/15 text-orange-500 flex items-center justify-center">
+                <Icon className="size-3" />
+              </span>
+              <span>{item.label}</span>
+            </div>
+          );
+        })}
+      </motion.div>
 
       {/* ── CTAs ── */}
       <motion.div
@@ -122,10 +149,10 @@ export const HeroSection: React.FC = () => {
         ))}
       </motion.div>
 
-      {/* ── Animated product demo ── */}
+      {/* ── Interactive Management Platform Demo ── */}
       <motion.div
-        {...fadeUp(0.4)}
-        className="relative w-full max-w-5xl mx-auto mt-16 px-4"
+        {...fadeUp(0.35)}
+        className="relative w-full max-w-5xl mx-auto mt-12 px-4 flex justify-center"
       >
         <HeroProductDemo />
       </motion.div>

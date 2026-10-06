@@ -53,6 +53,13 @@ export class MemberRepository {
       } else if (params.status === 'ACTIVE') {
         whereParts.push(`m.status = 'ACTIVE'`);
         whereParts.push(`(ms.endDate IS NULL OR ms.endDate >= unixepoch())`);
+      } else if (params.status === 'AT_RISK') {
+        whereParts.push(`m.status = 'ACTIVE'`);
+        whereParts.push(`(ms.endDate IS NULL OR ms.endDate >= unixepoch())`);
+        whereParts.push(`NOT EXISTS (
+          SELECT 1 FROM attendance a
+          WHERE a.memberId = m.id AND a.gymId = m.gymId AND a.checkInTime >= unixepoch() - (7 * 86400)
+        )`);
       } else {
         whereParts.push(`m.status = ?`);
         bindings.push(params.status);
@@ -154,6 +161,12 @@ export class MemberRepository {
         ))`);
       } else if (params.status === 'ACTIVE') {
         whereParts.push(`status = 'ACTIVE'`);
+      } else if (params.status === 'AT_RISK') {
+        whereParts.push(`status = 'ACTIVE'`);
+        whereParts.push(`NOT EXISTS (
+          SELECT 1 FROM attendance a
+          WHERE a.memberId = members.id AND a.gymId = members.gymId AND a.checkInTime >= unixepoch() - (7 * 86400)
+        )`);
       } else {
         whereParts.push(`status = ?`);
         bindings.push(params.status);
@@ -172,7 +185,7 @@ export class MemberRepository {
   }
 
   async countSummary(params: { now: number; sevenDays: number }): Promise<{
-    total: number; active: number; expiring: number; frozen: number; blocked: number; expired: number;
+    total: number; active: number; expiring: number; frozen: number; blocked: number; expired: number; atRisk?: number;
   }> {
     // L8: Single-query summary counts using current membership status.
     // gymId is bound, not interpolated.
@@ -185,13 +198,14 @@ export class MemberRepository {
       )
       WHERE m.gymId = ? AND m.deletedAt IS NULL`;
 
-    const [total, active, frozen, blocked, expiring, expired] = await Promise.all([
+    const [total, active, frozen, blocked, expiring, expired, atRisk] = await Promise.all([
       this.d1.prepare(`SELECT COUNT(*) as c ${base}`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
       this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
       this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'FROZEN'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
       this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'BLOCKED'`).bind(this.gymId).first() as Promise<{ c: number } | undefined>,
       this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE' AND ms.endDate BETWEEN ? AND ?`).bind(this.gymId, params.now, params.sevenDays).first() as Promise<{ c: number } | undefined>,
       this.d1.prepare(`SELECT COUNT(*) as c ${base} AND (m.status = 'EXPIRED' OR (ms.status = 'ACTIVE' AND ms.endDate IS NOT NULL AND ms.endDate < ?))`).bind(this.gymId, params.now).first() as Promise<{ c: number } | undefined>,
+      this.d1.prepare(`SELECT COUNT(*) as c ${base} AND ms.status = 'ACTIVE' AND NOT EXISTS (SELECT 1 FROM attendance a WHERE a.memberId = m.id AND a.gymId = m.gymId AND a.checkInTime >= ?)`).bind(this.gymId, params.now - 7 * 86400).first() as Promise<{ c: number } | undefined>,
     ]);
 
     return {
@@ -201,6 +215,7 @@ export class MemberRepository {
       blocked: blocked?.c ?? 0,
       expiring: expiring?.c ?? 0,
       expired: expired?.c ?? 0,
+      atRisk: atRisk?.c ?? 0,
     };
   }
 

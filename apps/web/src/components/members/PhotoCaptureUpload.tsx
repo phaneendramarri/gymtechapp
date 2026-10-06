@@ -22,6 +22,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isCapturingWebcam, setIsCapturingWebcam] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -49,11 +50,12 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
   // Clean up media tracks when component unmounts
   useEffect(() => {
     return () => {
-      if (stream) {
-        stream.getTracks().forEach((track) => track.stop());
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
       }
     };
-  }, [stream]);
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -114,6 +116,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
         video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
         audio: false,
       });
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       setIsCapturingWebcam(true);
       loadFaceApiModels().catch(() => {});
@@ -167,10 +170,11 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
   };
 
   const stopWebcam = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
+    setStream(null);
     setIsCapturingWebcam(false);
   };
 

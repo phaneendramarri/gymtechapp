@@ -62,6 +62,28 @@ export const KioskPage: React.FC = () => {
     setInputCode('');
   };
 
+  // Support hardware USB barcode scanners & keyboard typing
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (checkInResult) return;
+      if (e.key >= '0' && e.key <= '9') {
+        if (inputCode.length < 10) {
+          setInputCode((prev) => prev + e.key);
+        }
+      } else if (e.key === 'Backspace') {
+        setInputCode((prev) => prev.slice(0, -1));
+      } else if (e.key === 'Escape') {
+        setInputCode('');
+      } else if (e.key === 'Enter') {
+        if (inputCode.trim()) {
+          submitCheckIn();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [checkInResult, inputCode]);
+
   const submitCheckIn = async (codeToUse?: string) => {
     const code = (codeToUse || inputCode).trim();
     if (!code) return;

@@ -375,7 +375,7 @@ export const MemberPortalPage: React.FC = () => {
                         <div className="flex items-center justify-between">
                           <h4 className="font-semibold text-sm text-foreground">{slot.className}</h4>
                           <span className="text-xs font-mono text-muted-foreground">
-                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][slot.dayOfWeek]}
+                            {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][slot.dayOfWeek] || 'Weekly'}
                           </span>
                         </div>
                         <div className="mt-2 space-y-1 text-xs text-muted-foreground">
@@ -420,13 +420,22 @@ export const MemberPortalPage: React.FC = () => {
               ) : (
                 <div className="space-y-4">
                   {memberPtData.packages.map((pkg: any) => {
-                    const remaining = pkg.totalSessions - pkg.usedSessions;
-                    const percent = Math.round((pkg.usedSessions / pkg.totalSessions) * 100);
+                    const completed = pkg.completedSessions ?? pkg.usedSessions ?? 0;
+                    const remaining = Math.max(0, pkg.totalSessions - completed);
+                    const percent = Math.min(100, Math.round((completed / pkg.totalSessions) * 100));
+                    const isDone = completed >= pkg.totalSessions;
                     return (
                       <div key={pkg.id} className="p-4 rounded-xl border border-border bg-secondary/20 space-y-3">
                         <div className="flex items-center justify-between">
                           <div>
-                            <h4 className="font-semibold text-sm text-foreground">{pkg.packageName}</h4>
+                            <h4 className="font-semibold text-sm text-foreground flex items-center gap-2">
+                              {pkg.packageName}
+                              {isDone && (
+                                <Badge variant="secondary" className="text-[10px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                  Goal Reached
+                                </Badge>
+                              )}
+                            </h4>
                             <p className="text-xs text-muted-foreground">Trainer: {pkg.trainerName || 'Assigned Trainer'}</p>
                           </div>
                           <Badge variant={pkg.status === 'ACTIVE' ? 'default' : 'outline'}>{pkg.status}</Badge>
@@ -434,11 +443,13 @@ export const MemberPortalPage: React.FC = () => {
 
                         <div className="space-y-1">
                           <div className="flex justify-between text-xs font-mono">
-                            <span>{pkg.usedSessions} of {pkg.totalSessions} sessions completed</span>
-                            <span className="font-bold text-primary">{remaining} remaining</span>
+                            <span>{completed} of {pkg.totalSessions} sessions completed ({percent}%)</span>
+                            <span className={isDone ? 'font-bold text-emerald-500' : 'font-bold text-primary'}>
+                              {isDone ? 'Completed' : `${remaining} remaining`}
+                            </span>
                           </div>
                           <div className="w-full bg-secondary h-2 rounded-full overflow-hidden">
-                            <div className="bg-primary h-full transition-all" style={{ width: `${percent}%` }} />
+                            <div className={`h-full transition-all ${isDone ? 'bg-emerald-500' : 'bg-primary'}`} style={{ width: `${percent}%` }} />
                           </div>
                         </div>
                       </div>
@@ -450,15 +461,29 @@ export const MemberPortalPage: React.FC = () => {
               {/* Workout Sessions Log */}
               {memberPtSessions?.sessions && memberPtSessions.sessions.length > 0 && (
                 <div className="pt-3 border-t border-border space-y-2">
-                  <h4 className="text-xs font-semibold text-foreground uppercase font-mono">Trainer Session Logs</h4>
-                  <div className="divide-y divide-border">
+                  <h4 className="text-xs font-semibold text-foreground uppercase font-mono">Trainer Session Logs & Exercises</h4>
+                  <div className="divide-y divide-border/60 border border-border/60 rounded-xl overflow-hidden bg-card/50">
                     {memberPtSessions.sessions.map((s: any) => (
-                      <div key={s.id} className="py-2.5 flex items-center justify-between text-xs">
-                        <div>
-                          <p className="font-medium text-foreground">{s.notes || 'PT Workout Session'}</p>
-                          <p className="text-[11px] text-muted-foreground">Trainer: {s.trainerName} • {s.sessionDate}</p>
+                      <div key={s.id} className="p-3 text-xs space-y-1">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline" className="text-[10px] font-mono py-0 px-1 bg-background">
+                              Session #{s.sessionNumber}
+                            </Badge>
+                            <span className="font-semibold text-foreground">Coach {s.trainerName || 'Trainer'}</span>
+                            <span className="text-muted-foreground font-mono text-[11px]">· {s.sessionDate}</span>
+                          </div>
+                          {s.signedOffByMember && (
+                            <Badge variant="secondary" className="text-[9px] bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20">
+                              <CheckCircle2 className="size-2.5 mr-1 inline" /> Verified
+                            </Badge>
+                          )}
                         </div>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0" />
+                        {s.notes && (
+                          <div className="bg-muted/40 p-2 rounded border border-border/40 font-mono text-[11px] text-foreground whitespace-pre-line mt-1">
+                            {s.notes}
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>

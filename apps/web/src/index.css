@@ -151,29 +151,29 @@
 
 :root,
 .light {
-  /* Canvas & Surfaces — Warm Stone (soft, anti-fatigue, no pure white glare) */
-  --bg: #F5F3F0;              /* base canvas */
-  --surface: #FDFCFA;          /* cards, panels, popovers */
-  --surface-2: #F0EEEB;        /* secondary buttons, row hovers, control bgs */
-  --surface-3: #EAE7E3;        /* recessed panels, table headers, active tabs */
-  --sidebar-bg: #EFECE8;       /* distinct left sidebar rail */
-  --cream: #F7F1E5;            /* marketing warm band */
-  --backdrop: rgba(28, 25, 20, 0.45); /* warm dialog overlay */
+  /* Canvas & Surfaces — Crisp, anti-fatigue neutral modern canvas */
+  --bg: #FAFAF9;              /* clean base canvas (warm stone-50) */
+  --surface: #FFFFFF;          /* crisp cards, panels, popovers */
+  --surface-2: #F5F5F4;        /* secondary buttons, row hovers, control bgs */
+  --surface-3: #EAEAE7;        /* recessed panels, table headers, active tabs */
+  --sidebar-bg: #F4F3F0;       /* distinct left sidebar rail */
+  --cream: #FAF6ED;            /* marketing warm band */
+  --backdrop: rgba(24, 24, 27, 0.45); /* dialog overlay */
 
-  /* Inks (Typography) — Warm Charcoal (WCAG AAA compliant) */
-  --ink: #1A1816;              /* primary headings & body (14.8:1 contrast) */
-  --ink-2: #44403C;            /* secondary labels & descriptions (8.2:1) */
-  --ink-3: #78716C;            /* muted text, placeholders, metadata (4.6:1) */
-  --ink-inverse: #FAF9F7;      /* text on dark pills & tooltips */
-  --disabled-ink: #A8A29E;
+  /* Inks (Typography) — Rich Charcoal */
+  --ink: #18181B;              /* primary headings & body (15:1 contrast) */
+  --ink-2: #3F3F46;            /* secondary labels & descriptions (8.5:1) */
+  --ink-3: #71717A;            /* muted text, placeholders, metadata (4.8:1) */
+  --ink-inverse: #FAFAFA;      /* text on dark pills & tooltips */
+  --disabled-ink: #A1A1AA;
 
   /* Borders & Hairlines */
-  --line: #E7E5E0;             /* standard card & panel hairlines */
-  --line-2: #EFECEA;           /* interior dividers & subtle rows */
-  --line-input: #D6D3CD;       /* 3:1 contrast form control boundary */
+  --line: #E4E4E7;             /* standard card & panel hairlines */
+  --line-2: #F0F0F2;           /* interior dividers & subtle rows */
+  --line-input: #D4D4D8;       /* 3:1 contrast form control boundary */
 
   /* Brand Scale: Iron Orange (#FB923C) */
-  --iron-50: #FFF8F1;          /* delicate brand tint */
+  --iron-50: #FFF7ED;          /* delicate brand tint */
   --iron-100: #FFEDD5;         /* badge background */
   --iron-200: #FED7AA;         /* subtle brand border */
   --iron-300: #FDBA74;         /* focus ring helper */
@@ -190,8 +190,8 @@
   --iron-hover: #C2410C;       /* primary button hover */
   --iron-active: #9A3412;      /* primary button active */
   --iron-text: #C2410C;        /* text links & active nav text */
-  --iron-soft: rgba(251, 146, 60, 0.10);
-  --iron-border: rgba(251, 146, 60, 0.25);
+  --iron-soft: rgba(251, 146, 60, 0.12);
+  --iron-border: rgba(251, 146, 60, 0.28);
   --iron-ink: #FFFFFF;
 
   /* Warm Secondary Accent — Clay */
@@ -234,13 +234,25 @@
   --chart-4: #8B5CF6;          /* Amethyst Purple */
   --chart-5: #D97706;          /* Warm Amber */
 
-  /* Design system compatibility aliases */
+  /* shadcn UI & Design System Variable Compatibility */
   --fg: var(--ink);
   --border: var(--line);
   --surface-hover: var(--surface-2);
   --ink-4: var(--disabled-ink);
   --accent: var(--iron-solid);
   --white: #FFFFFF;
+  --primary: var(--iron-solid);
+  --primary-foreground: var(--iron-ink);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-3);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --input: var(--line-input);
+  --ring: var(--focus-ring);
 }
 
 .dark {
@@ -322,6 +334,18 @@
   --ink-4: var(--disabled-ink);
   --accent: var(--iron-solid);
   --white: #FFFFFF;
+  --primary: var(--iron-solid);
+  --primary-foreground: var(--iron-ink);
+  --secondary: var(--surface-2);
+  --secondary-foreground: var(--ink);
+  --muted: var(--surface-2);
+  --muted-foreground: var(--ink-3);
+  --card: var(--surface);
+  --card-foreground: var(--ink);
+  --popover: var(--surface);
+  --popover-foreground: var(--ink);
+  --input: var(--line-input);
+  --ring: var(--focus-ring);
 }
 
 /* =========================================================================

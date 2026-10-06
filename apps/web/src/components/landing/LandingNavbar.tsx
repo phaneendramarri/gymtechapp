@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Menu, X, ArrowRight } from 'lucide-react';
+import { Menu, X, ArrowRight, Zap, Dumbbell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import { useAuth } from '@/lib/auth';
@@ -25,10 +25,16 @@ export const LandingNavbar: React.FC<LandingNavbarProps> = ({ isScrolled, active
       }`}
     >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
-        {/* Brand Logo */}
-        <Link to="/" className="flex items-center">
-          <Logo />
-        </Link>
+        {/* Brand Logo & Live Gym Status */}
+        <div className="flex items-center gap-3">
+          <Link to="/" className="flex items-center">
+            <Logo animated showPulse />
+          </Link>
+          <div className="hidden lg:inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-orange-500/10 border border-orange-500/20 text-[10px] font-mono font-bold text-orange-500">
+            <span className="size-1.5 rounded-full bg-orange-500 animate-pulse" />
+            <span>LIVE GYM OS</span>
+          </div>
+        </div>
 
         {/* Desktop Navigation Links */}
         <nav className="hidden md:flex items-center gap-8 text-[13px] text-muted-foreground tracking-wide font-medium">

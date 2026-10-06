@@ -15,6 +15,9 @@ import {
   Loader2,
   Shield,
   Sparkles,
+  Zap,
+  Flame,
+  Trophy,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/lib/auth';
@@ -22,6 +25,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Logo } from '@/components/shared/Logo';
+import { GymBarbellAnimation } from '@/components/shared/GymBarbellAnimation';
 import { ThemeToggle } from '@/components/layout/ThemeToggle';
 import {
   Dialog,
@@ -155,17 +159,21 @@ export const LoginPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-bg text-ink selection:bg-iron-soft selection:text-ink">
+    <div className="min-h-screen lg:h-screen lg:overflow-hidden flex flex-col bg-bg text-ink selection:bg-iron-soft selection:text-ink">
       {/* Top bar */}
-      <header className="px-6 lg:px-10 py-5 flex items-center justify-between">
+      <header className="px-6 lg:px-8 py-2.5 flex items-center justify-between border-b border-line backdrop-blur-sm shrink-0">
         <a href="/" className="inline-flex items-center">
-          <Logo size="md" />
+          <Logo size="md" animated showPulse />
         </a>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <div className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-iron-soft border border-iron/20 text-[10px] font-mono font-semibold text-iron">
+            <span className="size-1.5 rounded-full bg-iron animate-pulse" />
+            LIVE GYM OS
+          </div>
           <ThemeToggle />
           <Link
             to="/"
-            className="text-xs text-ink-3 hover:text-ink transition-colors px-3 py-2"
+            className="text-xs text-ink-3 hover:text-ink transition-colors px-2 py-1 font-medium"
           >
             ← Back to site
           </Link>
@@ -173,69 +181,88 @@ export const LoginPage: React.FC = () => {
       </header>
 
       {/* Body — split layout on desktop */}
-      <main className="flex-1 grid lg:grid-cols-2 min-h-0">
-        {/* LEFT — quiet marketing panel */}
-        <aside className="hidden lg:flex flex-col justify-between p-12 xl:p-16 border-r border-(--line) bg-(--surface)">
-          <div className="max-w-md">
-            <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Built for Indian gyms</p>
-            <h1 className="text-display-serif text-(--ink) mt-4">
-              Run your gym <span className="text-italic-accent">without</span> the spreadsheets.
-            </h1>
-            <p className="text-body text-ink-2 mt-5 leading-relaxed">
-              Member records, payments, attendance, PT commissions, GST invoices — in one place your staff will actually use.
-            </p>
-          </div>
-
-          <ul className="flex flex-col gap-5 max-w-md">
-            {[
-              { icon: <Dumbbell className="h-4 w-4" />, text: 'Members check themselves in by face ID, QR, or PIN — no paper.' },
-              { icon: <Sparkles className="h-4 w-4" />, text: 'WhatsApp renewals and receipts with one tap.' },
-              { icon: <Shield className="h-4 w-4" />, text: 'Every payment, every freeze, every change — fully audited.' },
-            ].map((p, i) => (
-              <li key={i} className="flex items-start gap-3">
-                <span className="size-7 rounded-md bg-iron-soft text-iron flex items-center justify-center shrink-0 mt-0.5">
-                  {p.icon}
+      <main className="flex-1 grid lg:grid-cols-2 min-h-0 overflow-hidden">
+        {/* LEFT — High-Energy Gym Operations Stage */}
+        <aside className="hidden lg:flex flex-col justify-center items-center p-6 xl:p-10 border-r border-(--line) bg-(--surface) text-(--ink) relative overflow-hidden">
+          <div className="w-full max-w-md xl:max-w-lg mx-auto my-auto flex flex-col justify-center gap-5 relative z-10">
+            <div>
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-iron-soft border border-iron/30 text-[10px] font-mono font-bold text-iron">
+                <Zap className="size-3 fill-iron" />
+                <span>THE IRON DISCIPLINE OS</span>
+              </div>
+              <h1 className="text-2xl xl:text-3xl font-extrabold tracking-tight text-ink mt-2 leading-snug font-display">
+                Heavy Iron. <br />
+                <span className="text-iron">
+                  Zero Spreadsheets.
                 </span>
-                <span className="text-sm text-ink-2 leading-relaxed">{p.text}</span>
-              </li>
-            ))}
-          </ul>
+              </h1>
+              <p className="text-xs text-ink-2 mt-1.5 leading-relaxed">
+                Biometric check-ins, personal training session quotas, live workout ledgers, and automated GST receipts.
+              </p>
+            </div>
 
-          <p className="text-[11px] text-ink-3 mt-12 max-w-md">
-            Trusted by independent gyms across India. © {new Date().getFullYear()} GymTech.
-          </p>
+            {/* Center Gym Barbell Animation */}
+            <div className="w-full">
+              <GymBarbellAnimation interactive={true} variant="full" />
+            </div>
+
+            {/* Bottom Gym Accents */}
+            <div className="grid grid-cols-3 gap-2 pt-3 border-t border-(--line) text-ink-2">
+              <div className="flex flex-col">
+                <span className="text-[9px] font-mono text-iron font-bold uppercase flex items-center gap-1">
+                  <Zap className="size-2.5" /> Turnstile
+                </span>
+                <span className="text-xs font-semibold text-ink mt-0.5">0.8s Check-in</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-mono text-iron font-bold uppercase flex items-center gap-1">
+                  <Dumbbell className="size-2.5" /> Workout Reps
+                </span>
+                <span className="text-xs font-semibold text-ink mt-0.5">Live PT Logging</span>
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[9px] font-mono text-iron font-bold uppercase flex items-center gap-1">
+                  <Shield className="size-2.5" /> Iron-Clad
+                </span>
+                <span className="text-xs font-semibold text-ink mt-0.5">Zero Leakage</span>
+              </div>
+            </div>
+          </div>
         </aside>
 
         {/* RIGHT — the form */}
-        <section className="flex flex-col justify-center px-6 sm:px-10 lg:px-16 py-12">
-          <div className="max-w-sm w-full mx-auto">
-            {/* Mode switcher */}
-            <div className="inline-flex p-1 bg-muted rounded-full mb-8 border border-border" role="tablist">
+        <section className="flex flex-col justify-center items-center px-6 sm:px-10 lg:px-12 py-4 lg:py-6 bg-(--bg) text-(--ink) relative overflow-y-auto">
+          <div className="max-w-sm xl:max-w-md w-full mx-auto my-auto flex flex-col justify-center">
+
+            {/* Mode switcher — perfectly centered 50/50 tabs */}
+            <div className="grid grid-cols-2 p-1 bg-(--surface-2) rounded-xl mb-4 border border-(--line) w-full shadow-2xs" role="tablist">
               <button
                 type="button"
                 onClick={() => { setMode('STAFF'); setError(null); setGymSlug(''); setMemberIdentifier(''); setMemberCode(''); }}
-                className={`px-4 h-8 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                className={`h-8 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${
                   mode === 'STAFF'
-                    ? 'bg-background text-foreground shadow-xs dark:bg-card dark:text-foreground dark:border dark:border-border'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-(--surface) text-(--ink) shadow-xs border border-(--line)'
+                    : 'text-(--ink-3) hover:text-(--ink)'
                 }`}
                 role="tab"
                 aria-selected={mode === 'STAFF'}
               >
-                <span className="inline-flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5" /> Gym staff</span>
+                <Dumbbell className="h-3.5 w-3.5 text-(--iron)" />
+                <span>Gym Staff</span>
               </button>
               <button
                 type="button"
                 onClick={() => { setMode('MEMBER'); setError(null); setGymSlug(''); }}
-                className={`px-4 h-8 text-xs font-semibold rounded-full transition-all cursor-pointer ${
+                className={`h-8 text-xs font-semibold rounded-lg transition-all cursor-pointer flex items-center justify-center gap-2 ${
                   mode === 'MEMBER'
-                    ? 'bg-background text-foreground shadow-xs dark:bg-card dark:text-foreground dark:border dark:border-border'
-                    : 'text-muted-foreground hover:text-foreground'
+                    ? 'bg-(--surface) text-(--ink) shadow-xs border border-(--line)'
+                    : 'text-(--ink-3) hover:text-(--ink)'
                 }`}
                 role="tab"
                 aria-selected={mode === 'MEMBER'}
               >
-                <span className="inline-flex items-center gap-1.5"><User className="h-3.5 w-3.5" /> Member</span>
+                <User className="h-3.5 w-3.5 text-(--iron)" />
+                <span>Member Pass</span>
               </button>
             </div>
 
@@ -245,31 +272,31 @@ export const LoginPage: React.FC = () => {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
             >
-              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
-                {mode === 'STAFF' ? 'Owner / manager / staff' : 'Self-service'}
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                {mode === 'STAFF' ? 'Owner / Trainer / Front Desk' : 'Self-service Athlete Hub'}
               </p>
-              <h2 className="text-h1 text-ink mt-2.5">
-                {mode === 'STAFF' ? 'Sign in to your console' : 'Open your member pass'}
+              <h2 className="text-xl font-bold text-ink mt-0.5 font-display">
+                {mode === 'STAFF' ? 'Sign in to Console' : 'Open Athlete Pass'}
               </h2>
-              <p className="text-meta mt-2 max-w-xs">
+              <p className="text-xs text-meta mt-0.5 max-w-xs">
                 {mode === 'STAFF'
-                  ? 'Manage members, payments, and renewals from one place.'
-                  : 'View your plan, payment history, and digital pass.'}
+                  ? 'Manage members, payments, workouts, and renewals.'
+                  : 'View workout logs, active plan, and digital entry pass.'}
               </p>
             </motion.div>
 
             {error && (
-              <div role="alert" className="mt-6 flex items-start gap-2 rounded-md border border-(--danger) bg-danger-soft px-3 py-2.5">
-                <AlertCircle className="h-3.5 w-3.5 text-(--danger) shrink-0 mt-0.5" aria-hidden="true" />
-                <p className="text-xs text-(--danger) leading-snug">{error}</p>
+              <div role="alert" className="mt-3 flex items-start gap-2 rounded-xl border border-destructive/40 bg-destructive/10 px-3 py-2">
+                <AlertCircle className="h-3.5 w-3.5 text-destructive shrink-0 mt-0.5" aria-hidden="true" />
+                <p className="text-xs text-destructive leading-snug">{error}</p>
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+            <form onSubmit={handleSubmit} className="mt-3 flex flex-col gap-2.5">
               {mode === 'STAFF' ? (
                 <>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="email" className="text-xs font-medium text-ink-2">Work email</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="email" className="text-[11px] font-medium text-ink-2">Work email</Label>
                     <div className="relative">
                       <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-ink-3" />
                       <Input
@@ -280,14 +307,14 @@ export const LoginPage: React.FC = () => {
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
                         placeholder="you@yourgym.com"
-                        className="pl-9 h-10 bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron) font-sans"
+                        className="pl-9 h-9 text-xs bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron) font-sans"
                       />
                     </div>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1">
                     <div className="flex items-center justify-between">
-                      <Label htmlFor="password" className="text-xs font-medium text-ink-2">Password</Label>
+                      <Label htmlFor="password" className="text-[11px] font-medium text-ink-2">Password</Label>
                       <button
                         type="button"
                         onClick={() => {
@@ -297,7 +324,7 @@ export const LoginPage: React.FC = () => {
                           setForgotError(null);
                           setForgotEmail(email);
                         }}
-                        className="text-[11px] text-(--iron) hover:underline font-medium"
+                        className="text-[10px] text-(--iron) hover:underline font-medium"
                       >
                         Forgot password?
                       </button>
@@ -312,7 +339,7 @@ export const LoginPage: React.FC = () => {
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         placeholder="••••••••"
-                        className="pl-9 pr-10 h-10 bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron)"
+                        className="pl-9 pr-10 h-9 text-xs bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron)"
                       />
                       <button
                         type="button"
@@ -328,8 +355,8 @@ export const LoginPage: React.FC = () => {
                 </>
               ) : (
                 <>
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="gymSlug" className="text-xs font-medium text-ink-2">Gym name</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="gymSlug" className="text-[11px] font-medium text-ink-2">Gym name</Label>
                     <Input
                       id="gymSlug"
                       required
@@ -337,15 +364,15 @@ export const LoginPage: React.FC = () => {
                       value={gymSlug}
                       onChange={(e) => setGymSlug(e.target.value)}
                       placeholder="fitpro-gym"
-                      className="h-10 bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron)"
+                      className="h-9 text-xs bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron)"
                     />
-                    <p className="text-[11px] text-ink-3 mt-0.5">
+                    <p className="text-[10px] text-ink-3">
                       Ask your gym for their web address (e.g. fitpro-gym).
                     </p>
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="memberIdentifier" className="text-xs font-medium text-ink-2">Registered phone or email</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="memberIdentifier" className="text-[11px] font-medium text-ink-2">Registered phone or email</Label>
                     <Input
                       id="memberIdentifier"
                       required
@@ -353,12 +380,12 @@ export const LoginPage: React.FC = () => {
                       value={memberIdentifier}
                       onChange={(e) => setMemberIdentifier(e.target.value)}
                       placeholder="9876543210 or rahul@gmail.com"
-                      className="h-10 bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron)"
+                      className="h-9 text-xs bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron)"
                     />
                   </div>
 
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="memberCode" className="text-xs font-medium text-ink-2">Member code</Label>
+                  <div className="flex flex-col gap-1">
+                    <Label htmlFor="memberCode" className="text-[11px] font-medium text-ink-2">Member code</Label>
                     <Input
                       id="memberCode"
                       required
@@ -368,9 +395,9 @@ export const LoginPage: React.FC = () => {
                       value={memberCode}
                       onChange={(e) => setMemberCode(e.target.value)}
                       placeholder="MEM-1001"
-                      className="h-10 bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron) font-mono uppercase"
+                      className="h-9 text-xs bg-(--surface) border-(--line) focus-visible:ring-1 focus-visible:ring-(--iron) focus-visible:border-(--iron) font-mono uppercase"
                     />
-                    <p className="text-[11px] text-ink-3 mt-0.5">
+                    <p className="text-[10px] text-ink-3">
                       On your WhatsApp receipt or digital pass.
                     </p>
                   </div>
@@ -381,7 +408,7 @@ export const LoginPage: React.FC = () => {
                 type="submit"
                 disabled={isLoading}
                 aria-busy={isLoading}
-                className="w-full bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) font-medium h-10 mt-2 gap-2"
+                className="w-full bg-(--ink) text-(--ink-inverse) hover:bg-ink-2 border-(--ink) font-medium h-9 text-xs mt-1 gap-2"
               >
                 {isLoading ? (
                   <>
@@ -397,14 +424,14 @@ export const LoginPage: React.FC = () => {
               </Button>
             </form>
 
-            <p className="text-[11px] text-ink-3 mt-6 leading-relaxed">
+            <p className="text-[10px] text-ink-3 mt-3 leading-relaxed text-center">
               By continuing you agree to GymTech's <Link to="/terms" className="underline underline-offset-2 hover:text-ink-2">Terms</Link> and <Link to="/privacy" className="underline underline-offset-2 hover:text-ink-2">Privacy</Link>.
             </p>
 
-            <div className="mt-5 pt-4 border-t border-line text-center text-xs text-ink-3">
+            <div className="mt-3 pt-2 border-t border-line text-center text-[11px] text-ink-3">
               Looking to register a new gym?{' '}
               <Link to="/contact" className="text-iron hover:underline font-medium">
-                Email us to start your free trial &rarr;
+                Start free trial &rarr;
               </Link>
             </div>
           </div>

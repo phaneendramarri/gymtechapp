@@ -179,14 +179,15 @@ export class ApiClientBase {
       if (res.status === 401) {
         setStoredRefreshToken(null);
 
-        const isAuthCheck = endpoint.startsWith('/api/auth/me') ||
-          endpoint.startsWith('/api/auth/csrf') ||
-          endpoint.startsWith('/api/auth/refresh') ||
-          endpoint.startsWith('/api/auth/login') ||
-          endpoint.startsWith('/api/auth/member-login') ||
-          endpoint.startsWith('/api/auth/forgot-password') ||
-          endpoint.startsWith('/api/auth/reset-password') ||
-          endpoint.startsWith('/api/auth/portal');
+        const isAuthCheck =
+          endpoint.includes('/auth/me') ||
+          endpoint.includes('/auth/csrf') ||
+          endpoint.includes('/auth/refresh') ||
+          endpoint.includes('/auth/login') ||
+          endpoint.includes('/auth/member-login') ||
+          endpoint.includes('/auth/forgot-password') ||
+          endpoint.includes('/auth/reset-password') ||
+          endpoint.includes('/auth/portal');
 
         const isPublicPath = typeof window !== 'undefined' && (
           window.location.pathname === '/' ||
@@ -235,7 +236,7 @@ export class ApiClientBase {
       const headers: Record<string, string> = { 'Content-Type': 'application/json' };
       if (storedCsrf) headers['X-CSRF-Token'] = storedCsrf;
 
-      const res = await fetch(`${API_BASE_URL}/api/auth/refresh`, {
+      const res = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: 'POST',
         headers,
         credentials: 'include',

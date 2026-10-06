@@ -114,3 +114,38 @@ describe('GST Invoice Split', () => {
     expect(taxAmount).toBe(0);
   });
 });
+
+describe('PT Package & Session Progress Invariants', () => {
+  it('calculates remaining sessions and progress percentage correctly', () => {
+    const totalSessions = 12;
+    const completedSessions = 5;
+
+    const remaining = Math.max(0, totalSessions - completedSessions);
+    const percent = Math.min(100, Math.round((completedSessions / totalSessions) * 100));
+
+    expect(remaining).toBe(7);
+    expect(percent).toBe(42);
+  });
+
+  it('clamps remaining sessions to 0 when all sessions are completed', () => {
+    const totalSessions = 12;
+    const completedSessions = 12;
+
+    const remaining = Math.max(0, totalSessions - completedSessions);
+    const percent = Math.min(100, Math.round((completedSessions / totalSessions) * 100));
+
+    expect(remaining).toBe(0);
+    expect(percent).toBe(100);
+  });
+
+  it('derives next session number and remaining after next session accurately', () => {
+    const totalSessions = 10;
+    const completedSessions = 4;
+    const nextSessionNumber = completedSessions + 1;
+    const remainingAfterNext = Math.max(0, totalSessions - nextSessionNumber);
+
+    expect(nextSessionNumber).toBe(5);
+    expect(remainingAfterNext).toBe(5);
+  });
+});
+

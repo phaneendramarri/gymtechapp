@@ -13,6 +13,7 @@ interface QRScannerProps {
 
 export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isProcessing = false }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [hasPermission, setHasPermission] = useState<boolean | null>(null);
@@ -30,6 +31,7 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isProcess
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } },
       });
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       setHasPermission(true);
       if (videoRef.current) {
@@ -43,10 +45,11 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isProcess
   };
 
   const stopCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
+    setStream(null);
   };
 
   const isDetectingRef = useRef(false);

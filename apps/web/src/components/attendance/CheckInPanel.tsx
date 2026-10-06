@@ -43,6 +43,8 @@ interface CheckInPanelProps {
   lastCheckedMember: {
     name: string;
     code: string;
+    phone?: string;
+    plan?: string;
     alreadyCheckedIn?: boolean;
     checkInTime?: string;
   } | null;
@@ -72,6 +74,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
 
   // --- FACE ID STATE ---
   const videoRef = useRef<HTMLVideoElement | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [cameraActive, setCameraActive] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -170,6 +173,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
         },
         audio: false,
       });
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       setCameraActive(true);
     } catch (err: any) {
@@ -184,10 +188,11 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
   };
 
   const stopWebcam = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => track.stop());
-      setStream(null);
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     }
+    setStream(null);
     setCameraActive(false);
   };
 
@@ -465,7 +470,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                 </Badge>
               </div>
               <span className="text-xs font-mono text-muted-foreground mt-0.5">
-                Code: {lastCheckedMember.code} · Logged at {lastCheckedMember.checkInTime}
+                Code: {lastCheckedMember.code} {lastCheckedMember.plan ? `· Plan: ${lastCheckedMember.plan}` : ''} · Logged at {lastCheckedMember.checkInTime}
               </span>
             </div>
           </div>

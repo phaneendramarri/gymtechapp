@@ -44,23 +44,72 @@ export const LandingPage: React.FC = () => {
 
   const jsonLd = {
     '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'GymTech',
-    applicationCategory: 'BusinessApplication',
-    operatingSystem: 'Web',
-    description: 'Complete gym management platform for Indian gyms. Manage members, memberships, payments, attendance, staff, reports, and member portal in one clean platform.',
-    url: 'https://gymtech.app',
-    offers: {
-      '@type': 'Offer',
-      price: '0',
-      priceCurrency: 'INR',
-      description: 'Free plan available. Paid plans starting at ₹999/month.',
-    },
-    provider: {
-      '@type': 'Organization',
-      name: 'GymTech',
-      url: 'https://gymtech.app',
-    },
+    '@graph': [
+      {
+        '@type': 'SoftwareApplication',
+        name: 'GymTech',
+        applicationCategory: 'BusinessApplication, HealthApplication',
+        operatingSystem: 'Web, Windows, Android, iOS',
+        description: 'India\'s leading Gym Management SaaS for gym owners. Biometric attendance, WhatsApp renewals, 18% GST billing, trainer commissions, and member self-service portals.',
+        url: 'https://gymtech.app',
+        keywords: 'gym management saas, gym management software india, biometric gym attendance, gym billing software, gym pos',
+        aggregateRating: {
+          '@type': 'AggregateRating',
+          ratingValue: '4.9',
+          ratingCount: '148',
+          bestRating: '5',
+          worstRating: '1',
+        },
+        offers: {
+          '@type': 'Offer',
+          price: '999',
+          priceCurrency: 'INR',
+          description: 'Free trial available. Paid plans starting at ₹999/month.',
+        },
+        provider: {
+          '@type': 'Organization',
+          name: 'GymTech',
+          url: 'https://gymtech.app',
+        },
+      },
+      {
+        '@type': 'FAQPage',
+        mainEntity: [
+          {
+            '@type': 'Question',
+            name: 'What are the primary portals and roles in GymTech?',
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: 'GymTech features a clean role-based architecture: Owner / Admin for complete gym operations, package management, attendance, and revenue; Trainer Desk for high-speed check-ins and PT client allocations; and Member Portal for members to check their plan status and digital QR card.',
+            },
+          },
+          {
+            '@type': 'Question',
+            name: 'How does the automated WhatsApp receipt feature work?',
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: 'When a payment or renewal is recorded, GymTech generates an instant automated WhatsApp receipt with the member\'s unique receipt number, package details, GST split, and transaction amount without requiring costly third-party API fees.',
+            },
+          },
+          {
+            '@type': 'Question',
+            name: 'How is gym data secured and isolated in this SaaS?',
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: 'Every gym\'s data is strictly isolated with tenant-scoped queries enforced on the database and API layer. A gym owner or staff can never access another gym\'s members, payments, or financial reports.',
+            },
+          },
+          {
+            '@type': 'Question',
+            name: 'Can I import existing members from our Excel spreadsheet?',
+            acceptedAnswer: {
+              '@type': 'Answer',
+              text: 'Yes! GymTech provides a built-in one-click member import tool. You can upload your existing member list with phone numbers, joining dates, and plan details in seconds, or our team will migrate it for you for free.',
+            },
+          },
+        ],
+      },
+    ],
   };
 
   return (

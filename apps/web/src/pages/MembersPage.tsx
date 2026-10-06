@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Plus, FileSpreadsheet, Search, X, Filter } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { Button } from '@/components/ui/button';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 const STATUS_TABS: { key: string; label: string }[] = [
   { key: 'ALL', label: 'All' },
   { key: 'ACTIVE', label: 'Active' },
+  { key: 'AT_RISK', label: 'At-risk (7d absent)' },
   { key: 'EXPIRING', label: 'Ending soon' },
   { key: 'FROZEN', label: 'Frozen' },
   { key: 'EXPIRED', label: 'Expired' },
@@ -23,14 +24,23 @@ const STATUS_TABS: { key: string; label: string }[] = [
 
 export const MembersPage: React.FC = () => {
   const { user } = useAuth();
+  const [searchParams] = useSearchParams();
   const isOwner = user?.role === 'OWNER' || Boolean(user?.isOwner);
   const canManage = isOwner || user?.permissions?.includes('members');
   const canAddMember = isOwner || user?.permissions?.includes('members');
 
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const initialStatus = searchParams.get('status') || 'ALL';
+  const [statusFilter, setStatusFilter] = useState(initialStatus);
   const [isMigrationOpen, setIsMigrationOpen] = useState(false);
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const qStatus = searchParams.get('status');
+    if (qStatus) {
+      setStatusFilter(qStatus);
+    }
+  }, [searchParams]);
 
   // Debounce the search input so each keystroke doesn't fire a request —
   // without this, fast typing causes out-of-order responses and server load.
@@ -101,10 +111,11 @@ export const MembersPage: React.FC = () => {
     >
       <ExcelMigrationDialog open={isMigrationOpen} onOpenChange={setIsMigrationOpen} />
 
-      {/* STATUS SUMMARY — five small tiles, hairline grid dividers */}
-      <div role="tablist" aria-label="Member status filters" className="grid grid-cols-2 sm:grid-cols-5 gap-px bg-border/70 border border-border rounded-2xl overflow-hidden shadow-2xs mb-6">
+      {/* STATUS SUMMARY — six small tiles, hairline grid dividers */}
+      <div role="tablist" aria-label="Member status filters" className="grid grid-cols-2 sm:grid-cols-6 gap-px bg-border/70 border border-border rounded-2xl overflow-hidden shadow-2xs mb-6">
         <SummaryCell label="Total" value={summary.total} active={statusFilter === 'ALL'} onClick={() => setStatusFilter('ALL')} />
         <SummaryCell label="Active" value={summary.active} active={statusFilter === 'ACTIVE'} onClick={() => setStatusFilter('ACTIVE')} tone="ok" />
+        <SummaryCell label="At-risk" value={(summary as any).atRisk ?? 0} active={statusFilter === 'AT_RISK'} onClick={() => setStatusFilter('AT_RISK')} tone="warn" hint="7d+ absent" />
         <SummaryCell label="Ending soon" value={summary.expiring} active={statusFilter === 'EXPIRING'} onClick={() => setStatusFilter('EXPIRING')} tone="warn" hint="in 7 days" />
         <SummaryCell label="Frozen" value={summary.frozen} active={statusFilter === 'FROZEN'} onClick={() => setStatusFilter('FROZEN')} />
         <SummaryCell label="Expired" value={summary.expired} active={statusFilter === 'EXPIRED'} onClick={() => setStatusFilter('EXPIRED')} tone="danger" />

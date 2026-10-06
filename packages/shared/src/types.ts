@@ -524,6 +524,7 @@ export interface PtPackage {
   memberCode?: string;
   trainerUserId: number;
   trainerName?: string;
+  packageName?: string;
   totalSessions: number;
   completedSessions: number;
   pricePaise: number;

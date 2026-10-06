@@ -27,6 +27,7 @@ interface FeatureDef {
   accent?: boolean;
   span?: 'col' | 'row' | 'wide';
   stat?: { value: string; label: string };
+  previewTag?: string;
 }
 
 const FEATURES: FeatureDef[] = [
@@ -35,6 +36,7 @@ const FEATURES: FeatureDef[] = [
     description: 'Full profiles with emergency contacts, medical notes, profile photos, and freeze history.',
     icon: Users,
     stat: { value: '143', label: 'active members' },
+    previewTag: '1-Click Freeze & Pause Active',
   },
   {
     title: 'Plans & Memberships',
@@ -42,39 +44,46 @@ const FEATURES: FeatureDef[] = [
     icon: Calendar,
     accent: true,
     stat: { value: '6', label: 'active plans' },
+    previewTag: 'Auto-Calculates 18% CGST + SGST',
   },
   {
     title: 'Billing & GST Invoices',
     description: 'UPI, cash, card. GST-compliant receipts sent over WhatsApp instantly.',
     icon: CreditCard,
     stat: { value: '₹4.5L', label: 'this month' },
+    previewTag: 'Instant WhatsApp PDF Receipt',
   },
   {
-    title: 'QR Check-in',
-    description: 'Members scan their digital card or enter phone number. Verified in under a second.',
+    title: 'QR & Face Turnstile Check-in',
+    description: 'Members scan digital passes or face ID. Hardware relay triggers in under 0.2 seconds.',
     icon: QrCode,
     span: 'wide',
+    previewTag: '0.18s Gate Unlock · Zero Tailgating',
   },
   {
     title: 'Attendance Tracking',
-    description: 'Daily log with trend charts. Know your peak hours and member engagement at a glance.',
+    description: 'Daily log with peak hour heatmaps. Know member engagement and floor volume at a glance.',
     icon: BarChart3,
+    previewTag: 'Peak Floor Hours: 6:00 - 8:30 PM',
   },
   {
     title: 'PT Commissions',
     description: 'Assign trainers to members. Track sessions delivered vs. paid automatically.',
     icon: Zap,
+    previewTag: 'Zero-Leakage Trainer Commission Ledger',
   },
   {
-    title: 'Staff Roles',
-    description: 'Receptionist, trainer, billing admin — each with exactly the access they need.',
+    title: 'Staff Roles & Security',
+    description: 'Receptionist, trainer, billing admin — each with strictly scoped access.',
     icon: Shield,
+    previewTag: 'Scoped API Role Governance',
   },
   {
-    title: 'Mobile-First',
-    description: 'Opens on any phone, tablet, or desktop. No installation. Just open and go.',
+    title: 'Mobile-First Athlete Hub',
+    description: 'Opens on any phone, tablet, or desktop kiosk. No installation or app store downloads required.',
     icon: Smartphone,
     span: 'wide',
+    previewTag: 'Runs Smoothly on 4G & Offline Cache',
   },
 ];
 
@@ -110,35 +119,49 @@ export const BentoGrid: React.FC = () => {
               <motion.div
                 key={feature.title}
                 {...fadeUp(idx * 0.04)}
+                whileHover={{ y: -4, transition: { duration: 0.2 } }}
                 className={`
                   group relative overflow-hidden rounded-2xl border border-line
                   bg-surface p-6
-                  hover:border-iron/30 hover:shadow-lg hover:shadow-iron/5
-                  transition-all duration-300
+                  hover:border-iron/40 hover:shadow-xl hover:shadow-iron/5
+                  transition-all duration-300 flex flex-col justify-between
                   ${isWide ? 'lg:col-span-2' : ''}
                 `}
               >
                 {/* Top accent line on hover */}
                 <div
-                  className="absolute top-0 left-0 right-0 h-px opacity-0 group-hover:opacity-100 transition-opacity duration-300"
+                  className="absolute top-0 left-0 right-0 h-[2px] opacity-0 group-hover:opacity-100 transition-opacity duration-300"
                   style={{ background: `linear-gradient(90deg, transparent, ${ACCENT}, transparent)` }}
                 />
 
-                {/* Icon */}
-                <div
-                  className="size-10 rounded-xl flex items-center justify-center mb-5 transition-colors duration-300"
-                  style={{
-                    backgroundColor: isAccent ? 'var(--iron-soft)' : 'var(--surface-2)',
-                    color: isAccent ? ACCENT : 'var(--ink-2)',
-                  }}
-                >
-                  <Icon size={ICON_SIZE} strokeWidth={1.5} />
-                </div>
+                <div>
+                  <div className="flex items-center justify-between mb-5">
+                    {/* Icon */}
+                    <div
+                      className="size-10 rounded-xl flex items-center justify-center transition-all duration-300 group-hover:scale-105"
+                      style={{
+                        backgroundColor: isAccent ? 'var(--iron-soft)' : 'var(--surface-2)',
+                        color: isAccent ? ACCENT : 'var(--ink-2)',
+                      }}
+                    >
+                      <Icon size={ICON_SIZE} strokeWidth={1.5} />
+                    </div>
 
-                {/* Content */}
-                <div className="space-y-2">
-                  <h3 className="text-[15px] font-semibold text-ink">{feature.title}</h3>
-                  <p className="text-[13px] text-ink-2 leading-relaxed">{feature.description}</p>
+                    {/* Interactive Real-World Tag */}
+                    {feature.previewTag && (
+                      <span className="text-[10px] font-mono font-medium px-2 py-0.5 rounded-md bg-(--surface-2) border border-(--line) text-(--ink-3) group-hover:border-iron/30 group-hover:text-iron transition-colors">
+                        {feature.previewTag}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Content */}
+                  <div className="space-y-1.5">
+                    <h3 className="text-[15px] font-bold text-ink flex items-center gap-1.5">
+                      {feature.title}
+                    </h3>
+                    <p className="text-[13px] text-ink-2 leading-relaxed">{feature.description}</p>
+                  </div>
                 </div>
 
                 {/* Optional stat */}

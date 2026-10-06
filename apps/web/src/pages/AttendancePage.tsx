@@ -81,6 +81,8 @@ export const AttendancePage: React.FC = () => {
       setLastCheckedMember({
         name: res.member?.name || 'Member',
         code: res.member?.memberCode || code,
+        phone: res.member?.phone,
+        plan: res.member?.planName,
         alreadyCheckedIn: res.alreadyCheckedIn,
         checkInTime: new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
       });

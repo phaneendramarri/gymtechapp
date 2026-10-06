@@ -7,6 +7,8 @@ export interface LogoProps {
   iconClassName?: string;
   textClassName?: string;
   variant?: 'default' | 'monochrome';
+  animated?: boolean;
+  showPulse?: boolean;
 }
 
 /**
@@ -75,6 +77,8 @@ export const Logo: React.FC<LogoProps> = ({
   iconClassName = '',
   textClassName = '',
   variant = 'default',
+  animated = false,
+  showPulse = false,
 }) => {
   const iconSizes = {
     xs: 'h-5 w-auto aspect-[1255/650]',
@@ -93,11 +97,31 @@ export const Logo: React.FC<LogoProps> = ({
   };
 
   return (
-    <div className={`inline-flex items-center gap-2.5 select-none shrink-0 ${className}`}>
-      <LogoIcon
-        className={`${iconSizes[size]} shrink-0 ${iconClassName}`}
-        variant={variant}
-      />
+    <div
+      className={`inline-flex items-center gap-2.5 select-none shrink-0 group ${
+        animated ? 'cursor-pointer transition-transform duration-300 hover:scale-[1.03]' : ''
+      } ${className}`}
+    >
+      <div className="relative inline-flex items-center justify-center">
+        {animated && (
+          <div
+            className="absolute inset-0 bg-orange-500/20 rounded-full blur-md opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none"
+            aria-hidden="true"
+          />
+        )}
+        <LogoIcon
+          className={`${iconSizes[size]} shrink-0 transition-transform duration-300 ${
+            animated ? 'group-hover:-translate-y-0.5' : ''
+          } ${iconClassName}`}
+          variant={variant}
+        />
+        {showPulse && (
+          <span className="absolute -top-1 -right-1 flex size-2">
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-orange-400 opacity-75" />
+            <span className="relative inline-flex size-2 rounded-full bg-orange-500" />
+          </span>
+        )}
+      </div>
 
       {showText && (
         <span

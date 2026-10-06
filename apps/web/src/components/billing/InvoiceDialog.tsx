@@ -135,7 +135,7 @@ export const InvoiceDialog: React.FC<InvoiceDialogProps> = ({ paymentId, open, o
                 className="text-xs gap-1.5"
                 onClick={() => {
                   if (paymentId == null) return;
-                  window.open(`/api/payments/${paymentId}/receipt`, '_blank', 'noopener,noreferrer');
+                  window.open(`/api/v1/payments/${paymentId}/receipt`, '_blank', 'noopener,noreferrer');
                 }}
               >
                 <ExternalLink className="size-3.5" /> Printable Receipt
