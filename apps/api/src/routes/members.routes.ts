@@ -125,6 +125,14 @@ memberRoutes.post('/bulk-import', requireGym, requireFeature('members'), require
   if (!parsed.success) return jsonValidationErr(parsed, 'Invalid bulk import payload');
   const memberRepo = new MemberRepository(ctx.env.DB, ctx.gymId!);
   const result = await memberRepo.bulkCreateMembers(parsed.data.members, ctx.user!.id, parsed.data.defaultPlanId);
+  await auditGym(ctx, 'member.bulk_import', 'member', 0, {
+    metadata: {
+      totalProcessed: parsed.data.members.length,
+      importedCount: result.importedCount,
+      skippedCount: result.skippedCount,
+      errors: result.errors,
+    },
+  });
   return jsonOk({
     success: true,
     totalProcessed: parsed.data.members.length,

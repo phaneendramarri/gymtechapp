@@ -9,12 +9,13 @@ import { eq, and, isNull, like, desc, sql } from 'drizzle-orm';
 import type { Database, D1Database } from '../db/client';
 import { createDatabase } from '../db/client';
 import type { Member, MemberStatus, MemberListItem } from '@gymtech/shared';
-import { members, memberships, membershipPlans, counters, attendance } from '../db/schema';
+import { members, memberships, membershipPlans, counters, attendance, payments } from '../db/schema';
 import { CommunicationRepository } from './communication.repository';
 import { CounterRepository } from './counter.repository';
+import { PaymentRepository } from './payment.repository';
 
-import { todayYyyymmdd } from '../lib/dates';
-export { todayYyyymmdd };
+import { todayYyyymmdd, parseFlexibleDateToUnix } from '../lib/dates';
+export { todayYyyymmdd, parseFlexibleDateToUnix };
 
 export class MemberRepository {
   private db: Database;
@@ -402,9 +403,7 @@ export class MemberRepository {
 
       const nextCode = await new CounterRepository(this.d1).nextValue(this.gymId, 'member_code');
       const memberCode = `MEM-${1000 + nextCode}`;
-      const joinedTimestamp = row.startDate
-        ? Math.floor(new Date(row.startDate).getTime() / 1000)
-        : Math.floor(Date.now() / 1000);
+      const joinedTimestamp = parseFlexibleDateToUnix(row.startDate);
 
       let plan = fallbackPlan;
       if (row.planName) {
@@ -416,9 +415,7 @@ export class MemberRepository {
 
       const durationMonths = plan?.durationMonths || 1;
       const startTimestamp = joinedTimestamp;
-      const endTimestamp = row.endDate
-        ? Math.floor(new Date(row.endDate).getTime() / 1000)
-        : startTimestamp + durationMonths * 30 * 86400;
+      const endTimestamp = parseFlexibleDateToUnix(row.endDate, startTimestamp + durationMonths * 30 * 86400);
 
       const totalAmountPaise = plan
         ? (plan.pricePaise || 0) + (plan.admissionFeePaise || 0)
@@ -451,7 +448,7 @@ export class MemberRepository {
       });
 
       // Insert membership
-      await this.db.insert(memberships).values({
+      const [newMembership] = await this.db.insert(memberships).values({
         gymId: this.gymId,
         memberId,
         membershipPlanId: plan.id,
@@ -466,7 +463,27 @@ export class MemberRepository {
         createdByUserId: recordedByUserId,
         createdAt: joinedTimestamp,
         updatedAt: joinedTimestamp,
-      });
+      }).returning({ id: memberships.id });
+
+      // If initial payment was migrated, record in payments table so ledger & reports reflect it
+      if (paidPaise > 0 && newMembership?.id) {
+        const paymentRepo = new PaymentRepository(this.d1, this.gymId);
+        const receiptNumber = await paymentRepo.getNextReceiptNumber();
+        await this.db.insert(payments).values({
+          gymId: this.gymId,
+          memberId,
+          membershipId: newMembership.id,
+          paymentType: 'GYM',
+          receiptNumber,
+          amountPaise: paidPaise,
+          paymentDate: joinedTimestamp,
+          paymentMode: 'CASH',
+          recordedByUserId,
+          notes: `Initial fee imported from spreadsheet for ${plan.name}`,
+          createdAt: joinedTimestamp,
+          updatedAt: joinedTimestamp,
+        });
+      }
 
       importedCount++;
     }

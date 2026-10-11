@@ -16,6 +16,10 @@ import {
   VideoOff,
   QrCode,
   UserX,
+  Pause,
+  Play,
+  Clock,
+  Volume2,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -80,6 +84,8 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
   const [cameraError, setCameraError] = useState<string | null>(null);
   const [isMatchingFace, setIsMatchingFace] = useState(false);
   const [autoScanEnabled, setAutoScanEnabled] = useState(true);
+  const [isScanPaused, setIsScanPaused] = useState(false);
+  const [cooldownCountdown, setCooldownCountdown] = useState<number | null>(null);
   const [enrolledCount, setEnrolledCount] = useState(0);
   const [currentMatch, setCurrentMatch] = useState<FaceMatch | null>(null);
   const [isEnrolledLoading, setIsEnrolledLoading] = useState(false);
@@ -89,27 +95,112 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
   const enrolledCacheRef = useRef<EnrolledFaceRecord[]>([]);
   const scanIntervalRef = useRef<any>(null);
 
-  // Play pleasant chime on successful Face ID recognition
-  const playSuccessChime = () => {
+  // --- AUDIO SYNTHESIS FEEDBACK (Web Audio API) ---
+  const playToneSequence = (
+    notes: { freq: number; start: number; dur: number; type?: OscillatorType; gain?: number }[]
+  ) => {
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioContextClass) return;
       const ctx = new AudioContextClass();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(587.33, ctx.currentTime); // D5
-      osc.frequency.setValueAtTime(880, ctx.currentTime + 0.1); // A5
-      gain.gain.setValueAtTime(0.15, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.4);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.4);
+      if (ctx.state === 'suspended') {
+        ctx.resume();
+      }
+      const now = ctx.currentTime;
+      for (const note of notes) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = note.type || 'sine';
+        osc.frequency.setValueAtTime(note.freq, now + note.start);
+        gain.gain.setValueAtTime(note.gain ?? 0.16, now + note.start);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + note.start + note.dur);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now + note.start);
+        osc.stop(now + note.start + note.dur);
+      }
     } catch {
       // Audio autoplay policy fallback
     }
   };
+
+  // 1. Success / Welcome Chime: Uplifting 3-tone arpeggio (C5 - E5 - G5 - C6)
+  const playSuccessChime = () => {
+    playToneSequence([
+      { freq: 523.25, start: 0.0, dur: 0.16, type: 'sine', gain: 0.2 },
+      { freq: 659.25, start: 0.1, dur: 0.2, type: 'sine', gain: 0.22 },
+      { freq: 783.99, start: 0.2, dur: 0.26, type: 'sine', gain: 0.24 },
+      { freq: 1046.5, start: 0.32, dur: 0.42, type: 'sine', gain: 0.28 },
+    ]);
+  };
+
+  // 2. Duplicate Entry Chime ("Already Checked In / Duplicate!"): Distinct amber alert double-pulse
+  const playDuplicateWarningChime = () => {
+    playToneSequence([
+      { freq: 740, start: 0.0, dur: 0.14, type: 'triangle', gain: 0.25 },
+      { freq: 587, start: 0.15, dur: 0.14, type: 'triangle', gain: 0.25 },
+      { freq: 740, start: 0.32, dur: 0.22, type: 'triangle', gain: 0.28 },
+    ]);
+  };
+
+  // 3. Denied / Expired Chime: Low warning buzz tone
+  const playDeniedChime = () => {
+    playToneSequence([
+      { freq: 220, start: 0.0, dur: 0.2, type: 'sawtooth', gain: 0.22 },
+      { freq: 180, start: 0.18, dur: 0.28, type: 'sawtooth', gain: 0.25 },
+    ]);
+  };
+
+  // 4. Face Target Locked: Soft pleasant ping
+  const playFaceLockChime = () => {
+    playToneSequence([
+      { freq: 880, start: 0.0, dur: 0.14, type: 'sine', gain: 0.14 },
+    ]);
+  };
+
+  // Track check-in audio triggers so sounds play accurately upon check-in completion
+  const prevCheckedMemberRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lastCheckedMember) {
+      prevCheckedMemberRef.current = null;
+      return;
+    }
+    const key = `${lastCheckedMember.code}-${lastCheckedMember.checkInTime}-${lastCheckedMember.alreadyCheckedIn}`;
+    if (prevCheckedMemberRef.current !== key) {
+      prevCheckedMemberRef.current = key;
+      if (lastCheckedMember.alreadyCheckedIn) {
+        playDuplicateWarningChime();
+      } else {
+        playSuccessChime();
+      }
+    }
+  }, [lastCheckedMember]);
+
+  const prevErrorRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!errorMessage) {
+      prevErrorRef.current = null;
+      return;
+    }
+    if (prevErrorRef.current !== errorMessage) {
+      prevErrorRef.current = errorMessage;
+      playDeniedChime();
+    }
+  }, [errorMessage]);
+
+  // Cooldown countdown effect after check-in
+  useEffect(() => {
+    if (cooldownCountdown === null) return;
+    if (cooldownCountdown <= 0) {
+      setCooldownCountdown(null);
+      setIsScanPaused(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setCooldownCountdown((c) => (c !== null ? c - 1 : null));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [cooldownCountdown]);
 
   // Switch to manual search fallback
   const switchToManualSearch = (initialQuery = '') => {
@@ -284,7 +375,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
 
   // --- REAL-TIME FACE SCANNING & EUCLIDEAN MATCHING LOOP ---
   const performFaceScan = async () => {
-    if (!videoRef.current || !cameraActive || isMatchingFace || isCheckingIn) return;
+    if (!videoRef.current || !cameraActive || isScanPaused || cooldownCountdown !== null || isMatchingFace || isCheckingIn) return;
     if (enrolledCacheRef.current.length === 0) return;
 
     setIsMatchingFace(true);
@@ -302,7 +393,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
         if (match && match.isConfidentMatch) {
           setCurrentMatch(match);
           setNoMatchDetected(false);
-          playSuccessChime();
+          playFaceLockChime();
         } else if (match) {
           // Weak match or unknown face
           setCurrentMatch(match);
@@ -321,9 +412,16 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
     }
   };
 
-  // Interval for auto-scanning
+  // Interval for auto-scanning — stops cleanly when paused, cooled down, or camera stopped
   useEffect(() => {
-    if (activeMode === 'face' && cameraActive && autoScanEnabled && !currentMatch?.isConfidentMatch) {
+    if (
+      activeMode === 'face' &&
+      cameraActive &&
+      autoScanEnabled &&
+      !isScanPaused &&
+      cooldownCountdown === null &&
+      !currentMatch?.isConfidentMatch
+    ) {
       scanIntervalRef.current = setInterval(() => {
         performFaceScan();
       }, 1200);
@@ -333,18 +431,40 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
     return () => {
       if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
     };
-  }, [activeMode, cameraActive, autoScanEnabled, isCheckingIn, currentMatch]);
+  }, [activeMode, cameraActive, autoScanEnabled, isScanPaused, cooldownCountdown, isCheckingIn, currentMatch]);
+
+  // Controls: Pause, Resume, and Stop
+  const handlePauseScan = () => {
+    setIsScanPaused(true);
+    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+  };
+
+  const handleResumeScan = () => {
+    setIsScanPaused(false);
+    setCooldownCountdown(null);
+    if (!cameraActive) {
+      startWebcam();
+    }
+  };
+
+  const handleStopCamera = () => {
+    stopWebcam();
+    setIsScanPaused(true);
+    setCurrentMatch(null);
+    setNoMatchDetected(false);
+    if (scanIntervalRef.current) clearInterval(scanIntervalRef.current);
+  };
 
   // Handle Confirmed Check-In
   const handleConfirmFaceCheckIn = async () => {
     if (!currentMatch) return;
     const memberCode = currentMatch.member.memberCode;
+    // Set 4-second cooldown to allow the member to walk past without immediately re-scanning
+    setCooldownCountdown(4);
+    setIsScanPaused(true);
     await onCheckIn(memberCode, 'FACE_ID');
-    // Clear match after check-in so terminal is ready for next member
-    setTimeout(() => {
-      setCurrentMatch(null);
-      setNoMatchDetected(false);
-    }, 2000);
+    setCurrentMatch(null);
+    setNoMatchDetected(false);
   };
 
   // Handle Manual Direct Code Submit
@@ -702,40 +822,118 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
 
                   {/* Biometric HUD Overlay */}
                   <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4">
-                    {/* Top HUD Status */}
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-mono">
-                        <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
-                        LIVE CAMERA
+                    {/* Top HUD Status & Stop / Pause Action Bar */}
+                    <div className="flex items-center justify-between gap-2 pointer-events-auto flex-wrap">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {isScanPaused ? (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/85 backdrop-blur-md text-white text-[10px] font-mono font-bold shadow-xs">
+                            <Pause className="size-3" />
+                            SCAN PAUSED
+                          </div>
+                        ) : cooldownCountdown !== null ? (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-cyan-600/85 backdrop-blur-md text-white text-[10px] font-mono font-bold shadow-xs">
+                            <Clock className="size-3" />
+                            COOLDOWN ({cooldownCountdown}s)
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/65 backdrop-blur-md border border-white/10 text-white text-[10px] font-mono">
+                            <span className="size-1.5 rounded-full bg-red-500 animate-pulse" />
+                            LIVE CAMERA
+                          </div>
+                        )}
+                        <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/65 backdrop-blur-md border border-white/10 text-white text-[10px] font-mono">
+                          <ScanFace className="size-3 text-primary" />
+                          {isEnrolledLoading ? 'Loading models...' : `${enrolledCount} Faces Enrolled`}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/60 backdrop-blur-md border border-white/10 text-white text-[10px] font-mono">
-                        <ScanFace className="size-3 text-primary" />
-                        {isEnrolledLoading ? 'Loading models...' : `${enrolledCount} Faces Enrolled`}
+
+                      {/* Prominent Viewfinder Stop & Pause Buttons */}
+                      <div className="flex items-center gap-1.5">
+                        {isScanPaused || cooldownCountdown !== null ? (
+                          <Button
+                            type="button"
+                            size="sm"
+                            onClick={handleResumeScan}
+                            className="h-7 px-2.5 text-[11px] font-bold bg-emerald-600 hover:bg-emerald-500 text-white gap-1 shadow-sm cursor-pointer"
+                          >
+                            <Play className="size-3" /> Resume Scan
+                          </Button>
+                        ) : (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="secondary"
+                            onClick={handlePauseScan}
+                            className="h-7 px-2.5 text-[11px] font-bold bg-white/20 hover:bg-white/30 text-white gap-1 backdrop-blur-md border border-white/20 shadow-sm cursor-pointer"
+                          >
+                            <Pause className="size-3" /> Pause Scan
+                          </Button>
+                        )}
+                        <Button
+                          type="button"
+                          size="sm"
+                          onClick={handleStopCamera}
+                          className="h-7 px-2.5 text-[11px] font-bold bg-red-600 hover:bg-red-500 text-white gap-1 shadow-sm cursor-pointer"
+                        >
+                          <VideoOff className="size-3" /> Stop Camera
+                        </Button>
                       </div>
                     </div>
 
                     {/* Central Face Target Reticle */}
-                    <div className={`relative mx-auto size-48 sm:size-56 rounded-3xl border-2 transition-all duration-300 flex items-center justify-center ${
-                      currentMatch?.isConfidentMatch
-                        ? 'border-ok scale-105 shadow-[0_0_20px_rgba(34,197,94,0.4)]'
-                        : 'border-dashed border-primary/50'
-                    }`}>
+                    <div
+                      className={`relative mx-auto size-48 sm:size-56 rounded-3xl border-2 transition-all duration-300 flex items-center justify-center ${
+                        currentMatch?.isConfidentMatch
+                          ? 'border-ok scale-105 shadow-[0_0_20px_rgba(34,197,94,0.4)]'
+                          : isScanPaused
+                          ? 'border-dashed border-amber-500/70 bg-amber-500/5'
+                          : cooldownCountdown !== null
+                          ? 'border-dashed border-cyan-500/70 bg-cyan-500/5'
+                          : 'border-dashed border-primary/50'
+                      }`}
+                    >
                       {/* Biometric Corner Brackets */}
-                      <div className={`absolute -top-1.5 -left-1.5 size-5 border-t-3 border-l-3 rounded-tl-lg ${
-                        currentMatch?.isConfidentMatch ? 'border-ok' : 'border-primary'
-                      }`} />
-                      <div className={`absolute -top-1.5 -right-1.5 size-5 border-t-3 border-r-3 rounded-tr-lg ${
-                        currentMatch?.isConfidentMatch ? 'border-ok' : 'border-primary'
-                      }`} />
-                      <div className={`absolute -bottom-1.5 -left-1.5 size-5 border-b-3 border-l-3 rounded-bl-lg ${
-                        currentMatch?.isConfidentMatch ? 'border-ok' : 'border-primary'
-                      }`} />
-                      <div className={`absolute -bottom-1.5 -right-1.5 size-5 border-b-3 border-r-3 rounded-br-lg ${
-                        currentMatch?.isConfidentMatch ? 'border-ok' : 'border-primary'
-                      }`} />
+                      <div
+                        className={`absolute -top-1.5 -left-1.5 size-5 border-t-3 border-l-3 rounded-tl-lg ${
+                          currentMatch?.isConfidentMatch
+                            ? 'border-ok'
+                            : isScanPaused
+                            ? 'border-amber-500'
+                            : 'border-primary'
+                        }`}
+                      />
+                      <div
+                        className={`absolute -top-1.5 -right-1.5 size-5 border-t-3 border-r-3 rounded-tr-lg ${
+                          currentMatch?.isConfidentMatch
+                            ? 'border-ok'
+                            : isScanPaused
+                            ? 'border-amber-500'
+                            : 'border-primary'
+                        }`}
+                      />
+                      <div
+                        className={`absolute -bottom-1.5 -left-1.5 size-5 border-b-3 border-l-3 rounded-bl-lg ${
+                          currentMatch?.isConfidentMatch
+                            ? 'border-ok'
+                            : isScanPaused
+                            ? 'border-amber-500'
+                            : 'border-primary'
+                        }`}
+                      />
+                      <div
+                        className={`absolute -bottom-1.5 -right-1.5 size-5 border-b-3 border-r-3 rounded-br-lg ${
+                          currentMatch?.isConfidentMatch
+                            ? 'border-ok'
+                            : isScanPaused
+                            ? 'border-amber-500'
+                            : 'border-primary'
+                        }`}
+                      />
 
-                      {/* Animated Laser Scanning Line */}
-                      <div className="absolute inset-x-2 h-0.5 bg-linear-to-r from-transparent via-primary to-transparent shadow-[0_0_12px_var(--primary)] animate-[bounce_2s_infinite]" />
+                      {/* Animated Laser Scanning Line — Only active when scanning is LIVE */}
+                      {!isScanPaused && cooldownCountdown === null && !currentMatch?.isConfidentMatch && (
+                        <div className="absolute inset-x-2 h-0.5 bg-linear-to-r from-transparent via-primary to-transparent shadow-[0_0_12px_var(--primary)] animate-[bounce_2s_infinite]" />
+                      )}
 
                       {/* Status indicator inside reticle */}
                       {isMatchingFace ? (
@@ -748,6 +946,29 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                           <CheckCircle2 className="size-3.5" />
                           Face Identified!
                         </div>
+                      ) : cooldownCountdown !== null ? (
+                        <div className="px-3 py-1.5 rounded-full bg-cyan-950/80 border border-cyan-500/40 text-cyan-200 text-[10px] font-mono flex items-center gap-1.5 font-semibold pointer-events-auto">
+                          <span>Check-in recorded! Resuming in {cooldownCountdown}s</span>
+                          <button
+                            type="button"
+                            onClick={handleResumeScan}
+                            className="underline text-white font-bold ml-1 hover:text-cyan-300"
+                          >
+                            Resume Now
+                          </button>
+                        </div>
+                      ) : isScanPaused ? (
+                        <div className="px-3 py-1.5 rounded-full bg-amber-950/80 border border-amber-500/40 text-amber-200 text-[10px] font-mono flex items-center gap-1.5 font-semibold pointer-events-auto">
+                          <Pause className="size-3 text-amber-400" />
+                          <span>Scan Paused</span>
+                          <button
+                            type="button"
+                            onClick={handleResumeScan}
+                            className="underline text-white font-bold ml-1 hover:text-amber-300"
+                          >
+                            Resume
+                          </button>
+                        </div>
                       ) : null}
                     </div>
 
@@ -756,6 +977,10 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                       <span className="px-3 py-1 rounded-full bg-black/60 backdrop-blur-md text-white/80 text-[11px] font-medium border border-white/10">
                         {currentMatch?.isConfidentMatch
                           ? 'Match found! Click Confirm Check-In below'
+                          : isScanPaused
+                          ? 'Scanner is paused. Click Resume Scan when ready.'
+                          : cooldownCountdown !== null
+                          ? 'Terminal in cooldown. Next athlete can step forward.'
                           : 'Align member face inside the reticle'}
                       </span>
                     </div>
@@ -768,14 +993,18 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                   </div>
                   <div className="flex flex-col gap-1 max-w-xs">
                     <span className="text-sm font-bold text-foreground">
-                      {cameraError ? 'Camera Access Required' : 'Camera is Inactive'}
+                      {cameraError ? 'Camera Access Required' : 'Face Scanner is Stopped'}
                     </span>
                     <span className="text-xs text-muted-foreground">
-                      {cameraError || 'Allow camera access on this device to use real-time biometric face check-in.'}
+                      {cameraError || 'Camera is turned off. Start the camera to resume live biometric face check-in.'}
                     </span>
                   </div>
-                  <Button size="sm" onClick={startWebcam} className="bg-primary text-primary-foreground font-bold text-xs gap-1.5">
-                    <Camera className="size-3.5" /> Start Camera
+                  <Button
+                    size="sm"
+                    onClick={startWebcam}
+                    className="bg-primary text-primary-foreground font-bold text-xs gap-1.5 shadow-sm cursor-pointer"
+                  >
+                    <Camera className="size-3.5" /> Start Camera &amp; Face Scan
                   </Button>
                 </div>
               )}
@@ -783,9 +1012,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
 
             {/* Confident Face Match Card: Displays Name, Photo, Status, and Check-In Button */}
             {currentMatch && currentMatch.isConfidentMatch && (
-              <div
-                className="p-4 rounded-xl border-2 border-ok/50 bg-ok/10 text-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in zoom-in-95 duration-200 shadow-md"
-              >
+              <div className="p-4 rounded-xl border-2 border-ok/50 bg-ok/10 text-foreground flex flex-col sm:flex-row sm:items-center justify-between gap-4 animate-in fade-in zoom-in-95 duration-200 shadow-md">
                 <div className="flex items-center gap-3.5 min-w-0">
                   {/* Member Photo */}
                   <div className="size-14 rounded-full border-2 border-ok overflow-hidden shrink-0 bg-secondary shadow-sm">
@@ -842,7 +1069,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                     variant="ghost"
                     size="sm"
                     onClick={() => setCurrentMatch(null)}
-                    className="h-9 text-xs text-muted-foreground hover:text-foreground"
+                    className="h-9 text-xs text-muted-foreground hover:text-foreground cursor-pointer"
                   >
                     Scan Again
                   </Button>
@@ -851,7 +1078,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                     size="default"
                     disabled={isCheckingIn}
                     onClick={handleConfirmFaceCheckIn}
-                    className="bg-ok hover:bg-ok/90 text-white font-bold text-sm shadow-md gap-2 h-10 px-5"
+                    className="bg-ok hover:bg-ok/90 text-white font-bold text-sm shadow-md gap-2 h-10 px-5 cursor-pointer"
                   >
                     <UserCheck className="size-4" />
                     {isCheckingIn ? 'Recording...' : 'Confirm Check-In'}
@@ -879,7 +1106,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
               </div>
             )}
 
-            {/* Face ID Controls & Manual Search Fallback */}
+            {/* Face ID Controls Strip with Prominent Stop / Pause Buttons */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 rounded-xl bg-secondary/40 border border-border">
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="font-mono font-semibold text-foreground">{enrolledCount}</span> registered member
@@ -887,29 +1114,77 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
               </div>
 
               <div className="flex items-center gap-2 flex-wrap">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={performFaceScan}
-                  disabled={!cameraActive || isMatchingFace || isCheckingIn}
-                  className="h-8 text-xs font-semibold gap-1.5 border-border cursor-pointer"
-                >
-                  <RefreshCw className={`size-3.5 ${isMatchingFace ? 'animate-spin' : ''}`} />
-                  Scan Now
-                </Button>
-                <Button
-                  type="button"
-                  variant={autoScanEnabled ? 'default' : 'outline'}
-                  size="sm"
-                  onClick={() => setAutoScanEnabled(!autoScanEnabled)}
-                  className="h-8 text-xs font-semibold gap-1.5 cursor-pointer"
-                >
-                  <Zap className="size-3.5" />
-                  {autoScanEnabled ? 'Auto-Scan ON' : 'Auto-Scan OFF'}
-                </Button>
+                {cameraActive ? (
+                  <>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleStopCamera}
+                      className="h-8 text-xs font-semibold gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 cursor-pointer"
+                    >
+                      <VideoOff className="size-3.5" />
+                      Stop Camera
+                    </Button>
 
-                {/* Direct Manual Search Fallback button */}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={isScanPaused ? handleResumeScan : handlePauseScan}
+                      className="h-8 text-xs font-semibold gap-1.5 border-border cursor-pointer"
+                    >
+                      {isScanPaused ? (
+                        <>
+                          <Play className="size-3.5 text-emerald-500" />
+                          Resume Scan
+                        </>
+                      ) : (
+                        <>
+                          <Pause className="size-3.5 text-amber-500" />
+                          Pause Scan
+                        </>
+                      )}
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={performFaceScan}
+                      disabled={isMatchingFace || isCheckingIn}
+                      className="h-8 text-xs font-semibold gap-1.5 border-border cursor-pointer"
+                    >
+                      <RefreshCw className={`size-3.5 ${isMatchingFace ? 'animate-spin' : ''}`} />
+                      Scan Once
+                    </Button>
+
+                    <Button
+                      type="button"
+                      variant={autoScanEnabled && !isScanPaused ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => {
+                        if (isScanPaused) setIsScanPaused(false);
+                        setAutoScanEnabled(!autoScanEnabled);
+                      }}
+                      className="h-8 text-xs font-semibold gap-1.5 cursor-pointer"
+                    >
+                      <Zap className="size-3.5" />
+                      {autoScanEnabled && !isScanPaused ? 'Auto-Scan ON' : 'Auto-Scan OFF'}
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={startWebcam}
+                    className="h-8 text-xs font-bold gap-1.5 bg-primary text-primary-foreground cursor-pointer"
+                  >
+                    <Camera className="size-3.5" />
+                    Start Camera &amp; Scan
+                  </Button>
+                )}
+
                 <Button
                   type="button"
                   variant="ghost"
@@ -918,7 +1193,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                   className="h-8 text-xs font-medium text-muted-foreground hover:text-foreground gap-1 cursor-pointer"
                 >
                   <Search className="size-3.5" />
-                  Manual Search Fallback
+                  Manual Search
                 </Button>
               </div>
             </div>

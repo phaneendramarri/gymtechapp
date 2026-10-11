@@ -24,6 +24,7 @@ import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { api } from '@/lib/api';
 import { BulkImportMemberRow } from '@gymtech/shared';
+import * as XLSX from 'xlsx';
 
 interface ExcelMigrationDialogProps {
   open: boolean;
@@ -53,97 +54,64 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
   const plans = plansData?.plans || [];
 
   const handleDownloadSample = () => {
-    const csvContent =
-      'First Name,Last Name,Phone,Email,Gender,Plan Name,Start Date,End Date,Paid Amount,Due Amount\n' +
-      'Arun,Kumar,9876543201,arun.kumar@gmail.com,MALE,Monthly General Fitness,2026-08-01,2026-09-01,2000,0\n' +
-      'Deepa,Rao,9876543202,deepa.rao@yahoo.com,FEMALE,Quarterly Strength & Cardio,2026-07-15,2026-10-15,4500,0\n' +
-      'Manish,Varma,9876543203,manish.v@outlook.com,MALE,Annual VIP Pass,2026-08-10,2027-08-10,10000,4000\n' +
-      'Kavita,Deshmukh,9876543204,,FEMALE,Half-Yearly Transform,2026-06-01,2026-12-01,7500,0\n';
+    const sampleData = [
+      {
+        'First Name': 'Arun',
+        'Last Name': 'Kumar',
+        'Phone': '9876543201',
+        'Email': 'arun.kumar@gmail.com',
+        'Gender': 'MALE',
+        'Plan Name': 'Monthly General Fitness',
+        'Start Date': '2026-08-01',
+        'End Date': '2026-09-01',
+        'Paid Amount': 2000,
+        'Due Amount': 0,
+      },
+      {
+        'First Name': 'Deepa',
+        'Last Name': 'Rao',
+        'Phone': '9876543202',
+        'Email': 'deepa.rao@yahoo.com',
+        'Gender': 'FEMALE',
+        'Plan Name': 'Quarterly Strength & Cardio',
+        'Start Date': '2026-07-15',
+        'End Date': '2026-10-15',
+        'Paid Amount': 4500,
+        'Due Amount': 0,
+      },
+      {
+        'First Name': 'Manish',
+        'Last Name': 'Varma',
+        'Phone': '9876543203',
+        'Email': 'manish.v@outlook.com',
+        'Gender': 'MALE',
+        'Plan Name': 'Annual VIP Pass',
+        'Start Date': '2026-08-10',
+        'End Date': '2027-08-10',
+        'Paid Amount': 10000,
+        'Due Amount': 4000,
+      },
+      {
+        'First Name': 'Kavita',
+        'Last Name': 'Deshmukh',
+        'Phone': '9876543204',
+        'Email': '',
+        'Gender': 'FEMALE',
+        'Plan Name': 'Half-Yearly Transform',
+        'Start Date': '2026-06-01',
+        'End Date': '2026-12-01',
+        'Paid Amount': 7500,
+        'Due Amount': 0,
+      },
+    ];
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'gymtech_member_migration_template.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const worksheet = XLSX.utils.json_to_sheet(sampleData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Members');
+    XLSX.writeFile(workbook, 'gymtech_member_migration_template.xlsx');
   };
 
-  const parseCsvText = (text: string): BulkImportMemberRow[] => {
-    const lines = text
-      .split(/\r\n|\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
-
-    if (lines.length <= 1) return [];
-
-    // Header row
-    const headers = lines[0].split(',').map((h) => h.trim().toLowerCase().replace(/[^a-z0-9]/g, ''));
-
-    const rows: BulkImportMemberRow[] = [];
-
-    for (let i = 1; i < lines.length; i++) {
-      const line = lines[i];
-      // Basic CSV field parser handling simple quotes
-      const values: string[] = [];
-      let inQuotes = false;
-      let currentValue = '';
-
-      for (let char of line) {
-        if (char === '"') {
-          inQuotes = !inQuotes;
-        } else if (char === ',' && !inQuotes) {
-          values.push(currentValue.trim());
-          currentValue = '';
-        } else {
-          currentValue += char;
-        }
-      }
-      values.push(currentValue.trim());
-
-      const getVal = (possibleHeaders: string[]): string => {
-        for (const ph of possibleHeaders) {
-          const idx = headers.findIndex((h) => h.includes(ph));
-          if (idx !== -1 && values[idx]) return values[idx].replace(/^"|"$/g, '').trim();
-        }
-        return '';
-      };
-
-      const firstName = getVal(['firstname', 'first', 'fname', 'name']);
-      const lastName = getVal(['lastname', 'last', 'lname', 'surname']);
-      const phone = getVal(['phone', 'mobile', 'contact', 'tel']);
-      const email = getVal(['email', 'mail']);
-      const genderRaw = getVal(['gender', 'sex']).toUpperCase();
-      const gender = genderRaw.startsWith('F') ? 'FEMALE' : genderRaw.startsWith('O') ? 'OTHER' : 'MALE';
-      const planName = getVal(['plan', 'package', 'membership']);
-      const startDate = getVal(['start', 'joining', 'join', 'date']);
-      const endDate = getVal(['end', 'expiry', 'valid']);
-      const paidRupees = parseFloat(getVal(['paid', 'amountpaid', 'fees'])) || 0;
-      const dueRupees = parseFloat(getVal(['due', 'pending', 'balance'])) || 0;
-      const paidPaise = Math.round(paidRupees * 100);
-      const duePaise = Math.round(dueRupees * 100);
-
-      if (firstName && phone) {
-        rows.push({
-          firstName,
-          lastName,
-          phone,
-          email,
-          gender,
-          planName,
-          startDate,
-          endDate,
-          paidPaise,
-          duePaise,
-        });
-      }
-    }
-
-    return rows;
-  };
-
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -151,24 +119,77 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
     setImportResult(null);
     setFileName(file.name);
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const text = event.target?.result as string;
-        const parsed = parseCsvText(text);
-        if (parsed.length === 0) {
-          setError('No valid member records found. Please ensure First Name and Phone columns exist.');
-        } else {
-          setParsedRows(parsed);
-        }
-      } catch (err: any) {
-        setError(`Failed to read file: ${err.message}`);
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      if (!sheetName) {
+        setError('Spreadsheet file contains no worksheets.');
+        return;
       }
-    };
-    reader.onerror = () => {
-      setError('Could not read the uploaded file.');
-    };
-    reader.readAsText(file);
+      const sheet = workbook.Sheets[sheetName];
+      const rawRows = XLSX.utils.sheet_to_json<Record<string, any>>(sheet, { defval: '' });
+
+      if (!rawRows || rawRows.length === 0) {
+        setError('No rows found in uploaded sheet. Please check the file contents.');
+        return;
+      }
+
+      const rows: BulkImportMemberRow[] = [];
+
+      for (let i = 0; i < rawRows.length; i++) {
+        const raw = rawRows[i];
+
+        const getVal = (possibleHeaders: string[]): string => {
+          for (const key of Object.keys(raw)) {
+            const cleanKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+            for (const ph of possibleHeaders) {
+              if (cleanKey.includes(ph)) {
+                return String(raw[key] ?? '').trim();
+              }
+            }
+          }
+          return '';
+        };
+
+        const firstName = getVal(['firstname', 'first', 'fname', 'name']);
+        const lastName = getVal(['lastname', 'last', 'lname', 'surname']);
+        const phone = getVal(['phone', 'mobile', 'contact', 'tel']);
+        const email = getVal(['email', 'mail']);
+        const genderRaw = getVal(['gender', 'sex']).toUpperCase();
+        const gender = genderRaw.startsWith('F') ? 'FEMALE' : genderRaw.startsWith('O') ? 'OTHER' : 'MALE';
+        const planName = getVal(['plan', 'package', 'membership']);
+        const startDate = getVal(['start', 'joining', 'join', 'date']);
+        const endDate = getVal(['end', 'expiry', 'valid']);
+        const paidRupees = parseFloat(getVal(['paid', 'amountpaid', 'fees'])) || 0;
+        const dueRupees = parseFloat(getVal(['due', 'pending', 'balance'])) || 0;
+        const paidPaise = Math.round(paidRupees * 100);
+        const duePaise = Math.round(dueRupees * 100);
+
+        if (firstName && phone) {
+          rows.push({
+            firstName,
+            lastName,
+            phone,
+            email,
+            gender,
+            planName,
+            startDate,
+            endDate,
+            paidPaise,
+            duePaise,
+          });
+        }
+      }
+
+      if (rows.length === 0) {
+        setError('No valid member records found. Please ensure First Name and Phone columns exist.');
+      } else {
+        setParsedRows(rows);
+      }
+    } catch (err: any) {
+      setError(`Failed to read spreadsheet file: ${err.message || 'Unknown error'}`);
+    }
   };
 
   const handleExecuteImport = async () => {
@@ -242,7 +263,7 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
               className="h-8 text-xs font-semibold shrink-0 gap-1.5 border-border hover:bg-card"
             >
               <Download className="size-3.5 text-primary" />
-              <span>Download Sample CSV</span>
+              <span>Download Sample (.xlsx)</span>
             </Button>
           </div>
 
@@ -301,7 +322,7 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
               <input
                 ref={fileInputRef}
                 type="file"
-                accept=".csv,text/csv,application/vnd.ms-excel"
+                accept=".xlsx,.xls,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,text/csv"
                 onChange={handleFileUpload}
                 className="hidden"
               />
@@ -309,10 +330,10 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
                 <Upload className="size-6" />
               </div>
               <p className="text-sm font-semibold text-foreground">
-                Click to browse or drop customer CSV / Excel file here
+                Click to browse or drop Excel (.xlsx) / CSV file here
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Supports CSV spreadsheets exported from Excel, Google Sheets, or other gym management tools
+                Supports Excel (.xlsx, .xls) and CSV spreadsheets exported from Excel, Google Sheets, or other gym management tools
               </p>
             </div>
           )}
