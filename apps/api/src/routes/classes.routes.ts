@@ -162,12 +162,12 @@ classesRoutes.post('/bookings/:id/cancel', requireGym, requireFeature('classes')
   const bookingId = paramId(c.req.param() as Record<string, string>);
   const repo = new ClassRepository(ctx.env.DB);
   try {
-    await repo.updateBookingStatus(ctx.gymId!, bookingId, 'CANCELLED');
+    const res = await repo.updateBookingStatus(ctx.gymId!, bookingId, 'CANCELLED');
+    return jsonOk({ success: true, promotedBookingId: res.promotedBookingId });
   } catch (e: any) {
     if (e.message === 'Booking not found') return jsonErr('Booking not found', 404);
     throw e;
   }
-  return jsonOk({ success: true });
 }));
 
 // PATCH /api/classes/bookings/:id — mark attendance (ATTENDED / NO_SHOW)
@@ -182,10 +182,10 @@ classesRoutes.patch('/bookings/:id', requireGym, requireFeature('classes'), requ
 
   const repo = new ClassRepository(ctx.env.DB);
   try {
-    await repo.updateBookingStatus(ctx.gymId!, bookingId, status);
+    const res = await repo.updateBookingStatus(ctx.gymId!, bookingId, status);
+    return jsonOk({ success: true, promotedBookingId: res.promotedBookingId });
   } catch (e: any) {
     if (e.message === 'Booking not found') return jsonErr('Booking not found', 404);
     throw e;
   }
-  return jsonOk({ success: true });
 }));

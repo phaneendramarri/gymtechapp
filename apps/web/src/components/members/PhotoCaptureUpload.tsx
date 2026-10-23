@@ -1,10 +1,20 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, Upload, Trash2, User, RefreshCw, ScanFace, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Camera, Upload, Trash2, User, RefreshCw, ScanFace, CheckCircle2, AlertCircle, VideoOff, X, AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/components/ui/toast';
 import { compressAndConvertToBase64 } from '@/lib/image';
-import { extractFaceDescriptor, extractDescriptorFromImageUrl, serializeDescriptor, loadFaceApiModels } from '@/lib/face-api';
+import {
+  extractFaceDescriptor,
+  extractDescriptorFromImageUrl,
+  serializeDescriptor,
+  deserializeDescriptor,
+  findBestFaceMatch,
+  loadFaceApiModels,
+  type EnrolledFaceRecord,
+} from '@/lib/face-api';
+import { api } from '@/lib/api';
+import { speakAnnouncement } from '@/lib/speech';
 import { cn } from '@/lib/utils';
 
 interface PhotoCaptureUploadProps {
@@ -30,6 +40,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
   const [imgDims, setImgDims] = useState<{ w: number; h: number } | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [faceStatus, setFaceStatus] = useState<'idle' | 'detecting' | 'detected' | 'not_detected'>('idle');
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Pre-warm face-api models when user interacts or mounts
@@ -54,6 +65,10 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
         streamRef.current.getTracks().forEach((track) => track.stop());
         streamRef.current = null;
       }
+      if (videoRef.current) {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      }
     };
   }, []);
 
@@ -63,9 +78,53 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
     await processFile(file);
   };
 
+  const verifyAndEnrollDescriptor = async (desc: Float32Array) => {
+    setFaceStatus('detected');
+    const serialized = serializeDescriptor(desc);
+    if (onFaceDescriptorGenerated) {
+      onFaceDescriptorGenerated(serialized);
+    }
+
+    // Check for duplicate registered faces in this gym
+    try {
+      const res = await api.getMembers({ limit: 100, status: 'ACTIVE' });
+      const enrolled: EnrolledFaceRecord[] = [];
+      for (const m of res.members || []) {
+        const d = deserializeDescriptor(m.faceEmbedding);
+        if (d) {
+          enrolled.push({
+            member: {
+              id: m.id,
+              name: `${m.firstName} ${m.lastName || ''}`.trim(),
+              memberCode: m.memberCode,
+            },
+            descriptor: d,
+          });
+        }
+      }
+      if (enrolled.length > 0) {
+        const match = findBestFaceMatch(desc, enrolled, 0.58);
+        if (match && match.isConfidentMatch) {
+          const warnMsg = `Duplicate Face: Matches ${match.member.name} (${match.member.memberCode})`;
+          setDuplicateWarning(warnMsg);
+          speakAnnouncement(`Duplicate! Face already registered for ${match.member.name}.`);
+          toast('info', 'Duplicate Face Warning', warnMsg);
+          return;
+        }
+      }
+    } catch {
+      // Non-blocking duplicate check
+    }
+
+    setDuplicateWarning(null);
+    speakAnnouncement('Thank you! Biometric face registered successfully.');
+    toast('success', 'Face Registered', 'Biometric template generated successfully for Face ID check-in.');
+  };
+
   const processFile = async (file: File) => {
     setIsProcessing(true);
     setFaceStatus('detecting');
+    setDuplicateWarning(null);
     try {
       // Read dimensions before compression
       const probeUrl = URL.createObjectURL(file);
@@ -91,12 +150,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
       }
 
       if (finalDescriptor) {
-        setFaceStatus('detected');
-        const serialized = serializeDescriptor(finalDescriptor);
-        if (onFaceDescriptorGenerated) {
-          onFaceDescriptorGenerated(serialized);
-        }
-        toast('success', 'Face Detected', 'Biometric template generated successfully for Face ID check-in.');
+        await verifyAndEnrollDescriptor(finalDescriptor);
       } else {
         setFaceStatus('not_detected');
         toast('info', 'Photo uploaded', 'No clear face detected in this photo. For Face ID check-in, use a clear front-facing portrait.');
@@ -111,6 +165,7 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
   };
 
   const startWebcam = async () => {
+    setDuplicateWarning(null);
     try {
       const mediaStream = await navigator.mediaDevices.getUserMedia({
         video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
@@ -144,18 +199,14 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
     // Extract descriptor from the captured canvas
     setIsProcessing(true);
     setFaceStatus('detecting');
+    setDuplicateWarning(null);
     try {
       let descriptor = await extractFaceDescriptor(canvas);
       if (!descriptor && base64) {
         descriptor = await extractDescriptorFromImageUrl(base64);
       }
       if (descriptor) {
-        setFaceStatus('detected');
-        const serialized = serializeDescriptor(descriptor);
-        if (onFaceDescriptorGenerated) {
-          onFaceDescriptorGenerated(serialized);
-        }
-        toast('success', 'Face Registered', 'Biometric face descriptor saved for front-desk check-in!');
+        await verifyAndEnrollDescriptor(descriptor);
       } else {
         setFaceStatus('not_detected');
         toast('info', 'Photo captured', 'Face not clearly detected. You can keep this photo or retake with better lighting.');
@@ -174,15 +225,21 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
     setStream(null);
     setIsCapturingWebcam(false);
   };
 
   const clearPhoto = () => {
+    stopWebcam();
     onChange('');
     setFileSizeKb(null);
     setImgDims(null);
     setFaceStatus('idle');
+    setDuplicateWarning(null);
     if (onFaceDescriptorGenerated) {
       onFaceDescriptorGenerated('');
     }
@@ -220,6 +277,14 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
               <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
                 <div className="w-16 h-22 rounded-[50%] border-2 border-dashed border-primary/60 animate-pulse" />
               </div>
+              <button
+                type="button"
+                onClick={stopWebcam}
+                className="absolute top-1.5 right-1.5 size-6 rounded-full bg-black/80 hover:bg-destructive text-white flex items-center justify-center transition-colors shadow-sm z-20 cursor-pointer"
+                title="Stop Camera"
+              >
+                <X className="size-3.5" />
+              </button>
             </>
           ) : value ? (
             <img src={value} alt="Member Photo" className="size-full object-cover" />
@@ -290,11 +355,13 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
               <Button
                 type="button"
                 size="sm"
-                variant="outline"
+                variant="destructive"
                 onClick={stopWebcam}
-                className="text-xs h-8"
+                className="text-xs h-8 gap-1.5 font-semibold bg-red-600 hover:bg-red-700 text-white cursor-pointer"
+                title="Stop Camera"
               >
-                Cancel
+                <VideoOff className="size-3.5" />
+                <span>Stop Camera</span>
               </Button>
             </div>
           ) : (
@@ -349,6 +416,13 @@ export const PhotoCaptureUpload: React.FC<PhotoCaptureUploadProps> = ({
               <Badge variant="outline" className="text-[10px] font-mono bg-warn/10 text-warn border-warn/30 flex items-center gap-1">
                 <AlertCircle className="size-3" />
                 No face detected (Retake for Face ID)
+              </Badge>
+            )}
+
+            {duplicateWarning && (
+              <Badge variant="outline" className="text-[10px] font-mono bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40 flex items-center gap-1 font-semibold animate-pulse">
+                <AlertTriangle className="size-3 text-amber-600 shrink-0" />
+                {duplicateWarning}
               </Badge>
             )}
 

@@ -118,11 +118,29 @@ export const ClassesPage: React.FC = () => {
 
   const cancelBookingMutation = useMutation({
     mutationFn: (bookingId: number) => api.cancelClassBooking(bookingId, gym?.id),
-    onSuccess: () => {
+    onSuccess: (res) => {
       refetchBookings();
-      toast('success', 'Booking cancelled');
+      qc.invalidateQueries({ queryKey: ['classSchedules'] });
+      toast('success', res.promotedBookingId ? 'Booking cancelled. Next waitlisted member was auto-promoted!' : 'Booking cancelled');
     },
     onError: (err: any) => toast('error', err.message || 'Failed to cancel'),
+  });
+
+  const updateBookingStatusMutation = useMutation({
+    mutationFn: ({ bookingId, status }: { bookingId: number; status: 'ATTENDED' | 'CANCELLED' | 'NO_SHOW' }) =>
+      api.updateClassBookingStatus(bookingId, status, gym?.id),
+    onSuccess: (res, vars) => {
+      refetchBookings();
+      qc.invalidateQueries({ queryKey: ['classSchedules'] });
+      if (vars.status === 'ATTENDED') {
+        toast('success', 'Attendance recorded for member!');
+      } else if (vars.status === 'NO_SHOW') {
+        toast('info', 'Member marked as no-show');
+      } else {
+        toast('success', res.promotedBookingId ? 'Booking cancelled. Next waitlisted member was auto-promoted!' : 'Booking cancelled');
+      }
+    },
+    onError: (err: any) => toast('error', err.message || 'Failed to update booking status'),
   });
 
   const handleCreateClass = (e: React.FormEvent) => {
@@ -608,9 +626,16 @@ export const ClassesPage: React.FC = () => {
 
             {/* Booked Members List */}
             <div className="flex-1 overflow-y-auto space-y-2 min-h-[160px]">
-              <div className="text-xs font-medium text-(--ink-3) flex items-center justify-between">
-                <span>Enrolled Members ({bookings.length} / {selectedScheduleForBooking.maxCapacity})</span>
-                <span>Status</span>
+              <div className="text-xs font-medium text-(--ink-3) flex items-center justify-between pb-1 border-b border-(--border)">
+                <span>
+                  Confirmed: {bookings.filter((b: any) => b.status === 'BOOKED' || b.status === 'ATTENDED').length} / {selectedScheduleForBooking.maxCapacity}
+                  {bookings.filter((b: any) => b.status === 'WAITLIST').length > 0 && (
+                    <span className="ml-2 text-amber-500 font-semibold">
+                      ({bookings.filter((b: any) => b.status === 'WAITLIST').length} waitlisted)
+                    </span>
+                  )}
+                </span>
+                <span>Actions</span>
               </div>
 
               {bookings.length === 0 ? (
@@ -621,26 +646,68 @@ export const ClassesPage: React.FC = () => {
                 bookings.map((b: any) => (
                   <div
                     key={b.id}
-                    className="p-2.5 rounded-lg border border-(--border) bg-(--surface) flex items-center justify-between text-xs"
+                    className="p-2.5 rounded-lg border border-(--border) bg-(--surface) flex items-center justify-between text-xs gap-2"
                   >
-                    <div>
-                      <div className="font-medium text-(--ink)">{b.memberName || 'Member'}</div>
-                      <div className="text-[11px] text-(--ink-3)">{b.memberCode}</div>
+                    <div className="min-w-0">
+                      <div className="font-medium text-(--ink) truncate">{b.memberName || 'Member'}</div>
+                      <div className="text-[11px] text-(--ink-3) font-mono">{b.memberCode}</div>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 shrink-0">
                       <Badge
-                        variant={b.status === 'BOOKED' ? 'default' : 'outline'}
-                        className="text-[10px]"
+                        variant={
+                          b.status === 'ATTENDED'
+                            ? 'default'
+                            : b.status === 'WAITLIST'
+                            ? 'outline'
+                            : b.status === 'NO_SHOW'
+                            ? 'destructive'
+                            : 'secondary'
+                        }
+                        className={`text-[10px] ${
+                          b.status === 'ATTENDED'
+                            ? 'bg-emerald-600 text-white'
+                            : b.status === 'WAITLIST'
+                            ? 'border-amber-500 text-amber-600'
+                            : ''
+                        }`}
                       >
                         {b.status}
                       </Badge>
-                      <button
-                        onClick={() => cancelBookingMutation.mutate(b.id)}
-                        className="text-(--ink-4) hover:text-red-500 p-1"
-                        title="Cancel Booking"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+
+                      {/* Attendance Actions */}
+                      {b.status !== 'ATTENDED' && b.status !== 'CANCELLED' && (
+                        <button
+                          type="button"
+                          onClick={() => updateBookingStatusMutation.mutate({ bookingId: b.id, status: 'ATTENDED' })}
+                          className="px-2 py-1 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 text-[10px] font-semibold flex items-center gap-1 transition-colors"
+                          title="Check In / Mark Attended"
+                        >
+                          <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                          Check in
+                        </button>
+                      )}
+
+                      {b.status === 'BOOKED' && (
+                        <button
+                          type="button"
+                          onClick={() => updateBookingStatusMutation.mutate({ bookingId: b.id, status: 'NO_SHOW' })}
+                          className="px-1.5 py-1 rounded hover:bg-amber-50 text-amber-700 text-[10px] font-medium transition-colors"
+                          title="Mark No-Show"
+                        >
+                          No-show
+                        </button>
+                      )}
+
+                      {b.status !== 'CANCELLED' && (
+                        <button
+                          type="button"
+                          onClick={() => cancelBookingMutation.mutate(b.id)}
+                          className="text-(--ink-4) hover:text-red-500 p-1 transition-colors"
+                          title="Cancel Booking & Auto-Promote Waitlist"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
                 ))

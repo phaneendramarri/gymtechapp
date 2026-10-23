@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import { Users, Send, Snowflake, UserMinus } from 'lucide-react';
+import { Users, Send, Snowflake, UserMinus, MessageCircle, Phone } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarImage, AvatarFallback } from '@/components/ui/avatar';
@@ -94,12 +94,39 @@ export const MemberTable: React.FC<MemberTableProps> = ({ members, isLoading }) 
     {
       id: 'contact',
       header: 'Contact',
-      cell: (m) => (
-        <div className="flex flex-col text-xs font-mono">
-          <span className="text-foreground">{m.phone}</span>
-          {m.email && <span className="text-muted-foreground truncate">{m.email}</span>}
-        </div>
-      ),
+      cell: (m) => {
+        const cleanPhone = String(m.phone || '').replace(/\D/g, '');
+        return (
+          <div className="flex items-center justify-between gap-2 min-w-[130px]">
+            <div className="flex flex-col text-xs font-mono min-w-0">
+              <span className="text-foreground">{m.phone}</span>
+              {m.email && <span className="text-muted-foreground text-[10px] truncate max-w-[110px]">{m.email}</span>}
+            </div>
+            {cleanPhone && (
+              <div className="flex items-center gap-1 shrink-0">
+                <a
+                  href={`https://wa.me/91${cleanPhone.slice(-10)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 transition-colors"
+                  title="Direct WhatsApp"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                </a>
+                <a
+                  href={`tel:${cleanPhone}`}
+                  className="p-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+                  title="Call"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Phone className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: 'plan',

@@ -16,6 +16,8 @@ import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/shared/Logo';
+import { speakAnnouncement } from '@/lib/speech';
+import { QRScanner } from '@/components/attendance/QRScanner';
 
 export const KioskPage: React.FC = () => {
   const navigate = useNavigate();
@@ -24,6 +26,7 @@ export const KioskPage: React.FC = () => {
   const [inputCode, setInputCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showQrScanner, setShowQrScanner] = useState(false);
   const [checkInResult, setCheckInResult] = useState<{
     status: 'SUCCESS' | 'WARNING' | 'ERROR';
     member?: any;
@@ -99,24 +102,44 @@ export const KioskPage: React.FC = () => {
       if (res && res.member) {
         const memStatus = res.member.membershipStatus || res.member.status || 'ACTIVE';
         const isOk = memStatus === 'ACTIVE';
-        setCheckInResult({
-          status: isOk ? 'SUCCESS' : 'WARNING',
-          member: res.member,
-          message: isOk
-            ? 'Check-in confirmed! Enjoy your workout.'
-            : `Membership is ${memStatus}. Please speak to front desk.`,
-        });
+        const isDuplicate = Boolean(res.alreadyCheckedIn);
+        const memberName = res.member.name || 'Member';
+
+        if (isDuplicate) {
+          setCheckInResult({
+            status: 'WARNING',
+            member: res.member,
+            message: 'Duplicate check-in detected! You have already checked in today.',
+          });
+          speakAnnouncement(`Duplicate! ${memberName} has already checked in today.`);
+        } else if (isOk) {
+          setCheckInResult({
+            status: 'SUCCESS',
+            member: res.member,
+            message: 'Check-in confirmed! Enjoy your workout.',
+          });
+          speakAnnouncement(`Thank you, ${memberName}! Enjoy your workout.`);
+        } else {
+          setCheckInResult({
+            status: 'WARNING',
+            member: res.member,
+            message: `Membership is ${memStatus}. Please speak to front desk.`,
+          });
+          speakAnnouncement(`Access denied! Membership is ${memStatus}. Please speak to front desk.`);
+        }
       } else {
         setCheckInResult({
           status: 'ERROR',
           message: res?.message || 'Check-in failed. Please try again or ask front desk.',
         });
+        speakAnnouncement('Check-in failed. Please try again or ask front desk.');
       }
     } catch (err: any) {
       setCheckInResult({
         status: 'ERROR',
         message: err.message || 'Invalid member code or barcode.',
       });
+      speakAnnouncement(err.message || 'Invalid member code or barcode.');
     } finally {
       setLoading(false);
     }
@@ -177,8 +200,8 @@ export const KioskPage: React.FC = () => {
 
               <div>
                 <h3 className="text-2xl font-bold text-(--ink)">
-                  {checkInResult.member?.firstName || checkInResult.member?.name
-                    ? `Welcome, ${checkInResult.member.firstName || checkInResult.member.name}!`
+                  {checkInResult.member?.name
+                    ? `Welcome, ${checkInResult.member.name}!`
                     : checkInResult.status === 'SUCCESS'
                     ? 'Welcome to the Gym!'
                     : 'Notice'}
@@ -226,6 +249,17 @@ export const KioskPage: React.FC = () => {
               <div className="h-14 bg-(--bg) border border-(--border) rounded-xl flex items-center justify-center text-2xl font-mono tracking-widest text-(--ink) font-bold">
                 {inputCode || <span className="text-(--ink-4) text-base tracking-normal">e.g. 1001</span>}
               </div>
+
+              {/* Scan QR Code button */}
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setShowQrScanner(true)}
+                className="w-full h-10 text-xs font-semibold gap-2 border-border hover:bg-(--surface-hover) cursor-pointer"
+              >
+                <QrCode className="w-4 h-4 text-primary" />
+                <span>Scan Digital QR Pass (Camera)</span>
+              </Button>
 
               {/* Large Touch Keypad (3x4) */}
               <div className="grid grid-cols-3 gap-3">
@@ -282,6 +316,17 @@ export const KioskPage: React.FC = () => {
           <span>Exit Kiosk Mode</span>
         </button>
       </div>
+
+      {/* Optional QR Scanner Modal with Stop Camera Control */}
+      {showQrScanner && (
+        <QRScanner
+          onScan={(code) => {
+            setShowQrScanner(false);
+            submitCheckIn(code);
+          }}
+          onClose={() => setShowQrScanner(false)}
+        />
+      )}
     </div>
   );
 };

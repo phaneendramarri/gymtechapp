@@ -294,16 +294,52 @@ export class ClassRepository {
     return { id: inserted.id, bookingStatus };
   }
 
-  async updateBookingStatus(gymId: number, bookingId: number, status: 'ATTENDED' | 'CANCELLED' | 'NO_SHOW'): Promise<void> {
+  async updateBookingStatus(gymId: number, bookingId: number, status: 'ATTENDED' | 'CANCELLED' | 'NO_SHOW'): Promise<{ id: number; promotedBookingId?: number }> {
     const now = Math.floor(Date.now() / 1000);
-    const result = await this.db
+    const existing = await this.db
+      .select()
+      .from(classBookings)
+      .where(and(eq(classBookings.gymId, gymId), eq(classBookings.id, bookingId)))
+      .get();
+    if (!existing) throw new Error('Booking not found');
+
+    await this.db
       .update(classBookings)
       .set({
         status,
         ...(status === 'ATTENDED' && { attendedAt: now }),
       })
-      .where(and(eq(classBookings.gymId, gymId), eq(classBookings.id, bookingId)))
-      .returning({ id: classBookings.id });
-    if (result.length === 0) throw new Error('Booking not found');
+      .where(and(eq(classBookings.gymId, gymId), eq(classBookings.id, bookingId)));
+
+    let promotedBookingId: number | undefined;
+
+    // Mindbody / Glofox group class waitlist promotion:
+    // If a confirmed BOOKED spot is cancelled, auto-promote the earliest WAITLIST member for this occurrence.
+    if (status === 'CANCELLED' && existing.status === 'BOOKED') {
+      const waitlisted = await this.db
+        .select({ id: classBookings.id })
+        .from(classBookings)
+        .where(
+          and(
+            eq(classBookings.gymId, gymId),
+            eq(classBookings.scheduleId, existing.scheduleId),
+            eq(classBookings.status, 'WAITLIST'),
+            sql`date(${classBookings.bookedAt}, 'unixepoch') = date(${existing.bookedAt}, 'unixepoch')`
+          )
+        )
+        .orderBy(classBookings.id)
+        .limit(1)
+        .get();
+
+      if (waitlisted) {
+        await this.db
+          .update(classBookings)
+          .set({ status: 'BOOKED' })
+          .where(and(eq(classBookings.gymId, gymId), eq(classBookings.id, waitlisted.id)));
+        promotedBookingId = waitlisted.id;
+      }
+    }
+
+    return { id: bookingId, promotedBookingId };
   }
 }

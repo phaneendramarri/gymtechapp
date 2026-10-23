@@ -862,11 +862,20 @@ class ApiClient extends ApiClientBase {
     });
   }
 
-  async cancelClassBooking(id: number, gymId?: number): Promise<{ success: boolean }> {
+  async cancelClassBooking(id: number, gymId?: number): Promise<{ success: boolean; promotedBookingId?: number }> {
     const q = this.gymParams(gymId);
     const qs = q.toString();
-    return this.request<{ success: boolean }>(`/api/classes/bookings/${id}/cancel${qs ? `?${qs}` : ''}`, {
+    return this.request<{ success: boolean; promotedBookingId?: number }>(`/api/classes/bookings/${id}/cancel${qs ? `?${qs}` : ''}`, {
       method: 'POST',
+    });
+  }
+
+  async updateClassBookingStatus(id: number, status: 'ATTENDED' | 'CANCELLED' | 'NO_SHOW', gymId?: number): Promise<{ success: boolean; promotedBookingId?: number }> {
+    const q = this.gymParams(gymId);
+    const qs = q.toString();
+    return this.request<{ success: boolean; promotedBookingId?: number }>(`/api/classes/bookings/${id}${qs ? `?${qs}` : ''}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
     });
   }
 

@@ -61,6 +61,9 @@ export class MemberRepository {
           SELECT 1 FROM attendance a
           WHERE a.memberId = m.id AND a.gymId = m.gymId AND a.checkInTime >= unixepoch() - (7 * 86400)
         )`);
+      } else if (params.status === 'EXPIRING') {
+        whereParts.push(`m.status = 'ACTIVE'`);
+        whereParts.push(`ms.endDate >= unixepoch() AND ms.endDate <= unixepoch() + (7 * 86400)`);
       } else {
         whereParts.push(`m.status = ?`);
         bindings.push(params.status);
@@ -167,6 +170,17 @@ export class MemberRepository {
         whereParts.push(`NOT EXISTS (
           SELECT 1 FROM attendance a
           WHERE a.memberId = members.id AND a.gymId = members.gymId AND a.checkInTime >= unixepoch() - (7 * 86400)
+        )`);
+      } else if (params.status === 'EXPIRING') {
+        whereParts.push(`status = 'ACTIVE'`);
+        whereParts.push(`EXISTS (
+          SELECT 1 FROM memberships ms2
+          WHERE ms2.memberId = members.id
+            AND ms2.gymId = members.gymId
+            AND ms2.status = 'ACTIVE'
+            AND ms2.endDate >= unixepoch()
+            AND ms2.endDate <= unixepoch() + (7 * 86400)
+            AND ms2.deletedAt IS NULL
         )`);
       } else {
         whereParts.push(`status = ?`);

@@ -1,6 +1,5 @@
-// React Component: QR Scanner for Attendance Check-in
 import React, { useState, useRef, useEffect } from 'react';
-import { Camera, X, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { Camera, X, AlertCircle, CheckCircle2, VideoOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -46,10 +45,21 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isProcess
 
   const stopCamera = () => {
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach((track) => {
+        try {
+          track.stop();
+        } catch {}
+      });
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      try {
+        videoRef.current.pause();
+        videoRef.current.srcObject = null;
+      } catch {}
+    }
     setStream(null);
+    setHasPermission(false);
   };
 
   const isDetectingRef = useRef(false);
@@ -153,12 +163,24 @@ export const QRScanner: React.FC<QRScannerProps> = ({ onScan, onClose, isProcess
 
           <div className="mt-4 flex gap-2">
             <Button variant="outline" onClick={onClose} disabled={isProcessing} className="flex-1">
-              Cancel
+              Close
             </Button>
-            <Button onClick={startCamera} disabled={isProcessing || hasPermission === true} className="flex-1">
-              <Camera className="size-4 mr-2" />
-              {hasPermission ? 'Camera Active' : 'Enable Camera'}
-            </Button>
+            {hasPermission ? (
+              <Button
+                variant="destructive"
+                onClick={stopCamera}
+                disabled={isProcessing}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white font-semibold gap-1.5 cursor-pointer"
+              >
+                <VideoOff className="size-4" />
+                Stop Camera
+              </Button>
+            ) : (
+              <Button onClick={startCamera} disabled={isProcessing} className="flex-1 gap-1.5 cursor-pointer">
+                <Camera className="size-4" />
+                Start Camera
+              </Button>
+            )}
           </div>
 
           <form onSubmit={handleManualSubmit} className="mt-3 flex gap-2">

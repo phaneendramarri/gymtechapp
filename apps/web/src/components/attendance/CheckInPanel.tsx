@@ -20,6 +20,7 @@ import {
   Play,
   Clock,
   Volume2,
+  VolumeX,
 } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ import {
   type FaceMatch,
 } from '@/lib/face-api';
 import { QRScanner } from './QRScanner';
+import { speakAnnouncement, isAudioMuted, toggleAudioMute, testAudioAnnouncement } from '@/lib/speech';
 
 interface CheckInPanelProps {
   onCheckIn: (code: string, method?: 'MANUAL' | 'QR' | 'FACE_ID', override?: boolean) => Promise<void>;
@@ -65,6 +67,7 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
 }) => {
   // Mode selection: 'search' (Manual Search), 'qr' (QR Scanner), or 'face' (Face ID Biometric)
   const [activeMode, setActiveMode] = useState<'search' | 'qr' | 'face'>('search');
+  const [audioMuted, setAudioMutedState] = useState(() => isAudioMuted());
 
   // --- MANUAL SEARCH STATE ---
   const [searchQuery, setSearchQuery] = useState('');
@@ -170,8 +173,10 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
       prevCheckedMemberRef.current = key;
       if (lastCheckedMember.alreadyCheckedIn) {
         playDuplicateWarningChime();
+        speakAnnouncement(`Duplicate! ${lastCheckedMember.name} has already checked in today.`);
       } else {
         playSuccessChime();
+        speakAnnouncement(`Thank you, ${lastCheckedMember.name}! Enjoy your workout.`);
       }
     }
   }, [lastCheckedMember]);
@@ -185,6 +190,9 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
     if (prevErrorRef.current !== errorMessage) {
       prevErrorRef.current = errorMessage;
       playDeniedChime();
+      if (errorMessage.toLowerCase().includes('expired') || errorMessage.includes('ACCESS DENIED')) {
+        speakAnnouncement('Access denied! Membership is expired. Please visit the front desk.');
+      }
     }
   }, [errorMessage]);
 
@@ -283,8 +291,18 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
       streamRef.current.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.pause();
+      videoRef.current.srcObject = null;
+    }
     setStream(null);
     setCameraActive(false);
+    setIsMatchingFace(false);
+    setIsScanPaused(true);
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
   };
 
   // Attach stream to video tag
@@ -505,24 +523,58 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
             </CardDescription>
           </div>
 
-          {/* Mode Switcher Tabs */}
-          <Tabs
-            value={activeMode}
-            onValueChange={(val) => setActiveMode(val as 'search' | 'qr' | 'face')}
-            className="shrink-0"
-          >
-            <TabsList className="h-8">
-              <TabsTrigger value="search" className="gap-1.5 text-xs">
-                <Search className="size-3.5" /> Manual
-              </TabsTrigger>
-              <TabsTrigger value="qr" className="gap-1.5 text-xs">
-                <QrCode className="size-3.5" /> QR Scan
-              </TabsTrigger>
-              <TabsTrigger value="face" className="gap-1.5 text-xs">
-                <ScanFace className="size-3.5 text-primary" /> Face ID
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                const next = toggleAudioMute();
+                setAudioMutedState(next);
+                if (!next) {
+                  testAudioAnnouncement();
+                }
+              }}
+              className="h-8 px-2.5 text-xs border-border hover:bg-secondary cursor-pointer"
+              title={audioMuted ? 'Voice announcements muted. Click to enable.' : 'Voice announcements active. Click to mute.'}
+            >
+              {audioMuted ? (
+                <>
+                  <VolumeX className="size-3.5 text-muted-foreground mr-1" />
+                  <span className="text-[11px] font-mono text-muted-foreground">Muted</span>
+                </>
+              ) : (
+                <>
+                  <Volume2 className="size-3.5 text-primary mr-1" />
+                  <span className="text-[11px] font-mono text-primary font-bold">Voice ON</span>
+                </>
+              )}
+            </Button>
+
+            {/* Mode Switcher Tabs */}
+            <Tabs
+              value={activeMode}
+              onValueChange={(val) => {
+                if (val !== 'face') {
+                  handleStopCamera();
+                }
+                setActiveMode(val as 'search' | 'qr' | 'face');
+              }}
+              className="shrink-0"
+            >
+              <TabsList className="h-8">
+                <TabsTrigger value="search" className="gap-1.5 text-xs">
+                  <Search className="size-3.5" /> Manual
+                </TabsTrigger>
+                <TabsTrigger value="qr" className="gap-1.5 text-xs">
+                  <QrCode className="size-3.5" /> QR Scan
+                </TabsTrigger>
+                <TabsTrigger value="face" className="gap-1.5 text-xs">
+                  <ScanFace className="size-3.5 text-primary" /> Face ID
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
+          </div>
         </div>
       </CardHeader>
 
@@ -564,34 +616,65 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
           </div>
         )}
 
-        {/* Success / Welcome Banner */}
+        {/* Success / Duplicate Push Banner */}
         {lastCheckedMember && (
           <div
             className={`p-4 rounded-xl border flex items-start gap-3.5 animate-in fade-in slide-in-from-top-2 duration-300 ${
               lastCheckedMember.alreadyCheckedIn
-                ? 'bg-warn/10 border-warn/30 text-foreground'
+                ? 'bg-amber-500/15 border-amber-500/50 text-foreground shadow-[0_0_15px_rgba(245,158,11,0.2)]'
                 : 'bg-ok/10 border-ok/30 text-foreground'
             }`}
           >
             <div
-              className={`size-10 rounded-full flex items-center justify-center font-bold text-white shrink-0 ${
-                lastCheckedMember.alreadyCheckedIn ? 'bg-warn' : 'bg-ok'
+              className={`size-11 rounded-full flex items-center justify-center font-bold text-white shrink-0 ${
+                lastCheckedMember.alreadyCheckedIn ? 'bg-amber-500 shadow-sm' : 'bg-ok'
               }`}
             >
-              <CheckCircle2 className="size-5" />
+              {lastCheckedMember.alreadyCheckedIn ? (
+                <AlertCircle className="size-6 text-white" />
+              ) : (
+                <CheckCircle2 className="size-6" />
+              )}
             </div>
             <div className="flex flex-col min-w-0 flex-1">
-              <div className="flex items-center justify-between">
-                <span className="font-display font-bold text-sm text-foreground">
-                  {lastCheckedMember.alreadyCheckedIn ? 'Already Checked In!' : `Welcome, ${lastCheckedMember.name}!`}
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span className="font-display font-bold text-sm text-foreground flex items-center gap-2">
+                  {lastCheckedMember.alreadyCheckedIn ? (
+                    <>
+                      <span className="text-amber-600 dark:text-amber-400 font-extrabold tracking-wide">
+                        ⚠️ DUPLICATE CHECK-IN DETECTED
+                      </span>
+                      <span className="text-xs font-semibold text-muted-foreground">({lastCheckedMember.name})</span>
+                    </>
+                  ) : (
+                    `Welcome, ${lastCheckedMember.name}!`
+                  )}
                 </span>
-                <Badge variant={lastCheckedMember.alreadyCheckedIn ? 'outline' : 'default'} className="text-[10px]">
-                  {lastCheckedMember.alreadyCheckedIn ? 'Duplicate' : 'Verified'}
+                <Badge
+                  variant={lastCheckedMember.alreadyCheckedIn ? 'destructive' : 'default'}
+                  className={`text-[10px] font-bold uppercase tracking-wider ${
+                    lastCheckedMember.alreadyCheckedIn
+                      ? 'bg-amber-500 hover:bg-amber-600 text-white border-transparent'
+                      : ''
+                  }`}
+                >
+                  {lastCheckedMember.alreadyCheckedIn ? 'Duplicate Push' : 'Verified'}
                 </Badge>
               </div>
-              <span className="text-xs font-mono text-muted-foreground mt-0.5">
-                Code: {lastCheckedMember.code} {lastCheckedMember.plan ? `· Plan: ${lastCheckedMember.plan}` : ''} · Logged at {lastCheckedMember.checkInTime}
-              </span>
+              <p className="text-xs text-muted-foreground mt-1">
+                {lastCheckedMember.alreadyCheckedIn ? (
+                  <>
+                    <strong className="text-foreground">{lastCheckedMember.name}</strong> has already checked in today at{' '}
+                    <span className="font-mono font-semibold text-foreground">{lastCheckedMember.checkInTime}</span>. Duplicate check-in push was recorded and flagged.
+                  </>
+                ) : (
+                  <>
+                    Code: <span className="font-mono font-semibold text-foreground">{lastCheckedMember.code}</span>
+                    {lastCheckedMember.plan ? ` · Plan: ${lastCheckedMember.plan}` : ''} · Logged at{' '}
+                    <span className="font-mono font-semibold text-foreground">{lastCheckedMember.checkInTime}</span>
+                  </>
+                )}
+              </p>
             </div>
           </div>
         )}
@@ -873,9 +956,9 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                           type="button"
                           size="sm"
                           onClick={handleStopCamera}
-                          className="h-7 px-2.5 text-[11px] font-bold bg-red-600 hover:bg-red-500 text-white gap-1 shadow-sm cursor-pointer"
+                          className="h-8 px-3 text-xs font-bold bg-destructive hover:bg-destructive/90 text-white gap-1.5 shadow-md cursor-pointer border border-white/20"
                         >
-                          <VideoOff className="size-3" /> Stop Camera
+                          <VideoOff className="size-3.5" /> Stop Camera
                         </Button>
                       </div>
                     </div>
@@ -1118,13 +1201,12 @@ export const CheckInPanel: React.FC<CheckInPanelProps> = ({
                   <>
                     <Button
                       type="button"
-                      variant="outline"
                       size="sm"
                       onClick={handleStopCamera}
-                      className="h-8 text-xs font-semibold gap-1.5 border-destructive/40 text-destructive hover:bg-destructive/10 cursor-pointer"
+                      className="h-9 px-3.5 text-xs font-bold gap-1.5 bg-destructive hover:bg-destructive/90 text-white shadow-sm cursor-pointer"
                     >
-                      <VideoOff className="size-3.5" />
-                      Stop Camera
+                      <VideoOff className="size-4" />
+                      Stop Face Detection
                     </Button>
 
                     <Button

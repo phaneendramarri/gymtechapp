@@ -154,8 +154,10 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
 
         const firstName = getVal(['firstname', 'first', 'fname', 'name']);
         const lastName = getVal(['lastname', 'last', 'lname', 'surname']);
-        const phone = getVal(['phone', 'mobile', 'contact', 'tel']);
-        const email = getVal(['email', 'mail']);
+        const rawPhone = getVal(['phone', 'mobile', 'contact', 'tel']);
+        const cleanPhone = rawPhone.replace(/\D/g, '').slice(-10);
+        const rawEmail = getVal(['email', 'mail']);
+        const cleanEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(rawEmail) ? rawEmail : '';
         const genderRaw = getVal(['gender', 'sex']).toUpperCase();
         const gender = genderRaw.startsWith('F') ? 'FEMALE' : genderRaw.startsWith('O') ? 'OTHER' : 'MALE';
         const planName = getVal(['plan', 'package', 'membership']);
@@ -166,12 +168,12 @@ export const ExcelMigrationDialog: React.FC<ExcelMigrationDialogProps> = ({ open
         const paidPaise = Math.round(paidRupees * 100);
         const duePaise = Math.round(dueRupees * 100);
 
-        if (firstName && phone) {
+        if (firstName && cleanPhone.length === 10) {
           rows.push({
             firstName,
             lastName,
-            phone,
-            email,
+            phone: cleanPhone,
+            email: cleanEmail,
             gender,
             planName,
             startDate,
